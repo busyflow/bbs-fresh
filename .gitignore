@@ -43,6 +43,7 @@ replay_*.log
 
 # local deployment helper
 deploy-v*.ps1
+logs/
 
 ik_test/*
 .claude/settings.local.json
