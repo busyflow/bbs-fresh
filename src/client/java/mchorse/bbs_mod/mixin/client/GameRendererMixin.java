@@ -5,13 +5,17 @@ import mchorse.bbs_mod.camera.controller.CameraController;
 import mchorse.bbs_mod.camera.controller.ICameraController;
 import mchorse.bbs_mod.camera.controller.PlayCameraController;
 import mchorse.bbs_mod.client.BBSRendering;
+import mchorse.bbs_mod.client.FirstPersonReplayHands;
 import mchorse.bbs_mod.items.GunZoom;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.option.Perspective;
+import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.math.RotationAxis;
 import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -20,9 +24,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(GameRenderer.class)
 public class GameRendererMixin
 {
+    @Shadow
+    private Camera camera;
+
+    @Shadow
+    private void renderHand(MatrixStack matrices, Camera camera, float tickDelta)
+    {}
+
+    private boolean bbs$renderedReplayHands;
+    private boolean bbs$forcingReplayHands;
+
     @Inject(method = "renderWorld", at = @At("HEAD"))
     public void onRenderWorld(float tickDelta, long limitTime, MatrixStack matrices, CallbackInfo info)
     {
+        this.bbs$renderedReplayHands = false;
+
         CameraController controller = BBSModClient.getCameraController();
 
         controller.setup(controller.camera, tickDelta);
@@ -80,13 +96,53 @@ public class GameRendererMixin
     }
 
     @Inject(method = "renderHand", at = @At("HEAD"), cancellable = true)
-    public void onRenderHand(CallbackInfo info)
+    public void onRenderHand(MatrixStack matrices, Camera camera, float tickDelta, CallbackInfo info)
     {
+        if (FirstPersonReplayHands.begin(tickDelta))
+        {
+            this.bbs$renderedReplayHands = FirstPersonReplayHands.canVanillaRenderHands();
+            return;
+        }
+
         ICameraController current = BBSModClient.getCameraController().getCurrent();
 
         if (current instanceof PlayCameraController)
         {
             info.cancel();
+        }
+    }
+
+    @Inject(method = "renderHand", at = @At("TAIL"))
+    public void onRenderHandTail(MatrixStack matrices, Camera camera, float tickDelta, CallbackInfo info)
+    {
+        FirstPersonReplayHands.end();
+    }
+
+    private void bbs$renderEditorReplayHands(MatrixStack matrices, float tickDelta)
+    {
+        if (this.bbs$renderedReplayHands || this.bbs$forcingReplayHands || !FirstPersonReplayHands.shouldRenderEditorHands(tickDelta))
+        {
+            return;
+        }
+
+        this.bbs$forcingReplayHands = true;
+
+        MinecraftClient mc = MinecraftClient.getInstance();
+        Perspective previousPerspective = mc.options.getPerspective();
+        boolean previousHudHidden = mc.options.hudHidden;
+
+        try
+        {
+            mc.options.setPerspective(Perspective.FIRST_PERSON);
+            mc.options.hudHidden = false;
+            this.renderHand(matrices, this.camera, tickDelta);
+            this.bbs$renderedReplayHands = true;
+        }
+        finally
+        {
+            mc.options.setPerspective(previousPerspective);
+            mc.options.hudHidden = previousHudHidden;
+            this.bbs$forcingReplayHands = false;
         }
     }
 
@@ -97,8 +153,9 @@ public class GameRendererMixin
     }
 
     @Inject(at = @At("RETURN"), method = "renderWorld")
-    private void onWorldRenderEnd(CallbackInfo callbackInfo)
+    private void onWorldRenderEnd(float tickDelta, long limitTime, MatrixStack matrices, CallbackInfo callbackInfo)
     {
+        this.bbs$renderEditorReplayHands(matrices, tickDelta);
         BBSRendering.onWorldRenderEnd();
     }
 

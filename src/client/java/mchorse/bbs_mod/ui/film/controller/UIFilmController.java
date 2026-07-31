@@ -92,6 +92,8 @@ import net.minecraft.client.Mouse;
 import net.minecraft.client.gl.GlUniform;
 import net.minecraft.client.gl.ShaderProgram;
 import net.minecraft.client.option.GameOptions;
+import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.item.ItemStack;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.hit.HitResult;
@@ -105,6 +107,12 @@ public class UIFilmController extends UIElement implements GizmoViewport
     public static final int CAMERA_MODE_FIRST_PERSON = 3;
     public static final int CAMERA_MODE_THIRD_PERSON_BACK = 4;
     public static final int CAMERA_MODE_THIRD_PERSON_FRONT = 5;
+    public static final int CAMERA_MODE_HANDS_ON_FIRST_PERSON = 6;
+    private static final int POV_MODE_COUNT = 7;
+    private static final int HOTBAR_SLOTS = 9;
+    private static final int HOTBAR_SLOT_SIZE = 22;
+    private static final int HOTBAR_SLOT_GAP = 2;
+    private static final int HOTBAR_OFFHAND_GAP = 8;
     private static final int REPLAY_STENCIL_OFFSET = Gizmo.STENCIL_MAX + 1;
 
     public final UIFilmPanel panel;
@@ -355,7 +363,14 @@ public class UIFilmController extends UIElement implements GizmoViewport
 
     public int getPovMode()
     {
-        return this.pov % 6;
+        return Math.floorMod(this.pov, POV_MODE_COUNT);
+    }
+
+    public boolean isCurrentReplayFirstPerson()
+    {
+        int mode = this.getPovMode();
+
+        return mode == CAMERA_MODE_FIRST_PERSON || mode == CAMERA_MODE_HANDS_ON_FIRST_PERSON;
     }
 
     public void setPov(int pov)
@@ -892,6 +907,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
         else if (povMode == UIFilmController.CAMERA_MODE_FIRST_PERSON) return Icons.VISIBLE;
         else if (povMode == UIFilmController.CAMERA_MODE_THIRD_PERSON_BACK) return Icons.ARROW_UP;
         else if (povMode == UIFilmController.CAMERA_MODE_THIRD_PERSON_FRONT) return Icons.ARROW_DOWN;
+        else if (povMode == UIFilmController.CAMERA_MODE_HANDS_ON_FIRST_PERSON) return Icons.USER;
 
         return Icons.CAMERA;
     }
@@ -930,6 +946,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
             menu.action(this.getOrbitModeIcon(3), UIKeys.FILM_REPLAY_ORBIT_FIRST_PERSON, this.pov == CAMERA_MODE_FIRST_PERSON, () -> this.setPov(3));
             menu.action(this.getOrbitModeIcon(4), UIKeys.FILM_REPLAY_ORBIT_THIRD_PERSON_BACK, this.pov == CAMERA_MODE_THIRD_PERSON_BACK, () -> this.setPov(4));
             menu.action(this.getOrbitModeIcon(5), UIKeys.FILM_REPLAY_ORBIT_THIRD_PERSON_FRONT, this.pov == CAMERA_MODE_THIRD_PERSON_FRONT, () -> this.setPov(5));
+            menu.action(this.getOrbitModeIcon(CAMERA_MODE_HANDS_ON_FIRST_PERSON), UIKeys.FILM_REPLAY_ORBIT_HANDS_ON_FIRST_PERSON, this.pov == CAMERA_MODE_HANDS_ON_FIRST_PERSON, () -> this.setPov(CAMERA_MODE_HANDS_ON_FIRST_PERSON));
         });
     }
 
@@ -1013,7 +1030,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
         rotation.x = MathUtils.toRad(rotation.x);
         rotation.y = MathUtils.toRad(rotation.y);
 
-        if (mode == CAMERA_MODE_FIRST_PERSON)
+        if (mode == CAMERA_MODE_FIRST_PERSON || mode == CAMERA_MODE_HANDS_ON_FIRST_PERSON)
         {
             camera.position.set(position);
             camera.rotation.set(rotation.x, rotation.y + MathUtils.PI, 0F);
@@ -1278,6 +1295,8 @@ public class UIFilmController extends UIElement implements GizmoViewport
             }
         }
 
+        this.renderHandsOnHotbar(context, area);
+
         /* Render recording overlay */
         if (this.recording)
         {
@@ -1354,6 +1373,74 @@ public class UIFilmController extends UIElement implements GizmoViewport
         this.renderPickingPreview(context, area);
 
         this.orbit.handleOrbiting(context);
+    }
+
+    private void renderHandsOnHotbar(UIContext context, Area area)
+    {
+        if (this.getPovMode() != CAMERA_MODE_HANDS_ON_FIRST_PERSON)
+        {
+            return;
+        }
+
+        MinecraftClient mc = MinecraftClient.getInstance();
+        Replay replay = this.getReplay();
+        IEntity entity = this.getCurrentEntity();
+
+        if (mc.player == null || replay == null || entity == null)
+        {
+            return;
+        }
+
+        PlayerInventory inventory = mc.player.getInventory();
+        float tick = replay.getTick(this.panel.getCursor());
+        int selectedSlot = replay.keyframes.selectedSlot.isEmpty()
+            ? entity.getSelectedSlot()
+            : replay.keyframes.selectedSlot.interpolate(tick, entity.getSelectedSlot());
+        int contentWidth = HOTBAR_SLOTS * HOTBAR_SLOT_SIZE + (HOTBAR_SLOTS - 1) * HOTBAR_SLOT_GAP;
+        int startX = area.x + (area.w - contentWidth) / 2;
+        int y = area.y + 10;
+        ItemStack offhand = replay.keyframes.offHand.isEmpty()
+            ? entity.getEquipmentStack(net.minecraft.entity.EquipmentSlot.OFFHAND)
+            : replay.keyframes.offHand.interpolate(tick, ItemStack.EMPTY);
+
+        selectedSlot = Math.max(0, Math.min(HOTBAR_SLOTS - 1, selectedSlot));
+        this.renderHandsOnItemSlot(context, startX - HOTBAR_SLOT_SIZE - HOTBAR_OFFHAND_GAP, y, offhand, Colors.A100 | Colors.CYAN);
+
+        for (int i = 0; i < HOTBAR_SLOTS; i++)
+        {
+            ItemStack stack = CollectionUtils.getSafe(this.panel.getData().inventory.getStacks(), i, inventory.getStack(i));
+
+            if (i == selectedSlot)
+            {
+                stack = replay.keyframes.mainHand.isEmpty()
+                    ? entity.getEquipmentStack(net.minecraft.entity.EquipmentSlot.MAINHAND)
+                    : replay.keyframes.mainHand.interpolate(tick, stack);
+            }
+
+            int x = startX + i * (HOTBAR_SLOT_SIZE + HOTBAR_SLOT_GAP);
+            int border = i == selectedSlot ? Colors.A100 | BBSSettings.primaryColor.get() : Colors.LIGHTER_GRAY;
+
+            this.renderHandsOnItemSlot(context, x, y, stack, border);
+        }
+    }
+
+    private void renderHandsOnItemSlot(UIContext context, int x, int y, ItemStack stack, int border)
+    {
+        context.batcher.box(x, y, x + HOTBAR_SLOT_SIZE, y + HOTBAR_SLOT_SIZE, border);
+        context.batcher.box(x + 1, y + 1, x + HOTBAR_SLOT_SIZE - 1, y + HOTBAR_SLOT_SIZE - 1, Colors.A75);
+
+        if (stack != null && !stack.isEmpty())
+        {
+            MatrixStack matrices = context.batcher.getContext().getMatrices();
+            var consumers = FormUtilsClient.getProvider();
+
+            matrices.push();
+            consumers.setUI(true);
+            context.batcher.getContext().drawItem(stack, x + 3, y + 3);
+            context.batcher.getContext().drawItemInSlot(context.batcher.getFont().getRenderer(), stack, x + 3, y + 3);
+            consumers.setUI(false);
+            matrices.pop();
+        }
     }
 
     private void renderPickingPreview(UIContext context, Area area)
@@ -1635,7 +1722,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
 
         IEntity entity = this.getCurrentEntity();
 
-        if ((entity == null || (this.pov == CAMERA_MODE_FIRST_PERSON && entity == this.getCurrentEntity())) && !altPressed)
+        if ((entity == null || (this.isCurrentReplayFirstPerson() && entity == this.getCurrentEntity())) && !altPressed)
         {
             return;
         }
