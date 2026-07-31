@@ -106,6 +106,12 @@ public class Morph
         this.entity.getMcEntity().calculateDimensions();
     }
 
+    /** Temporarily swaps only the rendered form without firing morph lifecycle hooks. */
+    public void setFormForRender(Form form)
+    {
+        this.form = form;
+    }
+
     public void update()
     {
         this.entity.update();

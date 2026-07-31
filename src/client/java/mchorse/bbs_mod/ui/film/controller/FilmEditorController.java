@@ -166,7 +166,7 @@ public class FilmEditorController extends BaseFilmController
     protected boolean canUpdate(int i, Replay replay, IEntity entity, UpdateMode updateMode)
     {
         return super.canUpdate(i, replay, entity, updateMode)
-            || this.controller.getPovMode() != UIFilmController.CAMERA_MODE_FIRST_PERSON
+            || !this.controller.isCurrentReplayFirstPerson()
             || !this.isCurrent(entity)
             || !this.controller.orbit.enabled;
     }
@@ -176,7 +176,7 @@ public class FilmEditorController extends BaseFilmController
     {
         boolean current = this.isCurrent(entity);
 
-        if (!(this.controller.getPovMode() == UIFilmController.CAMERA_MODE_FIRST_PERSON && current))
+        if (!(this.controller.isCurrentReplayFirstPerson() && current))
         {
             super.renderEntity(context, replay, entity);
         }
