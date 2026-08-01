@@ -1950,11 +1950,16 @@ public class UIClips extends UIElement
             if (visibleClipArea.w > 0 && visibleClipArea.h > 0)
             {
                 renderer.renderClip(context, this, clip, clipArea, visibleClipArea, selected, this.delegate.getClip() == clip);
+
+                /* Some specialized renderers temporarily manage their own scissor.
+                 * Restore the timeline boundary before drawing hover UI and handles. */
+                batcher.clip(this.vertical.area.x, rulerBottom, this.vertical.area.ex(), this.vertical.area.ey(), context);
             }
 
-            if (!selected && !this.grabbing && !this.selecting && clipArea.isInside(context))
+            if (!selected && !this.grabbing && !this.selecting && clipArea.isInside(context)
+                && visibleClipArea.w > 0 && visibleClipArea.h > 0)
             {
-                context.batcher.outline(clipArea.x, clipArea.y, clipArea.ex(), clipArea.ey(), Colors.WHITE);
+                context.batcher.outline(visibleClipArea.x, visibleClipArea.y, visibleClipArea.ex(), visibleClipArea.ey(), Colors.WHITE);
             }
 
             int clipHandle = this.getClipHandle(clip, context, h);
