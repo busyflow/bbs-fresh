@@ -25,6 +25,7 @@ import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.forms.FormCategories;
 import mchorse.bbs_mod.forms.categories.UserFormCategory;
 import mchorse.bbs_mod.forms.forms.Form;
+import mchorse.bbs_mod.forms.renderers.LabelFormRenderer;
 import mchorse.bbs_mod.forms.structure.BakedStructure;
 import mchorse.bbs_mod.graphics.Draw;
 import mchorse.bbs_mod.graphics.FramebufferManager;
@@ -535,6 +536,8 @@ public class BBSModClient implements ClientModInitializer
                     stack.pop();
                 }
             }
+
+            LabelFormRenderer.flushDeferredBackgrounds();
         });
 
         WorldRenderEvents.LAST.register((context) ->
