@@ -2697,6 +2697,8 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
     @Override
     protected void fillData(Film data)
     {
+        this.controller.stopReplayShiftGizmo();
+
         if (this.data != null)
         {
             this.disableContext();

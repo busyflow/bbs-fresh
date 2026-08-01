@@ -65,6 +65,7 @@ public class UIFilmPreview extends UIElement
 
     public UIIcon onionSkin;
     public UIIcon motionPath;
+    public UIIcon shiftReplay;
     public UIIcon plause;
     public UIIcon teleport;
     public UIIcon flight;
@@ -86,6 +87,8 @@ public class UIFilmPreview extends UIElement
         this.onionSkin.tooltip(UIKeys.FILM_CONTROLLER_ONION_SKIN_TITLE);
         this.motionPath = new UIIcon(Icons.CURVES, (b) -> this.openMotionPath());
         this.motionPath.tooltip(UIKeys.FILM_CONTROLLER_MOTION_PATH_TITLE);
+        this.shiftReplay = new UIIcon(Icons.SHIFT_TO, (b) -> this.panel.getController().toggleReplayShiftGizmo());
+        this.shiftReplay.tooltip(UIKeys.FILM_CONTROLLER_REPLAY_SHIFT_GIZMO);
         this.plause = new UIIcon(() -> this.panel.isRunning() ? Icons.PAUSE : Icons.PLAY, (b) -> this.panel.togglePlayback());
         this.plause.tooltip(UIKeys.CAMERA_EDITOR_KEYS_EDITOR_PLAUSE);
         this.plause.context((menu) ->
@@ -243,7 +246,7 @@ public class UIFilmPreview extends UIElement
             });
         });
 
-        this.icons.add(this.onionSkin, this.motionPath, this.plause, this.teleport, this.flight, this.control, this.perspective, this.recordReplay, this.recordVideo);
+        this.icons.add(this.onionSkin, this.motionPath, this.shiftReplay, this.plause, this.teleport, this.flight, this.control, this.perspective, this.recordReplay, this.recordVideo);
         this.add(this.icons);
     }
 
@@ -350,6 +353,12 @@ public class UIFilmPreview extends UIElement
     @Override
     public void render(UIContext context)
     {
+        UIFilmController controller = this.panel.getController();
+
+        this.shiftReplay.setEnabled(controller.canToggleReplayShiftGizmo() || controller.isReplayShiftGizmo());
+        this.shiftReplay.active(controller.isReplayShiftGizmo());
+        this.shiftReplay.activeColor = BBSSettings.primaryColor(0);
+
         Texture texture = BBSRendering.getTexture();
         Area area = this.getViewport();
         Camera camera = this.panel.getCamera();
