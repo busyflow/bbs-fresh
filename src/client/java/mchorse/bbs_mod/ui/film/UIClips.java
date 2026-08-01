@@ -1189,6 +1189,13 @@ public class UIClips extends UIElement
     @Override
     protected boolean subMouseClicked(UIContext context)
     {
+        /* A docked editor may keep this timeline's old bounds while sitting on top
+         * of it. Invisible timelines must never consume clicks through that editor. */
+        if (!this.canBeSeen())
+        {
+            return false;
+        }
+
         if (this.vertical.mouseClicked(context))
         {
             return true;

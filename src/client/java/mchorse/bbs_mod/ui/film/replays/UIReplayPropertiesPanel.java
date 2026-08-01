@@ -18,6 +18,7 @@ import mchorse.bbs_mod.ui.framework.elements.UIElement;
 import mchorse.bbs_mod.ui.framework.elements.UISection;
 import mchorse.bbs_mod.ui.framework.elements.buttons.UIButton;
 import mchorse.bbs_mod.ui.framework.elements.buttons.UIToggle;
+import mchorse.bbs_mod.ui.framework.elements.utils.EventPropagation;
 import mchorse.bbs_mod.ui.framework.elements.input.UITrackpad;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UIAnchorKeyframeFactory;
 import mchorse.bbs_mod.ui.framework.elements.input.text.UITextbox;
@@ -91,6 +92,8 @@ public class UIReplayPropertiesPanel extends UIElement
     public UIReplayPropertiesPanel(UIFilmPanel filmPanel)
     {
         this.filmPanel = filmPanel;
+        /* This dock owns its blank area too, so clicks cannot reach timelines below it. */
+        this.eventPropagataion(EventPropagation.BLOCK_INSIDE);
 
         this.pickEdit = new UINestedEdit((editing) ->
         {

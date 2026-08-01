@@ -11,6 +11,7 @@ import mchorse.bbs_mod.settings.values.numeric.ValueInt;
 import mchorse.bbs_mod.ui.film.clips.UIClip;
 import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.ui.framework.elements.UIElement;
+import mchorse.bbs_mod.ui.framework.elements.utils.EventPropagation;
 import mchorse.bbs_mod.utils.DataPath;
 import mchorse.bbs_mod.utils.clips.Clip;
 import mchorse.bbs_mod.utils.clips.Clips;
@@ -171,6 +172,8 @@ public class UIClipsPanel extends UIElement implements IUIClipsDelegate
 
             this.panel = UIClip.createPanel(clip, this);
             this.panel.setUndoId("clip_panel");
+            /* The clip settings area must not leak clicks into a docked timeline. */
+            this.panel.eventPropagataion(EventPropagation.BLOCK_INSIDE);
 
             if (this.target == null)
             {

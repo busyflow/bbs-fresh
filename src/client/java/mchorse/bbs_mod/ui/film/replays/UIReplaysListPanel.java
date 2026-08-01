@@ -8,6 +8,7 @@ import mchorse.bbs_mod.ui.film.UIFilmPanel;
 import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.ui.framework.elements.UIElement;
 import mchorse.bbs_mod.ui.framework.elements.buttons.UIIcon;
+import mchorse.bbs_mod.ui.framework.elements.utils.EventPropagation;
 import mchorse.bbs_mod.ui.utils.UIDataUtils;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
 import mchorse.bbs_mod.ui.utils.Area;
@@ -44,6 +45,8 @@ public class UIReplaysListPanel extends UIElement
     public UIReplaysListPanel(UIFilmPanel panel, Consumer<List<Replay>> callback, Consumer<Form> formConsumer)
     {
         this.filmPanel = panel;
+        /* Block the timeline behind the empty portion of the replay list dock. */
+        this.eventPropagataion(EventPropagation.BLOCK_INSIDE);
         this.replays = new UIReplayList(callback, formConsumer, panel);
 
         this.addReplay = new UIIcon(Icons.ADD, (b) -> this.replays.addReplay());
