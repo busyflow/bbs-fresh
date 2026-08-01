@@ -1949,7 +1949,7 @@ public class UIClips extends UIElement
 
             if (visibleClipArea.w > 0 && visibleClipArea.h > 0)
             {
-                renderer.renderClip(context, this, clip, visibleClipArea, selected, this.delegate.getClip() == clip);
+                renderer.renderClip(context, this, clip, clipArea, visibleClipArea, selected, this.delegate.getClip() == clip);
             }
 
             if (!selected && !this.grabbing && !this.selecting && clipArea.isInside(context))
