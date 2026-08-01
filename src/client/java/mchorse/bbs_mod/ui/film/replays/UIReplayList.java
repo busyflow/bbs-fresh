@@ -166,18 +166,6 @@ public class UIReplayList extends UIList<ReplayListEntry>
                 menu.action(Icons.TRASH, UIKeys.SCENE_REPLAYS_CONTEXT_REMOVE_CATEGORY, () -> this.removeReplayCategory(cat));
             }
 
-            if (film != null)
-            {
-                int duration = film.camera.calculateDuration();
-
-                if (duration > 0)
-                {
-                    menu.action(Icons.PLAY, UIKeys.SCENE_REPLAYS_CONTEXT_FROM_CAMERA, () -> this.fromCamera(duration));
-                }
-            }
-
-            menu.action(Icons.BLOCK, UIKeys.SCENE_REPLAYS_CONTEXT_FROM_MODEL_BLOCK, this::fromModelBlock);
-
             if (this.hasReplaySelection())
             {
                 boolean shift = Window.isShiftPressed();
@@ -187,9 +175,6 @@ public class UIReplayList extends UIList<ReplayListEntry>
                 {
                     menu.action(Icons.SHIFT_TO, UIKeys.SCENE_REPLAYS_CONTEXT_MOVE_TO_CATEGORY, this::openMoveToCategoryContextMenu);
                 }
-
-                menu.action(Icons.ALL_DIRECTIONS, UIKeys.SCENE_REPLAYS_CONTEXT_PROCESS, this::processReplays);
-                menu.action(Icons.TIME, UIKeys.SCENE_REPLAYS_CONTEXT_OFFSET_TIME, this::offsetTimeReplays);
 
                 if (this.getSelectedReplays().size() > 1)
                 {
@@ -1088,7 +1073,7 @@ public class UIReplayList extends UIList<ReplayListEntry>
         return textures;
     }
 
-    private void processReplays()
+    public void processReplays()
     {
         Replay first = this.getSelectedReplayFirst();
 
@@ -1781,7 +1766,7 @@ public class UIReplayList extends UIList<ReplayListEntry>
         }
     }
 
-    private void offsetTimeReplays()
+    public void offsetTimeReplays()
     {
         Replay first = this.getSelectedReplayFirst();
 
@@ -1976,6 +1961,17 @@ public class UIReplayList extends UIList<ReplayListEntry>
         this.addReplay(position, camera.rotation.x, camera.rotation.y + MathUtils.PI);
     }
 
+    public void fromCamera()
+    {
+        Film film = this.panel.getData();
+        int duration = film == null ? 0 : film.camera.calculateDuration();
+
+        if (duration > 0)
+        {
+            this.fromCamera(duration);
+        }
+    }
+
     private void fromCamera(int duration)
     {
         Position position = new Position();
@@ -2021,7 +2017,7 @@ public class UIReplayList extends UIList<ReplayListEntry>
         this.openFormEditor(replay.form, false, null);
     }
 
-    private void fromModelBlock()
+    public void fromModelBlock()
     {
         ArrayList<ModelBlockEntity> modelBlocks = new ArrayList<>(BBSRendering.capturedModelBlocks);
         UISearchList<String> search = new UISearchList<>(new UIStringList(null));

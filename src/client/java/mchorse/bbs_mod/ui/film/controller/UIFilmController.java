@@ -55,6 +55,7 @@ import mchorse.bbs_mod.ui.UIKeys;
 import mchorse.bbs_mod.ui.film.UIFilmPanel;
 import mchorse.bbs_mod.ui.film.replays.UIRecordOverlayPanel;
 import mchorse.bbs_mod.ui.film.replays.UIReplayList;
+import mchorse.bbs_mod.ui.film.replays.ReplayGizmoTransform;
 import mchorse.bbs_mod.ui.film.replays.UIReplaysEditor;
 import mchorse.bbs_mod.ui.film.replays.UIReplaysEditorUtils;
 import mchorse.bbs_mod.ui.framework.UIBaseMenu;
@@ -70,6 +71,7 @@ import mchorse.bbs_mod.ui.framework.elements.utils.FontRenderer;
 import mchorse.bbs_mod.ui.framework.elements.utils.StencilMap;
 import mchorse.bbs_mod.ui.utils.Area;
 import mchorse.bbs_mod.ui.utils.Gizmo;
+import mchorse.bbs_mod.ui.utils.GizmoDrag;
 import mchorse.bbs_mod.ui.utils.GizmoInteraction;
 import mchorse.bbs_mod.ui.utils.GizmoViewport;
 import mchorse.bbs_mod.ui.utils.StencilFormFramebuffer;
@@ -86,6 +88,8 @@ import mchorse.bbs_mod.utils.RayTracing;
 import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.joml.Matrices;
 import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
+import mchorse.bbs_mod.utils.pose.Transform;
+import mchorse.bbs_mod.settings.values.IValueListener;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.Mouse;
@@ -141,6 +145,8 @@ public class UIFilmController extends UIElement implements GizmoViewport
     private StencilFormFramebuffer stencil = new StencilFormFramebuffer();
     private StencilMap stencilMap = new StencilMap();
     private final GizmoInteraction gizmo = new GizmoInteraction(this);
+    private final UIPropTransform replayShiftTransform = new UIPropTransform();
+    private ReplayGizmoTransform replayShift;
 
     public final OrbitFilmCameraController orbit = new OrbitFilmCameraController(this);
     private int pov;
@@ -152,6 +158,13 @@ public class UIFilmController extends UIElement implements GizmoViewport
     {
         this.panel = panel;
         this.setPov(BBSSettings.editorCameraMode.get());
+        this.replayShiftTransform.callbacks(
+            this::beginReplayShiftChange,
+            this::applyReplayShiftChange,
+            this::finishReplayShiftGesture
+        );
+        this.replayShiftTransform.setVisible(false);
+        this.add(this.replayShiftTransform);
 
         IKey category = UIKeys.FILM_CONTROLLER_KEYS_CATEGORY;
 
@@ -766,6 +779,13 @@ public class UIFilmController extends UIElement implements GizmoViewport
     @Override
     public boolean startGizmo(UIContext context, int stencilIndex)
     {
+        if (this.isReplayShiftGizmo())
+        {
+            GizmoDrag drag = GizmoDrag.fromRenderedGizmo(this.panel.getCamera(), this.panel.preview.getViewport());
+
+            return Gizmo.INSTANCE.start(stencilIndex, context.mouseX, context.mouseY, this.replayShiftTransform, drag);
+        }
+
         float gizmoTransition = this.isPlaying() ? context.getTransition() : 0F;
 
         return UIReplaysEditorUtils.startFilmGizmo(this.panel, context, stencilIndex, gizmoTransition);
@@ -1578,6 +1598,8 @@ public class UIFilmController extends UIElement implements GizmoViewport
             }
         }
 
+        this.renderReplayShiftGizmo(context, null);
+
         this.renderOrbitCenterMarker(context);
 
         ValueMotionPath motionPath = this.getMotionPath();
@@ -1662,6 +1684,11 @@ public class UIFilmController extends UIElement implements GizmoViewport
 
     public Pair<String, Boolean> getBone()
     {
+        if (this.isReplayShiftGizmo())
+        {
+            return null;
+        }
+
         UIKeyframeEditor keyframeEditor = this.panel.replayEditor.keyframeEditor;
 
         return keyframeEditor != null ? keyframeEditor.getBone() : null;
@@ -1670,6 +1697,11 @@ public class UIFilmController extends UIElement implements GizmoViewport
     /** Whether the selected keyframe is the form's anchor track, so its transform gets a gizmo. */
     public boolean isAnchorGizmo()
     {
+        if (this.isReplayShiftGizmo())
+        {
+            return false;
+        }
+
         UIKeyframeEditor keyframeEditor = this.panel.replayEditor.keyframeEditor;
 
         return keyframeEditor != null && keyframeEditor.isFormAnchorTrack();
@@ -1684,6 +1716,11 @@ public class UIFilmController extends UIElement implements GizmoViewport
 
     public UICrowdMotionPathKeyframeFactory getCrowdMotionEditor()
     {
+        if (this.isReplayShiftGizmo())
+        {
+            return null;
+        }
+
         UIKeyframeEditor keyframeEditor = this.panel.replayEditor.keyframeEditor;
 
         return keyframeEditor != null && keyframeEditor.isCrowdMotionPathTrack()
@@ -1696,6 +1733,77 @@ public class UIFilmController extends UIElement implements GizmoViewport
         return this.getCrowdMotionEditor() != null;
     }
 
+    public boolean isReplayShiftGizmo()
+    {
+        return this.replayShift != null && !this.replayShift.isEmpty() && this.replayShiftTransform.getTransform() != null;
+    }
+
+    public boolean canToggleReplayShiftGizmo()
+    {
+        return this.panel.getData() != null
+            && this.panel.replayEditor != null
+            && this.panel.replayEditor.replaysList != null
+            && this.panel.replayEditor.replaysList.replays.hasReplaySelection();
+    }
+
+    public void toggleReplayShiftGizmo()
+    {
+        if (this.isReplayShiftGizmo())
+        {
+            this.stopReplayShiftGizmo();
+
+            return;
+        }
+
+        if (!this.canToggleReplayShiftGizmo())
+        {
+            return;
+        }
+
+        List<Replay> selected = this.panel.replayEditor.replaysList.replays.getSelectedReplays();
+
+        this.replayShift = new ReplayGizmoTransform(selected, this.panel.getCursor());
+        this.replayShiftTransform.setTransform(new Transform());
+    }
+
+    public void stopReplayShiftGizmo()
+    {
+        this.stopGizmoInteraction();
+        this.replayShiftTransform.setTransform(null);
+        this.replayShift = null;
+    }
+
+    private void beginReplayShiftChange()
+    {
+        Film film = this.panel.getData();
+
+        if (film != null && this.replayShift != null)
+        {
+            film.preNotify();
+        }
+    }
+
+    private void applyReplayShiftChange()
+    {
+        Film film = this.panel.getData();
+
+        if (film != null && this.replayShift != null)
+        {
+            this.replayShift.apply(this.replayShiftTransform.getTransform());
+            film.postNotify();
+        }
+    }
+
+    private void finishReplayShiftGesture()
+    {
+        Film film = this.panel.getData();
+
+        if (film != null && this.replayShift != null)
+        {
+            film.preNotify(IValueListener.FLAG_UNMERGEABLE);
+        }
+    }
+
     /**
      * Whether the preview gizmo is actually drawn right now — the same gate the
      * renderer uses ({@link BaseFilmController#render}): axes enabled, not
@@ -1706,7 +1814,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
     private boolean canShowGizmo()
     {
         return UIBaseMenu.shouldRenderAxes() && !this.isRecording()
-            && (this.getBone() != null || this.isAnchorGizmo() || this.isCrowdMotionGizmo());
+            && (this.isReplayShiftGizmo() || this.getBone() != null || this.isAnchorGizmo() || this.isCrowdMotionGizmo());
     }
 
     private void renderStencil(WorldRenderContext renderContext, UIContext context, boolean altPressed)
@@ -1804,6 +1912,9 @@ public class UIFilmController extends UIElement implements GizmoViewport
                 ));
         }
 
+        this.stencilMap.setIncrement(true);
+        this.renderReplayShiftGizmo(renderContext, this.stencilMap);
+
         int x = (int) ((context.mouseX - viewport.x) / (float) viewport.w * mainTexture.width);
         int y = (int) ((1F - (context.mouseY - viewport.y) / (float) viewport.h) * mainTexture.height);
         int radius = Math.round(BBSSettings.gizmoHoverTolerance.get() * mainTexture.width / (float) viewport.w);
@@ -1812,6 +1923,23 @@ public class UIFilmController extends UIElement implements GizmoViewport
         this.stencil.unbind(this.stencilMap);
 
         MinecraftClient.getInstance().getFramebuffer().beginWrite(true);
+    }
+
+    private void renderReplayShiftGizmo(WorldRenderContext context, StencilMap map)
+    {
+        if (!this.isReplayShiftGizmo())
+        {
+            return;
+        }
+
+        Transform transform = this.replayShiftTransform.getTransform();
+
+        BaseFilmController.renderReplayTransformGizmo(
+            context,
+            this.replayShift.getGizmoPosition(transform),
+            transform,
+            map
+        );
     }
 
     private void ensureStencilFramebuffer()

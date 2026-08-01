@@ -257,6 +257,7 @@ public class UIKeys
     public static final IKey FILM_CONTROLLER_ONION_SKIN_PREV = L10n.lang("bbs.ui.film.controller.onion_skin.prev");
     public static final IKey FILM_CONTROLLER_ONION_SKIN_TITLE = L10n.lang("bbs.ui.film.controller.onion_skin.title");
     public static final IKey FILM_CONTROLLER_MOTION_PATH_TITLE = L10n.lang("bbs.ui.film.controller.motion_path.title");
+    public static final IKey FILM_CONTROLLER_REPLAY_SHIFT_GIZMO = L10n.lang("bbs.ui.film.controller.replay_shift_gizmo");
     public static final IKey FILM_CONTROLLER_MOTION_PATH_PIN = L10n.lang("bbs.ui.film.controller.motion_path.pin");
     public static final IKey FILM_CONTROLLER_MOTION_PATH_GRADIENT = L10n.lang("bbs.ui.film.controller.motion_path.gradient");
     public static final IKey FILM_CONTROLLER_MOTION_PATH_AROUND = L10n.lang("bbs.ui.film.controller.motion_path.around");

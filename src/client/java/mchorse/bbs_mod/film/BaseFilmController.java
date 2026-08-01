@@ -48,6 +48,7 @@ import mchorse.bbs_mod.utils.joml.Matrices;
 import mchorse.bbs_mod.utils.joml.Vectors;
 import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
 import mchorse.bbs_mod.utils.keyframes.KeyframeSegment;
+import mchorse.bbs_mod.utils.pose.Transform;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
@@ -87,6 +88,41 @@ public abstract class BaseFilmController
     private static final Vector3f TEMP_VECTOR = new Vector3f();
 
     /* Rendering helpers */
+
+    /** Capture or stencil a world-space replay-path transform gizmo. */
+    public static void renderReplayTransformGizmo(WorldRenderContext context, Vector3d position, Transform transform, StencilMap map)
+    {
+        if (context == null || position == null || transform == null || BBSRendering.isIrisShadowPass())
+        {
+            return;
+        }
+
+        MatrixStack stack = context.matrixStack();
+        Camera camera = context.camera();
+        Transform orientation = transform.copy();
+
+        orientation.translate.zero();
+        orientation.scale.set(1F);
+
+        stack.push();
+        stack.translate(
+            position.x - camera.getPos().x,
+            position.y - camera.getPos().y,
+            position.z - camera.getPos().z
+        );
+        MatrixStackUtils.multiply(stack, orientation.createMatrix());
+
+        if (map == null)
+        {
+            Gizmo.INSTANCE.captureVisual(stack);
+        }
+        else
+        {
+            Gizmo.INSTANCE.renderStencil(stack, map);
+        }
+
+        stack.pop();
+    }
 
     public static void renderEntity(FilmControllerContext context)
     {
