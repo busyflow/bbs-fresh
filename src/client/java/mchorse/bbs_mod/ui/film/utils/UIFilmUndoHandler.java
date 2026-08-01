@@ -4,6 +4,7 @@ import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.data.types.BaseType;
 import mchorse.bbs_mod.forms.forms.CrowdForm;
 import mchorse.bbs_mod.network.ClientNetwork;
+import mchorse.bbs_mod.settings.values.IValueListener;
 import mchorse.bbs_mod.settings.values.base.BaseValue;
 import mchorse.bbs_mod.ui.film.UIFilmPanel;
 import mchorse.bbs_mod.ui.forms.editors.UIFormUndoHandler;
@@ -12,6 +13,8 @@ import mchorse.bbs_mod.utils.clips.Clips;
 
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -19,6 +22,9 @@ public class UIFilmUndoHandler extends UIFormUndoHandler
 {
     private Timer actionsTimer = new Timer(100);
     private Set<BaseValue> syncData = new HashSet<>();
+    /** Whole-replay snapshots used to make one live gizmo recording undoable in one step. */
+    private final Map<BaseValue, BaseType> liveRecordingValues = new LinkedHashMap<>();
+    private int liveRecordingDepth;
 
     public UIFilmUndoHandler(UIFilmPanel panel)
     {
@@ -35,7 +41,101 @@ public class UIFilmUndoHandler extends UIFormUndoHandler
             return;
         }
 
+        if (this.isLiveRecordingChild(baseValue))
+        {
+            return;
+        }
+
         super.handlePreValues(baseValue, flag);
+    }
+
+    /**
+     * Start an atomic live-recording undo. Each supplied replay is saved once;
+     * per-frame keyframe notifications below it are intentionally ignored until
+     * the recording ends, preventing Ctrl+Z from undoing only one recorded tick.
+     */
+    public void beginLiveRecordingUndo(Collection<? extends BaseValue> values)
+    {
+        if (values == null || values.isEmpty())
+        {
+            return;
+        }
+
+        if (this.liveRecordingDepth == 0)
+        {
+            /* Keep the previous edit separate from this recording pass. */
+            super.submitUndo();
+        }
+
+        for (BaseValue value : values)
+        {
+            if (value == null || this.liveRecordingValues.containsKey(value))
+            {
+                continue;
+            }
+
+            super.handlePreValues(value, IValueListener.FLAG_UNMERGEABLE);
+            this.liveRecordingValues.put(value, this.cachedValues.get(value));
+        }
+
+        this.liveRecordingDepth++;
+    }
+
+    /** Seal the recording as one undo entry, or discard it when nothing changed. */
+    public void endLiveRecordingUndo()
+    {
+        if (this.liveRecordingDepth <= 0)
+        {
+            return;
+        }
+
+        if (--this.liveRecordingDepth > 0)
+        {
+            return;
+        }
+
+        for (Map.Entry<BaseValue, BaseType> entry : this.liveRecordingValues.entrySet())
+        {
+            if (BaseType.equals(entry.getValue(), entry.getKey().toData()))
+            {
+                this.cachedValues.remove(entry.getKey());
+            }
+        }
+
+        this.liveRecordingValues.clear();
+
+        if (this.cachedValues.isEmpty())
+        {
+            this.cacheMarkLastUndoNoMerging = false;
+        }
+        else
+        {
+            super.submitUndo();
+        }
+    }
+
+    @Override
+    public void submitUndo()
+    {
+        if (this.liveRecordingDepth == 0)
+        {
+            super.submitUndo();
+        }
+    }
+
+    private boolean isLiveRecordingChild(BaseValue value)
+    {
+        while (value != null)
+        {
+            if (this.liveRecordingValues.containsKey(value))
+            {
+                return true;
+            }
+
+            value = value.getParent();
+        }
+
+        return false;
     }
 
     @Override
