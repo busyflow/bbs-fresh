@@ -1913,7 +1913,7 @@ public class UIClips extends UIElement
         batcher.unclip(context);
         batcher.clip(this.vertical.area.x, rulerBottom, this.vertical.area.ex(), this.vertical.area.ey(), context);
 
-        if (BBSSettings.isOriginalBBSTheme() || BBSSettings.editorTimelineGrid.get())
+        if (BBSSettings.editorTimelineMajorLines.get() || BBSSettings.editorTimelineMinorLines.get())
         {
             TimelineRulerRenderer.renderGrid(
                 context,

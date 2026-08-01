@@ -586,6 +586,12 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
             return true;
         }
 
+        /* Replay-editor labels are visual overlays: let the graph select keyframes beneath them. */
+        if (this.isUnifiedReplayLayout())
+        {
+            return false;
+        }
+
         if (context.mouseButton == 0 && this.keyframes.area.isInside(context))
         {
             if (context.mouseX < this.keyframes.area.ex() - this.keyframes.getLabelWidth())
@@ -738,7 +744,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
      */
     private void renderTimelineGrid(UIContext context)
     {
-        if (!this.isUnifiedReplayLayout() && !BBSSettings.isOriginalBBSTheme() && !BBSSettings.editorTimelineGrid.get())
+        if (!BBSSettings.editorTimelineMajorLines.get() && !BBSSettings.editorTimelineMinorLines.get())
         {
             return;
         }
@@ -1054,7 +1060,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
 
         if (hover)
         {
-            context.batcher.gradientHBox(lx, y, lx + w, y + (int) this.trackHeight, Colors.setA(group.color, 0.2F), Colors.setA(group.color, 0.04F));
+            context.batcher.gradientHBox(lx, y, lx + w, y + (int) this.trackHeight, Colors.setA(group.color, 0.04F), Colors.setA(group.color, 0.2F));
         }
 
         boolean unified = this.isUnifiedReplayLayout();
@@ -1089,7 +1095,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
 
         if (hover)
         {
-            context.batcher.gradientHBox(lx, y, lx + w, y + (int) this.trackHeight, Colors.setA(sheet.color, 0.2F), Colors.setA(sheet.color, 0.04F));
+            context.batcher.gradientHBox(lx, y, lx + w, y + (int) this.trackHeight, Colors.setA(sheet.color, 0.04F), Colors.setA(sheet.color, 0.2F));
         }
 
         boolean unified = this.isUnifiedReplayLayout();
