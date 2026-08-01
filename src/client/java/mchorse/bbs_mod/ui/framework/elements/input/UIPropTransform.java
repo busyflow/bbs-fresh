@@ -3018,8 +3018,8 @@ public class UIPropTransform extends UITransform
         return Math.round(mouseY - this.fineOffsetY);
     }
 
-    @Override
-    public void render(UIContext context)
+    /** Advance an active mouse gesture without requiring this editor to be visible. */
+    public void updateGesture(UIContext context)
     {
         if (this.editing && !this.numericActive && this.checker.isTime())
         {
@@ -3125,6 +3125,12 @@ public class UIPropTransform extends UITransform
                 this.lastY = context.mouseY;
             }
         }
+    }
+
+    @Override
+    public void render(UIContext context)
+    {
+        this.updateGesture(context);
 
         super.render(context);
 
