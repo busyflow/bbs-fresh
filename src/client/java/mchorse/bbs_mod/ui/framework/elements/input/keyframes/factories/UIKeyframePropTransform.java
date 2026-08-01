@@ -1,11 +1,13 @@
 package mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories;
 
 import mchorse.bbs_mod.ui.film.UIFilmPanel;
+import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.ui.framework.elements.input.UIDeltaPropTransform;
 import mchorse.bbs_mod.utils.pose.Transform;
 
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.function.Consumer;
 
 /**
@@ -18,6 +20,7 @@ public abstract class UIKeyframePropTransform extends UIDeltaPropTransform
 {
     private int playbackRecordingTick = Integer.MIN_VALUE;
     private Transform playbackRecordingSample;
+    private UIFilmPanel playbackUndoPanel;
 
     protected abstract void applyDuringRecording(int tick, Consumer<Transform> consumer);
 
@@ -111,6 +114,8 @@ public abstract class UIKeyframePropTransform extends UIDeltaPropTransform
 
             if (this.playbackRecordingTick == Integer.MIN_VALUE)
             {
+                this.beginPlaybackRecordingUndo(panel);
+
                 Transform target = this.getRecordedTransform(tick);
 
                 if (target != null)
@@ -137,6 +142,7 @@ public abstract class UIKeyframePropTransform extends UIDeltaPropTransform
         }
         else
         {
+            this.endPlaybackRecordingUndo();
             this.playbackRecordingTick = Integer.MIN_VALUE;
             this.playbackRecordingSample = null;
         }
@@ -152,5 +158,44 @@ public abstract class UIKeyframePropTransform extends UIDeltaPropTransform
                 this.playbackRecordingSample = target.copy();
             }
         }
+    }
+
+    private void beginPlaybackRecordingUndo(UIFilmPanel panel)
+    {
+        if (this.playbackUndoPanel == panel || panel.getUndoHandler() == null)
+        {
+            return;
+        }
+
+        this.endPlaybackRecordingUndo();
+
+        LinkedHashSet<Replay> replays = new LinkedHashSet<>();
+        Replay active = panel.replayEditor == null ? null : panel.replayEditor.getReplay();
+
+        if (active != null)
+        {
+            replays.add(active);
+        }
+
+        if (panel.replayEditor != null && panel.replayEditor.replaysList != null)
+        {
+            replays.addAll(panel.replayEditor.replaysList.replays.getSelectedReplays());
+        }
+
+        if (!replays.isEmpty())
+        {
+            panel.getUndoHandler().beginLiveRecordingUndo(replays);
+            this.playbackUndoPanel = panel;
+        }
+    }
+
+    private void endPlaybackRecordingUndo()
+    {
+        if (this.playbackUndoPanel != null && this.playbackUndoPanel.getUndoHandler() != null)
+        {
+            this.playbackUndoPanel.getUndoHandler().endLiveRecordingUndo();
+        }
+
+        this.playbackUndoPanel = null;
     }
 }
