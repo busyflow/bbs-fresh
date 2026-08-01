@@ -332,10 +332,16 @@ public class UIPoseKeyframeFactory extends UIKeyframeFactory<Pose>
         @Override
         public void endGesture()
         {
-            /* Film pose edits land on the selected keyframe(s) (not via a notifier callback),
-             * so seal those to close the undo block — consecutive drags stay distinct. */
-            UIReplaysEditorUtils.forEachSelectedKeyframe(this.editor.editor, this.editor.keyframe,
-                (selected) -> selected.preNotify(IValueListener.FLAG_UNMERGEABLE));
+            boolean playbackRecording = this.finishPlaybackRecordingGesture();
+
+            if (!playbackRecording)
+            {
+                /* Normal pose edits land directly on selected keyframes, so seal the undo block. */
+                UIReplaysEditorUtils.forEachSelectedKeyframe(this.editor.editor, this.editor.keyframe,
+                    (selected) -> selected.preNotify(IValueListener.FLAG_UNMERGEABLE));
+            }
+
+            super.endGesture();
         }
     }
 }

@@ -20,6 +20,7 @@ public abstract class UIKeyframePropTransform extends UIDeltaPropTransform
 {
     private int playbackRecordingTick = Integer.MIN_VALUE;
     private Transform playbackRecordingSample;
+    private Transform playbackWorkingTransform;
     private UIFilmPanel playbackUndoPanel;
 
     protected abstract void applyDuringRecording(int tick, Consumer<Transform> consumer);
@@ -103,6 +104,25 @@ public abstract class UIKeyframePropTransform extends UIDeltaPropTransform
     }
 
     @Override
+    protected void syncTargetTransform()
+    {
+        if (this.playbackWorkingTransform != null && this.isTransformRecording())
+        {
+            Transform target = this.getTargetTransform();
+
+            if (target != null)
+            {
+                this.playbackWorkingTransform.copy(target);
+                this.setTransform(this.playbackWorkingTransform);
+            }
+
+            return;
+        }
+
+        super.syncTargetTransform();
+    }
+
+    @Override
     public void render(UIContext context)
     {
         UIFilmPanel panel = this.getPanel();
@@ -122,7 +142,8 @@ public abstract class UIKeyframePropTransform extends UIDeltaPropTransform
                 {
                     this.playbackRecordingTick = tick;
                     this.playbackRecordingSample = target.copy();
-                    this.setTransform(target);
+                    this.playbackWorkingTransform = target.copy();
+                    this.setTransform(this.playbackWorkingTransform);
                 }
             }
             else if (tick != this.playbackRecordingTick && this.playbackRecordingSample != null)
@@ -136,15 +157,14 @@ public abstract class UIKeyframePropTransform extends UIDeltaPropTransform
 
                 if (target != null)
                 {
-                    this.setTransform(target);
+                    this.playbackWorkingTransform.copy(target);
+                    this.setTransform(this.playbackWorkingTransform);
                 }
             }
         }
         else
         {
-            this.endPlaybackRecordingUndo();
-            this.playbackRecordingTick = Integer.MIN_VALUE;
-            this.playbackRecordingSample = null;
+            this.finishPlaybackRecordingGesture();
         }
 
         super.render(context);
@@ -158,6 +178,25 @@ public abstract class UIKeyframePropTransform extends UIDeltaPropTransform
                 this.playbackRecordingSample = target.copy();
             }
         }
+    }
+
+    @Override
+    public void endGesture()
+    {
+        this.finishPlaybackRecordingGesture();
+        super.endGesture();
+    }
+
+    protected boolean finishPlaybackRecordingGesture()
+    {
+        boolean recording = this.playbackUndoPanel != null;
+
+        this.endPlaybackRecordingUndo();
+        this.playbackRecordingTick = Integer.MIN_VALUE;
+        this.playbackRecordingSample = null;
+        this.playbackWorkingTransform = null;
+
+        return recording;
     }
 
     private void beginPlaybackRecordingUndo(UIFilmPanel panel)

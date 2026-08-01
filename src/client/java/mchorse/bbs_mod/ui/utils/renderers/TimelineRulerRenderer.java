@@ -182,6 +182,14 @@ public class TimelineRulerRenderer
             return;
         }
 
+        boolean showMajor = BBSSettings.editorTimelineMajorLines.get();
+        boolean showMinor = BBSSettings.editorTimelineMinorLines.get();
+
+        if (!showMajor && !showMinor)
+        {
+            return;
+        }
+
         int step = chooseStep(area, startTick, pxPerTick, context.batcher.getFont(), labelFormatter);
         int minor = minorStep(step, pxPerTick);
         int timelineEndX = durationTick > 0 ? toGraphX.applyAsInt(durationTick) : Integer.MAX_VALUE;
@@ -207,7 +215,12 @@ public class TimelineRulerRenderer
 
             if (x >= area.x)
             {
-                context.batcher.box(x, top, x + 1, area.ey(), tick % step == 0 ? majorColor : minorColor);
+                boolean majorLine = tick % step == 0;
+
+                if ((majorLine && showMajor) || (!majorLine && showMinor))
+                {
+                    context.batcher.box(x, top, x + 1, area.ey(), majorLine ? majorColor : minorColor);
+                }
             }
         }
 

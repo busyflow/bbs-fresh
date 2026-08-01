@@ -129,7 +129,8 @@ public class BBSSettings {
 	public static ValueBoolean editorCenterLines;
 	public static ValueBoolean editorCrosshair;
 	public static ValueBoolean editorSeconds;
-	public static ValueBoolean editorTimelineGrid;
+	public static ValueBoolean editorTimelineMajorLines;
+	public static ValueBoolean editorTimelineMinorLines;
 	public static ValueBoolean editorColoredKeyframeLines;
 	public static ValueBoolean editorShowAllReplayTracks;
 	public static ValueInt editorPeriodicSave;
@@ -554,6 +555,7 @@ public class BBSSettings {
 	public static boolean migrateLegacySettings(MapType root)
 	{
 		MapType appearance = root.getMap("appearance");
+		MapType editor = root.getMap("editor");
 		MapType personalization = root.getMap("personalization");
 		boolean migrated = false;
 
@@ -561,6 +563,8 @@ public class BBSSettings {
 		migrated |= migrateLegacyValue(appearance, personalization, "tooltip_style", "theme");
 		migrated |= migrateLegacyValue(appearance, personalization, "track_width");
 		migrated |= migrateLegacyValue(appearance, personalization, "keyframe_default_shape");
+		migrated |= migrateLegacyValue(editor, personalization, "timeline_grid", "timeline_major_lines");
+		migrated |= migrateLegacyValue(editor, personalization, "timeline_grid", "timeline_minor_lines");
 
 		if (migrated)
 		{
@@ -651,6 +655,8 @@ public class BBSSettings {
 		interfaceSurfaceColor = builder.getInt("interface_surface_color", DARK_BASE_SURFACE).color();
 		stencilHighlightColor = builder.getInt("stencil_highlight_color", 0x2EFFFFFF).colorAlpha();
 		originalBBSTheme = builder.getBoolean("original_bbs_theme", false);
+		editorTimelineMajorLines = builder.getBoolean("timeline_major_lines", true);
+		editorTimelineMinorLines = builder.getBoolean("timeline_minor_lines", true);
 		theme = builder.getInt("theme", DEFAULT_THEME);
 		editorTrackWidth = builder.getInt("track_width", 2, 1, 10);
 		keyframeDefaultShape = builder.getInt("keyframe_default_shape", 0, 0, KeyframeShape.values().length - 1);
@@ -745,7 +751,6 @@ public class BBSSettings {
 		editorCenterLines = builder.getBoolean("center_lines", false);
 		editorCrosshair = builder.getBoolean("crosshair", false);
 		editorSeconds = builder.getBoolean("seconds", false);
-		editorTimelineGrid = builder.getBoolean("timeline_grid", true);
 		editorColoredKeyframeLines = builder.getBoolean("colored_keyframe_lines", true);
 		keyframeDefaultInterpolation = builder.getString("keyframe_default_interpolation", Interpolations.LINEAR.getKey());
 		editorPeriodicSave = builder.getInt("periodic_save", 60, 0, 3600);
