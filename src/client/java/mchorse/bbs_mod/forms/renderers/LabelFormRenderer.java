@@ -24,10 +24,56 @@ import net.minecraft.client.util.math.MatrixStack;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class LabelFormRenderer extends FormRenderer<LabelForm>
 {
+    private static final List<DeferredBackground> DEFERRED_BACKGROUNDS = new ArrayList<>();
+
+    private record DeferredBackground(
+        Matrix4f matrix,
+        float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4,
+        float r, float g, float b, float a
+    ) {}
+
+    /** Draw label plates after entities so translucent pixels never hide later replays. */
+    public static void flushDeferredBackgrounds()
+    {
+        if (DEFERRED_BACKGROUNDS.isEmpty())
+        {
+            return;
+        }
+
+        BufferBuilder builder = Tessellator.getInstance().getBuffer();
+
+        builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR_TEXTURE);
+
+        for (DeferredBackground background : DEFERRED_BACKGROUNDS)
+        {
+            Matrix4f matrix = background.matrix;
+
+            builder.vertex(matrix, background.x1, background.y1, 0F).color(background.r, background.g, background.b, background.a).texture(0F, 0F).next();
+            builder.vertex(matrix, background.x2, background.y2, 0F).color(background.r, background.g, background.b, background.a).texture(0F, 0F).next();
+            builder.vertex(matrix, background.x3, background.y3, 0F).color(background.r, background.g, background.b, background.a).texture(0F, 0F).next();
+            builder.vertex(matrix, background.x1, background.y1, 0F).color(background.r, background.g, background.b, background.a).texture(0F, 0F).next();
+            builder.vertex(matrix, background.x3, background.y3, 0F).color(background.r, background.g, background.b, background.a).texture(0F, 0F).next();
+            builder.vertex(matrix, background.x4, background.y4, 0F).color(background.r, background.g, background.b, background.a).texture(0F, 0F).next();
+        }
+
+        DEFERRED_BACKGROUNDS.clear();
+
+        RenderSystem.disableCull();
+        RenderSystem.depthMask(false);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.enableDepthTest();
+        RenderSystem.setShader(GameRenderer::getPositionColorProgram);
+        BufferRenderer.drawWithGlobalProgram(builder.end());
+        RenderSystem.depthMask(true);
+        RenderSystem.enableCull();
+    }
+
     public static void fillQuad(BufferBuilder builder, MatrixStack stack, float x1, float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3, float x4, float y4, float z4, float r, float g, float b, float a)
     {
         Matrix4f matrix4f = stack.peek().getPositionMatrix();
@@ -288,23 +334,56 @@ public class LabelFormRenderer extends FormRenderer<LabelForm>
         context.stack.push();
         context.stack.translate(0, 0, -0.2F);
 
-        BufferBuilder builder = Tessellator.getInstance().getBuffer();
+        float x1 = x + w + offset;
+        float y1 = y - offset;
+        float x2 = x - offset;
+        float y2 = y - offset;
+        float x3 = x - offset;
+        float y3 = y + h + offset;
+        float x4 = x + w + offset;
+        float y4 = y + h + offset;
+        boolean worldRender = !context.isPicking() && !context.ui && !context.modelRenderer;
 
-        builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR_TEXTURE);
+        if (worldRender)
+        {
+            DEFERRED_BACKGROUNDS.add(new DeferredBackground(
+                new Matrix4f(context.stack.peek().getPositionMatrix()),
+                x1, y1, x2, y2, x3, y3, x4, y4,
+                color.r, color.g, color.b, color.a
+            ));
+        }
+        else
+        {
+            BufferBuilder builder = Tessellator.getInstance().getBuffer();
 
-        fillQuad(
-            builder, context.stack,
-            x + w + offset, y - offset, 0,
-            x - offset, y - offset, 0,
-            x - offset, y + h + offset, 0,
-            x + w + offset, y + h + offset, 0,
-            color.r, color.g, color.b, color.a
-        );
+            builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR_TEXTURE);
+            fillQuad(
+                builder, context.stack,
+                x1, y1, 0,
+                x2, y2, 0,
+                x3, y3, 0,
+                x4, y4, 0,
+                color.r, color.g, color.b, color.a
+            );
 
-        RenderSystem.enableBlend();
-        RenderSystem.enableDepthTest();
-        RenderSystem.setShader(GameRenderer::getPositionColorProgram);
-        BufferRenderer.drawWithGlobalProgram(builder.end());
+            boolean restoreDepthMask = !context.isPicking();
+
+            if (restoreDepthMask)
+            {
+                RenderSystem.depthMask(false);
+            }
+
+            RenderSystem.enableBlend();
+            RenderSystem.enableDepthTest();
+            RenderSystem.setShader(GameRenderer::getPositionColorProgram);
+            BufferRenderer.drawWithGlobalProgram(builder.end());
+
+            if (restoreDepthMask)
+            {
+                RenderSystem.depthMask(true);
+            }
+        }
+
         context.stack.pop();
     }
 }
