@@ -48,7 +48,7 @@ public class UIPresetsOverlayPanel extends UIListOverlayPanel {
             }
 
             String id = PresetManager.joinRelative(this.cwd, pick);
-            MapType load = this.controller.manager.load(id);
+            MapType load = this.controller.loadPreset(id);
 
             if (load != null)
             {
@@ -103,6 +103,12 @@ public class UIPresetsOverlayPanel extends UIListOverlayPanel {
     private void refreshList()
     {
         this.list.list.clear();
+
+        if (this.cwd.isEmpty())
+        {
+            this.addValues(this.controller.getBuiltInPresetNames());
+        }
+
         this.addValues(this.controller.manager.listDirectory(this.cwd));
     }
 }
