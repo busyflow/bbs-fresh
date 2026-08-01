@@ -410,7 +410,9 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
 
         this.layoutPresetsController = new UICopyPasteController(PresetManager.LAYOUTS, "_CopyFilmLayout")
             .supplier(this::getFilmLayoutPresetData)
-            .consumer(this::applyFilmLayoutFromPreset);
+            .consumer(this::applyFilmLayoutFromPreset)
+            .builtIn("BBS Layout 1 (Built-in)", this::getBBSLayoutOnePresetData)
+            .builtIn("BBS Default (Built-in)", this::getDefaultFilmLayoutPresetData);
 
         this.openFilmMenu.wh(FILM_TOP_BAR_BUTTON_SIZE, FILM_TOP_BAR_BUTTON_SIZE).tooltip(UIKeys.FILM_OPTIONS, Direction.BOTTOM);
         this.openCameraEditor.wh(FILM_TOP_BAR_BUTTON_SIZE, FILM_TOP_BAR_BUTTON_SIZE).tooltip(UIKeys.FILM_OPEN_CAMERA_EDITOR, Direction.BOTTOM);
@@ -947,6 +949,43 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
     {
         MapType data = new MapType();
         data.put("film_layout", this.getCurrentFilmLayoutRoot().toData());
+        return data;
+    }
+
+    private MapType getDefaultFilmLayoutPresetData()
+    {
+        MapType data = new MapType();
+        data.put("film_layout", EditorLayoutNode.defaultFilmLayout().toData());
+
+        return data;
+    }
+
+    private MapType getBBSLayoutOnePresetData()
+    {
+        EditorLayoutNode root = new EditorLayoutNode.SplitterNode(
+            false,
+            0.5338542F,
+            new EditorLayoutNode.SplitterNode(
+                false,
+                0.26707318F,
+                new EditorLayoutNode.PanelNode("replaysList"),
+                new EditorLayoutNode.PanelNode("main")
+            ),
+            new EditorLayoutNode.SplitterNode(
+                true,
+                0.52987015F,
+                new EditorLayoutNode.PanelNode("preview"),
+                new EditorLayoutNode.SplitterNode(
+                    false,
+                    0.47905028F,
+                    new EditorLayoutNode.PanelNode("editArea"),
+                    new EditorLayoutNode.PanelNode("replayProps")
+                )
+            )
+        );
+        MapType data = new MapType();
+        data.put("film_layout", root.toData());
+
         return data;
     }
 

@@ -6,6 +6,10 @@ import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.ui.framework.elements.overlay.UIOverlay;
 import mchorse.bbs_mod.utils.presets.PresetManager;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 public class UICopyPasteController
@@ -17,6 +21,7 @@ public class UICopyPasteController
 
     private Supplier<Boolean> canCopy;
     private Supplier<Boolean> canPaste;
+    private final Map<String, Supplier<MapType>> builtInPresets = new LinkedHashMap<>();
 
     public UICopyPasteController(PresetManager manager, String copyPrefix)
     {
@@ -50,6 +55,26 @@ public class UICopyPasteController
         this.canPaste = canPaste;
 
         return this;
+    }
+
+    /** Add a read-only preset supplied by the mod rather than the user's preset folder. */
+    public UICopyPasteController builtIn(String name, Supplier<MapType> preset)
+    {
+        this.builtInPresets.put(name, preset);
+
+        return this;
+    }
+
+    public Set<String> getBuiltInPresetNames()
+    {
+        return Collections.unmodifiableSet(this.builtInPresets.keySet());
+    }
+
+    public MapType loadPreset(String id)
+    {
+        Supplier<MapType> builtIn = this.builtInPresets.get(id);
+
+        return builtIn == null ? this.manager.load(id) : builtIn.get();
     }
 
     public IPaste getConsumer()
