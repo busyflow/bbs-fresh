@@ -1385,6 +1385,11 @@ public class UIFilmController extends UIElement implements GizmoViewport
          * sphere hover highlights composite on top of it. It moved out of the
          * world pass into the UI pipeline so its translucent parts blend
          * correctly (see Gizmo#renderInterface). */
+        if (this.isReplayShiftGizmo())
+        {
+            this.replayShiftTransform.updateGesture(context);
+        }
+
         if (this.canShowGizmo())
         {
             this.gizmo.renderGizmo(context);
