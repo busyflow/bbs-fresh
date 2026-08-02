@@ -32,9 +32,8 @@ public class UIClipRenderer <T extends Clip> implements IUIClipRenderer<T>
     private static Vector2f previous = new Vector2f();
 
     @Override
-    public void renderClip(UIContext context, UIClips clips, T clip, Area fullArea, Area visibleArea, boolean selected, boolean current)
+    public void renderClip(UIContext context, UIClips clips, T clip, Area area, boolean selected, boolean current)
     {
-        Area area = visibleArea;
         int y = area.y;
         int h = area.h;
 
@@ -53,7 +52,7 @@ public class UIClipRenderer <T extends Clip> implements IUIClipRenderer<T>
 
         if (clip.enabled.get())
         {
-            this.renderBackground(context, color, clip, fullArea, visibleArea, selected, current);
+            this.renderBackground(context, color, clip, area, selected, current);
         }
         else
         {
@@ -86,9 +85,9 @@ public class UIClipRenderer <T extends Clip> implements IUIClipRenderer<T>
         }
     }
 
-    protected void renderBackground(UIContext context, int color, T clip, Area fullArea, Area visibleArea, boolean selected, boolean current)
+    protected void renderBackground(UIContext context, int color, T clip, Area area, boolean selected, boolean current)
     {
-        context.batcher.box(visibleArea.x, visibleArea.y, visibleArea.ex(), visibleArea.ey(), color);
+        context.batcher.box(area.x, area.y, area.ex(), area.ey(), color);
     }
 
     /**

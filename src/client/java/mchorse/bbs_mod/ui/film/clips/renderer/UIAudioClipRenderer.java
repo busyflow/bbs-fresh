@@ -10,12 +10,11 @@ import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.ui.utils.Area;
 import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.StringUtils;
-import mchorse.bbs_mod.utils.MathUtils;
 
 public class UIAudioClipRenderer extends UIClipRenderer<AudioClip>
 {
     @Override
-    protected void renderBackground(UIContext context, int color, AudioClip clip, Area fullArea, Area visibleArea, boolean selected, boolean current)
+    protected void renderBackground(UIContext context, int color, AudioClip clip, Area area, boolean selected, boolean current)
     {
         Link link = clip.audio.get();
 
@@ -23,36 +22,17 @@ public class UIAudioClipRenderer extends UIClipRenderer<AudioClip>
         {
             SoundBuffer player = BBSModClient.getSounds().get(link, true);
 
-            if (player != null && player.getWaveform() != null)
+            if (player != null)
             {
                 int offset = clip.offset.get();
-                int duration = clip.duration.get();
 
-                context.batcher.box(visibleArea.x, visibleArea.y, visibleArea.ex(), visibleArea.ey(), Colors.mulRGB(color, 0.6F));
-
-                if (fullArea.w > 0 && duration > 0)
-                {
-                    float visibleStart = MathUtils.clamp((visibleArea.x - fullArea.x) / (float) fullArea.w, 0F, 1F);
-                    float visibleEnd = MathUtils.clamp((visibleArea.ex() - fullArea.x) / (float) fullArea.w, 0F, 1F);
-                    float startTick = offset + duration * visibleStart;
-                    float endTick = offset + duration * visibleEnd;
-
-                    player.getWaveform().render(
-                        context.batcher,
-                        Colors.WHITE,
-                        visibleArea.x,
-                        visibleArea.y,
-                        visibleArea.w,
-                        visibleArea.h,
-                        TimeUtils.toSeconds(startTick),
-                        TimeUtils.toSeconds(endTick)
-                    );
-                }
+                context.batcher.box(area.x, area.y, area.ex(), area.ey(), Colors.mulRGB(color, 0.6F));
+                player.getWaveform().render(context.batcher, Colors.WHITE, area.x, area.y, area.w, area.h, TimeUtils.toSeconds(offset), TimeUtils.toSeconds(offset + clip.duration.get()));
             }
         }
         else
         {
-            super.renderBackground(context, color, clip, fullArea, visibleArea, selected, current);
+            super.renderBackground(context, color, clip, area, selected, current);
         }
     }
 
