@@ -2,6 +2,7 @@ package mchorse.bbs_mod;
 
 import java.util.HashSet;
 import mchorse.bbs_mod.data.types.MapType;
+import mchorse.bbs_mod.l10n.keys.IKey;
 import mchorse.bbs_mod.settings.SettingsBuilder;
 import mchorse.bbs_mod.settings.values.core.ValueLink;
 import mchorse.bbs_mod.settings.values.core.ValueString;
@@ -36,7 +37,10 @@ public class BBSSettings {
 	public static ValueStringKeys disabledMorphFormCategories;
 	public static ValueLanguage language;
 	public static ValueInt primaryColor;
+	public static ValueInt interfaceSurfaceColor;
+	public static ValueInt colorPreset;
 	public static ValueInt stencilHighlightColor;
+	public static ValueBoolean originalBBSTheme;
 	public static ValueBoolean enableTrackpadIncrements;
 	public static ValueBoolean enableTrackpadScrolling;
 	public static ValueFloat userIntefaceScale;
@@ -126,6 +130,8 @@ public class BBSSettings {
 	public static ValueBoolean editorCrosshair;
 	public static ValueBoolean editorSeconds;
 	public static ValueBoolean editorTimelineGrid;
+	public static ValueBoolean editorColoredKeyframeLines;
+	public static ValueBoolean editorShowAllReplayTracks;
 	public static ValueInt editorPeriodicSave;
 	public static ValueBoolean editorHorizontalFlight;
 	public static ValueBoolean editorOrbitMovementRequiresFlight;
@@ -193,6 +199,24 @@ public class BBSSettings {
 	private static final float IDENTITY_BRIGHTNESS = 1F;
 	private static final float BRIGHTNESS_EPSILON = 0.001F;
 	private static final int DEFAULT_PRIMARY_COLOR = 0xff3242;
+	private static final int COLOR_PRESET_CUSTOM = 6;
+	private static final String[] COLOR_PRESET_NAMES = {
+		"Copper Charcoal",
+		"Ember Noir",
+		"Ocean Slate",
+		"Forest Ink",
+		"Golden Charcoal",
+		"Studio Default",
+		"Custom"
+	};
+	private static final int[][] COLOR_PRESETS = {
+		{0xda6c48, 0x171616},
+		{0xff3242, 0x0d0600},
+		{0x42b8d8, 0x101922},
+		{0x63c174, 0x101812},
+		{0xe7ad45, 0x19160f},
+		{0xff3242, 0x171a1f}
+	};
 	private static final int LIGHT_CHROME_SURFACE = 0xffe6e9ef;
 	private static final int DARK_CHROME_SURFACE = 0xff111316;
 	private static final int LIGHT_BASE_SURFACE = 0xfff1f4f8;
@@ -204,6 +228,64 @@ public class BBSSettings {
 	private static final int LIGHT_DIVIDER_COLOR = 0xffc2cbd8;
 	private static final int DARK_DIVIDER_COLOR = 0xff30353d;
 
+	public static int getDefaultInterfaceSurfaceColor()
+	{
+		return DARK_BASE_SURFACE;
+	}
+
+	public static int getColorPresetCount()
+	{
+		return COLOR_PRESET_NAMES.length;
+	}
+
+	public static String getColorPresetName(int preset)
+	{
+		return COLOR_PRESET_NAMES[MathUtils.clamp(preset, 0, COLOR_PRESET_NAMES.length - 1)];
+	}
+
+	public static int detectColorPreset()
+	{
+		if (primaryColor == null || interfaceSurfaceColor == null)
+		{
+			return COLOR_PRESET_CUSTOM;
+		}
+
+		int primary = primaryColor.get() & Colors.RGB;
+		int surface = interfaceSurfaceColor.get() & Colors.RGB;
+
+		for (int i = 0; i < COLOR_PRESETS.length; i++)
+		{
+			if (COLOR_PRESETS[i][0] == primary && COLOR_PRESETS[i][1] == surface)
+			{
+				return i;
+			}
+		}
+
+		return COLOR_PRESET_CUSTOM;
+	}
+
+	public static void syncColorPreset()
+	{
+		if (colorPreset != null)
+		{
+			colorPreset.set(detectColorPreset());
+		}
+	}
+
+	public static void applyColorPreset(int preset)
+	{
+		if (preset >= 0 && preset < COLOR_PRESETS.length)
+		{
+			primaryColor.set(COLOR_PRESETS[preset][0]);
+			interfaceSurfaceColor.set(COLOR_PRESETS[preset][1]);
+		}
+
+		if (colorPreset != null)
+		{
+			colorPreset.set(preset >= 0 && preset < COLOR_PRESET_NAMES.length ? preset : COLOR_PRESET_CUSTOM);
+		}
+	}
+
 	public static int primaryColor()
 	{
 		return primaryColor(Colors.A50);
@@ -211,12 +293,22 @@ public class BBSSettings {
 
 	public static int primaryColor(int alpha)
 	{
-		return withAlpha(primaryColor.get(), alpha);
+		return withAlpha(accentColor(), alpha);
+	}
+
+	public static int accentColor()
+	{
+		return isOriginalBBSTheme() ? Colors.ACTIVE : primaryColor.get();
+	}
+
+	public static boolean isOriginalBBSTheme()
+	{
+		return originalBBSTheme != null && originalBBSTheme.get();
 	}
 
 	public static boolean isLightTheme()
 	{
-		return theme != null && theme.get() == LIGHT_THEME;
+		return !isOriginalBBSTheme() && theme != null && theme.get() == LIGHT_THEME;
 	}
 
 	private static int withAlpha(int color, int alpha)
@@ -275,29 +367,87 @@ public class BBSSettings {
 		return applyBackgroundBrightness(getThemeColor(lightColor, darkColor));
 	}
 
+	private static boolean usesCustomDarkSurface()
+	{
+		return !isLightTheme() && interfaceSurfaceColor != null && (interfaceSurfaceColor.get() & Colors.RGB) != (DARK_BASE_SURFACE & Colors.RGB);
+	}
+
+	private static int tintSurface(int color, float factor)
+	{
+		int r = (color >> 16) & 0xff;
+		int g = (color >> 8) & 0xff;
+		int b = color & 0xff;
+
+		if (factor <= 1F)
+		{
+			r = Math.round(r * factor);
+			g = Math.round(g * factor);
+			b = Math.round(b * factor);
+		}
+        else
+        {
+            /* Preserve the selected hue instead of washing raised fields toward white. */
+            r = Math.round(r * factor);
+            g = Math.round(g * factor);
+            b = Math.round(b * factor);
+        }
+
+		return Colors.A100 | (MathUtils.clamp(r, 0, 255) << 16) | (MathUtils.clamp(g, 0, 255) << 8) | MathUtils.clamp(b, 0, 255);
+	}
+
+	private static int customDarkSurface(float factor)
+	{
+		return applyBackgroundBrightness(tintSurface(interfaceSurfaceColor.get(), factor));
+	}
+
 	public static int chromeSurface()
 	{
-		return getThemeSurface(LIGHT_CHROME_SURFACE, DARK_CHROME_SURFACE);
+		if (isOriginalBBSTheme())
+		{
+			return Colors.CONTROL_BAR;
+		}
+
+		return usesCustomDarkSurface() ? customDarkSurface(0.68F) : getThemeSurface(LIGHT_CHROME_SURFACE, DARK_CHROME_SURFACE);
 	}
 
 	public static int baseSurface()
 	{
-		return getThemeSurface(LIGHT_BASE_SURFACE, DARK_BASE_SURFACE);
+		if (isOriginalBBSTheme())
+		{
+			return Colors.A75;
+		}
+
+		return usesCustomDarkSurface() ? customDarkSurface(1F) : getThemeSurface(LIGHT_BASE_SURFACE, DARK_BASE_SURFACE);
 	}
 
 	public static int raisedSurface()
 	{
-		return getThemeSurface(LIGHT_RAISED_SURFACE, DARK_RAISED_SURFACE);
+		if (isOriginalBBSTheme())
+		{
+			return Colors.A50;
+		}
+
+		return usesCustomDarkSurface() ? customDarkSurface(1.18F) : getThemeSurface(LIGHT_RAISED_SURFACE, DARK_RAISED_SURFACE);
 	}
 
 	public static int deepSurface()
 	{
-		return getThemeSurface(LIGHT_DEEP_SURFACE, DARK_DEEP_SURFACE);
+		if (isOriginalBBSTheme())
+		{
+			return Colors.A50;
+		}
+
+		return usesCustomDarkSurface() ? customDarkSurface(0.62F) : getThemeSurface(LIGHT_DEEP_SURFACE, DARK_DEEP_SURFACE);
 	}
 
 	public static int dividerColor()
 	{
-		return getThemeColor(LIGHT_DIVIDER_COLOR, DARK_DIVIDER_COLOR);
+		if (isOriginalBBSTheme())
+		{
+			return Colors.setA(Colors.WHITE, 0.25F);
+		}
+
+		return usesCustomDarkSurface() ? tintSurface(interfaceSurfaceColor.get(), 1.45F) : getThemeColor(LIGHT_DIVIDER_COLOR, DARK_DIVIDER_COLOR);
 	}
 
 	public static int color(int color, int alpha)
@@ -322,12 +472,12 @@ public class BBSSettings {
 
 	public static int panelShadowOpaqueColor()
 	{
-		return Colors.A25 | primaryColor.get();
+		return Colors.A25 | accentColor();
 	}
 
 	public static int panelShadowTransparentColor()
 	{
-		return Colors.setA(primaryColor.get(), 0F);
+		return Colors.setA(accentColor(), 0F);
 	}
 
 	public static int getDefaultDuration()
@@ -461,6 +611,8 @@ public class BBSSettings {
 
 		builder.category("appearance", Icons.LAYOUT);
 		builder.register(language = new ValueLanguage("language"));
+		/* Keep this high in Settings because it changes the replay editor's everyday layout. */
+		editorShowAllReplayTracks = builder.getBoolean("show_all_replay_tracks", false);
 		enableTrackpadIncrements = builder.getBoolean("trackpad_increments", false);
 		enableTrackpadScrolling = builder.getBoolean("trackpad_scrolling", false);
 		userIntefaceScale = builder.getFloat("ui_scale", 2F, 0F, 4F);
@@ -486,8 +638,19 @@ public class BBSSettings {
 		builder.category("personalization", Icons.COLOR);
 		backgroundBrightness = builder.getFloat("background_brightness", DEFAULT_BACKGROUND_BRIGHTNESS, MIN_BACKGROUND_BRIGHTNESS, MAX_BACKGROUND_BRIGHTNESS);
 		interfaceShadows = builder.getBoolean("interface_shadows", true);
+		colorPreset = builder.getInt("color_preset", 0, 0, COLOR_PRESET_NAMES.length - 1).modes(
+			IKey.constant(COLOR_PRESET_NAMES[0]),
+			IKey.constant(COLOR_PRESET_NAMES[1]),
+			IKey.constant(COLOR_PRESET_NAMES[2]),
+			IKey.constant(COLOR_PRESET_NAMES[3]),
+			IKey.constant(COLOR_PRESET_NAMES[4]),
+			IKey.constant(COLOR_PRESET_NAMES[5]),
+			IKey.constant(COLOR_PRESET_NAMES[6])
+		);
 		primaryColor = builder.getInt("primary_color", DEFAULT_PRIMARY_COLOR).color();
+		interfaceSurfaceColor = builder.getInt("interface_surface_color", DARK_BASE_SURFACE).color();
 		stencilHighlightColor = builder.getInt("stencil_highlight_color", 0x2EFFFFFF).colorAlpha();
+		originalBBSTheme = builder.getBoolean("original_bbs_theme", false);
 		theme = builder.getInt("theme", DEFAULT_THEME);
 		editorTrackWidth = builder.getInt("track_width", 2, 1, 10);
 		keyframeDefaultShape = builder.getInt("keyframe_default_shape", 0, 0, KeyframeShape.values().length - 1);
@@ -582,7 +745,8 @@ public class BBSSettings {
 		editorCenterLines = builder.getBoolean("center_lines", false);
 		editorCrosshair = builder.getBoolean("crosshair", false);
 		editorSeconds = builder.getBoolean("seconds", false);
-		editorTimelineGrid = builder.getBoolean("timeline_grid", false);
+		editorTimelineGrid = builder.getBoolean("timeline_grid", true);
+		editorColoredKeyframeLines = builder.getBoolean("colored_keyframe_lines", true);
 		keyframeDefaultInterpolation = builder.getString("keyframe_default_interpolation", Interpolations.LINEAR.getKey());
 		editorPeriodicSave = builder.getInt("periodic_save", 60, 0, 3600);
 		editorHorizontalFlight = builder.getBoolean("horizontal_flight", false);

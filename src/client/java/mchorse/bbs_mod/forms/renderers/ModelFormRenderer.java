@@ -72,6 +72,9 @@ import java.util.function.Supplier;
 
 public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITickable
 {
+    public static final String MAIN_HAND_ITEM_BONE = "__bbs_main_hand_item";
+    public static final String OFF_HAND_ITEM_BONE = "__bbs_off_hand_item";
+
     private static Matrix4f uiMatrix = new Matrix4f();
 
     public ModelForm getForm()
@@ -562,6 +565,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
                 stack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(180F));
                 stack.translate(0F, 0.125F, 0F);
                 MatrixStackUtils.applyTransform(stack, armorSlot.transform);
+                MatrixStackUtils.applyTransform(stack, target.getEquipmentTransform(slot));
 
                 CustomVertexConsumerProvider.hijackVertexFormat((l) -> RenderSystem.enableBlend());
 
@@ -854,6 +858,9 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
             matrices.put(StringUtils.combinePaths(prefix, entry.getKey()), matrix, o);
         }
 
+        this.collectHandItemMatrix(entity, stack, matrices, prefix, model.getItemsMain(), EquipmentSlot.MAINHAND, MAIN_HAND_ITEM_BONE);
+        this.collectHandItemMatrix(entity, stack, matrices, prefix, model.getItemsOff(), EquipmentSlot.OFFHAND, OFF_HAND_ITEM_BONE);
+
         int i = 0;
 
         /* Recursively do the same thing with body parts */
@@ -889,6 +896,36 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
         stack.pop();
 
         this.bones.clear();
+    }
+
+    private void collectHandItemMatrix(IEntity entity, MatrixStack stack, MatrixCache matrices, String prefix, List<ArmorSlot> slots, EquipmentSlot equipmentSlot, String key)
+    {
+        if (slots.isEmpty())
+        {
+            return;
+        }
+
+        ArmorSlot slot = slots.get(0);
+        MatrixCacheEntry bone = this.bones.get(slot.group);
+
+        if (bone == null || bone.matrix() == null)
+        {
+            return;
+        }
+
+        stack.push();
+        MatrixStackUtils.multiply(stack, bone.matrix());
+        stack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(90F));
+        stack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(180F));
+        stack.translate(0F, 0.125F, 0F);
+        MatrixStackUtils.applyTransform(stack, slot.transform);
+
+        Matrix4f origin = new Matrix4f(stack.peek().getPositionMatrix());
+        MatrixStackUtils.applyTransform(stack, entity.getEquipmentTransform(equipmentSlot));
+        Matrix4f matrix = new Matrix4f(stack.peek().getPositionMatrix());
+
+        matrices.put(StringUtils.combinePaths(prefix, key), matrix, origin);
+        stack.pop();
     }
 
     /**

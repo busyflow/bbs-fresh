@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import io.netty.util.collection.IntObjectHashMap;
 import io.netty.util.collection.IntObjectMap;
 import mchorse.bbs_mod.BBSSettings;
+import mchorse.bbs_mod.actions.crowd.CrowdMotionPath;
 import mchorse.bbs_mod.client.BBSRendering;
 import mchorse.bbs_mod.camera.data.Point;
 import mchorse.bbs_mod.client.renderer.ModelBlockEntityRenderer;
@@ -201,6 +202,11 @@ public abstract class BaseFilmController
             renderAnchorGizmo(entities, entity, target, defaultMatrix, cx, cy, cz, transition, context.anchorLocal, context.map, stack);
         }
 
+        if (UIBaseMenu.shouldRenderAxes() && context.crowdMotionPoint != null && context.replay != null)
+        {
+            renderCrowdMotionGizmo(context, stack);
+        }
+
         if (!relative && context.map == null && opacity > 0F && context.shadowRadius > 0F && form.visible.get())
         {
             /* Skip the shadow when the form is hidden (form.visible, animatable via keyframes): the form
@@ -259,6 +265,34 @@ public abstract class BaseFilmController
             stack.pop();
         }
 
+        RenderSystem.enableDepthTest();
+    }
+
+    private static void renderCrowdMotionGizmo(FilmControllerContext context, MatrixStack stack)
+    {
+        CrowdMotionPath point = context.crowdMotionPoint;
+        float tick = context.crowdMotionTick;
+        double x = context.replay.keyframes.x.interpolate(tick) + point.x;
+        double y = context.replay.keyframes.y.interpolate(tick) + point.y;
+        double z = context.replay.keyframes.z.interpolate(tick) + point.z;
+
+        stack.push();
+        stack.translate(
+            x - context.camera.getPos().x,
+            y - context.camera.getPos().y,
+            z - context.camera.getPos().z
+        );
+
+        if (context.map == null)
+        {
+            Gizmo.INSTANCE.captureVisual(stack);
+        }
+        else
+        {
+            Gizmo.INSTANCE.renderStencil(stack, context.map);
+        }
+
+        stack.pop();
         RenderSystem.enableDepthTest();
     }
 
@@ -726,9 +760,10 @@ public abstract class BaseFilmController
             if (replay.enabled.get())
             {
                 World world = MinecraftClient.getInstance().world;
-                IEntity entity = new StubEntity(world);
+                StubEntity entity = new StubEntity(world);
                 int ticks = replay.getTick(this.getTick());
 
+                entity.setReplayContext(this.film, replay, ticks);
                 entity.setForm(FormUtils.copy(replay.form.get()));
                 replay.keyframes.apply(ticks, entity);
                 entity.setPrevX(entity.getX());
@@ -780,6 +815,11 @@ public abstract class BaseFilmController
                 /* Replay-local: a looping replay wraps the film tick to its own window, and that must not
                  * carry over to the next replay in the loop (which would then wrap an already wrapped tick). */
                 int replayTicks = replay.getTick(ticks);
+
+                if (entity instanceof StubEntity stub)
+                {
+                    stub.setReplayContext(this.film, replay, replayTicks);
+                }
 
                 this.updateEntityAndForm(entity, replayTicks);
                 this.applyReplay(replay, replayTicks, entity);
@@ -927,6 +967,11 @@ public abstract class BaseFilmController
 
             float delta = this.getTransition(entity, transition);
             int tick = replay.getTick(this.getTick());
+
+            if (entity instanceof StubEntity stub)
+            {
+                stub.setReplayContext(this.film, replay, tick + delta);
+            }
 
             /* Apply property */
             Form form1 = entity.getForm();

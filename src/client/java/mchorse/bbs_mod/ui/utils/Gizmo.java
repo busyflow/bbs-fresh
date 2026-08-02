@@ -1443,7 +1443,7 @@ public class Gizmo
             /* Screen-space (view-plane) translate handle: a white cube at the centre,
              * twice the bars' thickness. Drawn before the planes so they overlay it,
              * and after the rotation sphere (above) so it stays visible in combined. */
-            if (showMove && (active == null || active == Handle.SCREEN))
+            if (showMove && this.mode.shows(Op.SCREEN) && (active == null || active == Handle.SCREEN))
             {
                 float screenHalf = SCREEN_CUBE_HALF * scale * thickness;
 
@@ -1482,7 +1482,7 @@ public class Gizmo
         }
 
         /* The centre cube is decoration, not a handle, so any filtered drag hides it. */
-        if (active == null && (showMove || showScale || showRotate))
+        if (active == null && this.mode != Mode.TRANSLATE_AXES && (showMove || showScale || showRotate))
         {
             if (!building)
             {
@@ -1691,7 +1691,7 @@ public class Gizmo
 
             /* Screen-space handle hitbox: drawn before the planes so they win the pick
              * where they overlap (planes overlay the cube). Matches the visual cube. */
-            if (showMove && (active == null || active == Handle.SCREEN))
+            if (showMove && this.mode.shows(Op.SCREEN) && (active == null || active == Handle.SCREEN))
             {
                 float screenHalf = SCREEN_CUBE_HALF * scale * thickness;
 
@@ -1736,7 +1736,7 @@ public class Gizmo
 
     public static enum Mode
     {
-        TRANSLATE, SCALE, ROTATE, COMBINED;
+        TRANSLATE, SCALE, ROTATE, COMBINED, TRANSLATE_AXES;
 
         public boolean shows(Op op)
         {
@@ -1750,6 +1750,8 @@ public class Gizmo
                     return op == Op.ROTATE || op == Op.VIEW || op == Op.TRACKBALL;
                 case COMBINED:
                     return op == Op.MOVE || op == Op.SCALE || op == Op.ROTATE || op == Op.VIEW || op == Op.SCREEN;
+                case TRANSLATE_AXES:
+                    return op == Op.MOVE;
                 default:
                     return false;
             }

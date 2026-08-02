@@ -42,6 +42,7 @@ import mchorse.bbs_mod.ui.framework.elements.input.keyframes.UIKeyframeEditor;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.UIKeyframeSheet;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.UIKeyframes;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UIAnchorKeyframeFactory;
+import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UICrowdMotionPathKeyframeFactory;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UIPoseKeyframeFactory;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UIPoseTransformKeyframeFactory;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UITransformKeyframeFactory;
@@ -52,6 +53,7 @@ import mchorse.bbs_mod.resources.Link;
 import mchorse.bbs_mod.settings.values.core.ValueLink;
 import mchorse.bbs_mod.settings.values.core.ValueTransform;
 import mchorse.bbs_mod.utils.colors.Colors;
+import mchorse.bbs_mod.utils.interps.Interpolations;
 import mchorse.bbs_mod.utils.keyframes.Keyframe;
 import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
 import mchorse.bbs_mod.utils.keyframes.KeyframeSegment;
@@ -60,6 +62,7 @@ import mchorse.bbs_mod.settings.values.base.BaseValue;
 import mchorse.bbs_mod.settings.values.base.BaseValueBasic;
 import mchorse.bbs_mod.utils.pose.Pose;
 import mchorse.bbs_mod.utils.pose.PoseTransform;
+import net.minecraft.item.ItemStack;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -186,9 +189,147 @@ public class UIReplaysEditorUtils
 
             if (recorded != null)
             {
+                recorded.getInterpolation().setInterp(Interpolations.LINEAR);
+                consumer.accept(recorded);
+                recordSelectedReplays(editor, sheet, tick, consumer);
+            }
+        }
+    }
+
+    private static <T> void recordSelectedReplays(UIKeyframes editor, UIKeyframeSheet sheet, int tick, Consumer<Keyframe<T>> consumer)
+    {
+        UIFilmPanel panel = getFilmPanel(editor);
+
+        if (panel == null || panel.replayEditor == null || panel.replayEditor.replaysList == null)
+        {
+            return;
+        }
+
+        Replay active = panel.replayEditor.getReplay();
+
+        for (Replay replay : panel.replayEditor.replaysList.replays.getSelectedReplays())
+        {
+            if (replay == active)
+            {
+                continue;
+            }
+
+            KeyframeChannel<T> channel = getMatchingChannel(replay, sheet.id, sheet.channel.getFactory());
+
+            if (channel == null)
+            {
+                continue;
+            }
+
+            Keyframe<T> recorded = ensureChannelKeyframe(channel, tick);
+
+            if (recorded != null)
+            {
+                recorded.getInterpolation().setInterp(Interpolations.LINEAR);
                 consumer.accept(recorded);
             }
         }
+    }
+
+    /**
+     * Apply an armor/item keyframe edit to the matching track on every selected
+     * replay. The active replay is updated by the graph itself; this method fans
+     * the same value out to the remaining replay selection.
+     */
+    public static void setItemForSelectedReplays(UIKeyframes editor, Keyframe<?> source, ItemStack stack)
+    {
+        if (editor == null || source == null)
+        {
+            return;
+        }
+
+        UIFilmPanel panel = getFilmPanel(editor);
+        UIKeyframeSheet sheet = editor.getGraph().getSheet(source);
+
+        if (panel == null || sheet == null || panel.replayEditor == null || panel.replayEditor.replaysList == null)
+        {
+            return;
+        }
+
+        Replay active = panel.replayEditor.getReplay();
+
+        for (Replay replay : panel.replayEditor.replaysList.replays.getSelectedReplays())
+        {
+            if (replay == active)
+            {
+                continue;
+            }
+
+            KeyframeChannel<ItemStack> channel = getMatchingChannel(replay, sheet.id, KeyframeFactories.ITEM_STACK);
+
+            if (channel == null)
+            {
+                continue;
+            }
+
+            Keyframe<ItemStack> target = ensureChannelKeyframe(channel, source.getTick());
+
+            if (target != null)
+            {
+                target.preNotify();
+                target.setValue(stack == null ? ItemStack.EMPTY : stack.copy());
+                target.copyOverExtra(source);
+                target.postNotify();
+            }
+        }
+    }
+
+    private static UIFilmPanel getFilmPanel(UIKeyframes editor)
+    {
+        UIContext context = editor == null ? null : editor.getContext();
+
+        if (context == null)
+        {
+            return null;
+        }
+
+        List<UIFilmPanel> panels = context.menu.main.getChildren(UIFilmPanel.class);
+
+        return panels.isEmpty() ? null : panels.get(0);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> KeyframeChannel<T> getMatchingChannel(Replay replay, String id, Object factory)
+    {
+        BaseValue value = replay.keyframes.get(id);
+        KeyframeChannel<?> channel = value instanceof KeyframeChannel<?> keyframeChannel ? keyframeChannel : null;
+
+        if (channel == null || channel.getFactory() != factory)
+        {
+            channel = replay.properties.getOrCreate(replay.form.get(), id);
+        }
+
+        return channel != null && channel.getFactory() == factory ? (KeyframeChannel<T>) channel : null;
+    }
+
+    private static <T> Keyframe<T> ensureChannelKeyframe(KeyframeChannel<T> channel, float tick)
+    {
+        for (Keyframe<T> keyframe : channel.getKeyframes())
+        {
+            if (keyframe.getTick() == tick)
+            {
+                return keyframe;
+            }
+        }
+
+        KeyframeSegment<T> segment = channel.find(tick);
+        T value = segment == null
+            ? channel.getFactory().createEmpty()
+            : segment.createInterpolated();
+        int index = channel.insert(tick, value);
+        Keyframe<T> keyframe = channel.get(index);
+
+        if (segment != null && segment.a != null && segment.a != keyframe)
+        {
+            keyframe.copyOverExtra(segment.a);
+        }
+
+        return keyframe;
     }
 
     private static void insertPoseTransformKeyframe(KeyframeChannel<PoseTransform> channel, float tick, PoseTransform value)
@@ -678,6 +819,10 @@ public class UIReplaysEditorUtils
             return keyframeFactory.poseEditor.transform;
         }
         else if (editor.editor instanceof UIPoseTransformKeyframeFactory keyframeFactory)
+        {
+            return keyframeFactory.transform;
+        }
+        else if (editor.editor instanceof UICrowdMotionPathKeyframeFactory keyframeFactory)
         {
             return keyframeFactory.transform;
         }

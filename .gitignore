@@ -41,5 +41,8 @@ replay_*.log
 *.hprof
 *.jfr
 
+# local deployment helper
+deploy-v*.ps1
+
 ik_test/*
 .claude/settings.local.json

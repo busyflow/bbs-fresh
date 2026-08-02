@@ -32,6 +32,7 @@ import java.util.function.Supplier;
 public abstract class FormRenderer <T extends Form>
 {
     protected T form;
+    private Transform preparedTransform;
 
     public FormRenderer(T form)
     {
@@ -84,66 +85,126 @@ public abstract class FormRenderer <T extends Form>
         return false;
     }
 
-    public final void render(FormRenderingContext context)
+    /**
+     * Apply form-wide GL state once for a run of identical forms. Callers must
+     * pair a successful begin with {@link #endBatch()}.
+     */
+    public final boolean beginBatch(FormRenderingContext context)
     {
         if (!this.form.shaderShadow.get() && BBSRendering.isIrisShadowPass())
         {
-            return;
+            return false;
         }
 
         this.form.applyStates(context.transition);
 
-        int light = context.light;
-        boolean visible = this.form.visible.get();
+        try
+        {
+            this.preparedTransform = this.createTransform();
+        }
+        catch (RuntimeException exception)
+        {
+            this.form.unapplyStates();
 
-        if (!visible)
+            throw exception;
+        }
+
+        return true;
+    }
+
+    public final void endBatch()
+    {
+        this.preparedTransform = null;
+        this.form.unapplyStates();
+    }
+
+    public final void render(FormRenderingContext context)
+    {
+        if (!this.beginBatch(context))
         {
             return;
         }
 
-        boolean isPicking = context.stencilMap != null;
-
-        context.stack.push();
-        if (context.world != null)
+        try
         {
-            context.world.push();
+            this.renderPrepared(context);
         }
-        this.applyTransforms(context.stack, false, context.getTransition());
-        if (context.world != null)
+        finally
         {
-            this.applyTransforms(context.world, false, context.getTransition());
+            this.endBatch();
         }
+    }
 
-        float lf = 1F - MathUtils.clamp(this.form.lighting.get(), 0F, 1F);
-        int u = context.light & '\uffff';
-        int v = context.light >> 16 & '\uffff';
+    /**
+     * Render one instance while the form's state is already active. This keeps
+     * crowd rendering allocation-light without changing ordinary form renders.
+     */
+    public final void renderPrepared(FormRenderingContext context)
+    {
+        int light = context.light;
+        boolean stackPushed = false;
+        boolean worldPushed = false;
 
-        u = (int) Lerps.lerp(u, LightmapTextureManager.MAX_BLOCK_LIGHT_COORDINATE, lf);
-        context.light = u | v << 16;
-
-        this.render3D(context);
-
-        if (isPicking)
+        try
         {
-            this.updateStencilMap(context);
+            if (!this.form.visible.get())
+            {
+                return;
+            }
+
+            boolean isPicking = context.stencilMap != null;
+
+            context.stack.push();
+            stackPushed = true;
+
+            if (context.world != null)
+            {
+                context.world.push();
+                worldPushed = true;
+            }
+
+            this.applyTransforms(context.stack, false, context.getTransition());
+
+            if (context.world != null)
+            {
+                this.applyTransforms(context.world, false, context.getTransition());
+            }
+
+            float lf = 1F - MathUtils.clamp(this.form.lighting.get(), 0F, 1F);
+            int u = context.light & '\uffff';
+            int v = context.light >> 16 & '\uffff';
+
+            u = (int) Lerps.lerp(u, LightmapTextureManager.MAX_BLOCK_LIGHT_COORDINATE, lf);
+            context.light = u | v << 16;
+
+            this.render3D(context);
+
+            if (isPicking && !context.suppressStencilUpdates)
+            {
+                this.updateStencilMap(context);
+            }
+
+            this.renderBodyParts(context);
         }
-
-        this.renderBodyParts(context);
-
-        context.stack.pop();
-        if (context.world != null)
+        finally
         {
-            context.world.pop();
+            if (worldPushed)
+            {
+                context.world.pop();
+            }
+
+            if (stackPushed)
+            {
+                context.stack.pop();
+            }
+
+            context.light = light;
         }
-
-        context.light = light;
-
-        this.form.unapplyStates();
     }
 
     protected void applyTransforms(MatrixStack stack, boolean origin, float transition)
     {
-        Transform transform = this.createTransform();
+        Transform transform = this.preparedTransform == null ? this.createTransform() : this.preparedTransform;
 
         if (origin)
         {
@@ -157,7 +218,9 @@ public abstract class FormRenderer <T extends Form>
 
     protected void applyTransforms(Matrix4f matrix, float transition)
     {
-        matrix.mul(this.createTransform().createMatrix());
+        Transform transform = this.preparedTransform == null ? this.createTransform() : this.preparedTransform;
+
+        matrix.mul(transform.createMatrix());
     }
 
     protected Transform createTransform()
@@ -257,18 +320,25 @@ public abstract class FormRenderer <T extends Form>
             {
                 context.world.push();
             }
-            MatrixStackUtils.applyTransform(context.stack, part.transform.get());
-            if (context.world != null)
+
+            try
             {
-                MatrixStackUtils.applyTransform(context.world, part.transform.get());
+                MatrixStackUtils.applyTransform(context.stack, part.transform.get());
+                if (context.world != null)
+                {
+                    MatrixStackUtils.applyTransform(context.world, part.transform.get());
+                }
+
+                FormUtilsClient.render(part.getForm(), context);
             }
-
-            FormUtilsClient.render(part.getForm(), context);
-
-            context.stack.pop();
-            if (context.world != null)
+            finally
             {
-                context.world.pop();
+                context.stack.pop();
+
+                if (context.world != null)
+                {
+                    context.world.pop();
+                }
             }
         }
 

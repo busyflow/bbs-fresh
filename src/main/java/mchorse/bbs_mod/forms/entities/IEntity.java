@@ -6,6 +6,7 @@ import net.minecraft.entity.EntityPose;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.LimbAnimator;
 import net.minecraft.item.ItemStack;
+import mchorse.bbs_mod.utils.pose.Transform;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 
@@ -26,6 +27,10 @@ public interface IEntity
     public ItemStack getEquipmentStack(EquipmentSlot slot);
 
     public void setEquipmentStack(EquipmentSlot slot, ItemStack stack);
+
+    public Transform getEquipmentTransform(EquipmentSlot slot);
+
+    public void setEquipmentTransform(EquipmentSlot slot, Transform transform);
 
     public int getSelectedSlot();
 
@@ -152,6 +157,9 @@ public interface IEntity
         this.setHeadYaw(entity.getHeadYaw());
         this.setPitch(entity.getPitch());
         this.setBodyYaw(entity.getBodyYaw());
+
+        this.setEquipmentTransform(EquipmentSlot.MAINHAND, entity.getEquipmentTransform(EquipmentSlot.MAINHAND));
+        this.setEquipmentTransform(EquipmentSlot.OFFHAND, entity.getEquipmentTransform(EquipmentSlot.OFFHAND));
 
         this.setVelocity((float) entity.getVelocity().x, (float) entity.getVelocity().y, (float) entity.getVelocity().z);
 

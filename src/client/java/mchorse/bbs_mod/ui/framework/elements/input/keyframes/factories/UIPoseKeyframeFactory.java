@@ -230,6 +230,12 @@ public class UIPoseKeyframeFactory extends UIKeyframeFactory<Pose>
         }
 
         @Override
+        protected boolean supportsPlaybackRecording()
+        {
+            return true;
+        }
+
+        @Override
         protected boolean supportsMirror()
         {
             return true;

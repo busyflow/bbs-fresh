@@ -30,6 +30,7 @@ import mchorse.bbs_mod.ui.framework.elements.input.keyframes.graphs.UIKeyframeDo
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.graphs.UIKeyframeGraph;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.graphs.UIVector3KeyframeGraph;
 import mchorse.bbs_mod.ui.framework.elements.utils.UIDraggable;
+import mchorse.bbs_mod.ui.film.replays.UIReplaysEditor;
 import mchorse.bbs_mod.ui.utils.Area;
 import mchorse.bbs_mod.ui.utils.Scale;
 import mchorse.bbs_mod.ui.utils.Scroll;
@@ -244,7 +245,17 @@ public class UIKeyframes extends UIElement
 
     public int getLabelWidth()
     {
+        if (this.isReplayKeyframeEditor())
+        {
+            return LABEL_WIDTH_DEFAULT;
+        }
+
         return BBSSettings.editorLayoutSettings.getKeyframeLabelWidth();
+    }
+
+    private boolean isReplayKeyframeEditor()
+    {
+        return this.getParent(UIReplaysEditor.class) != null;
     }
 
     public UIKeyframes single()
@@ -1037,11 +1048,11 @@ public class UIKeyframes extends UIElement
         double maxValue = this.xAxis.getMaxValue();
 
         int labelWidth = this.getLabelWidth();
-        boolean showLabelResizer = this.currentGraph == this.dopeSheet;
+        boolean showLabelResizer = this.currentGraph == this.dopeSheet && !this.isReplayKeyframeEditor();
         this.labelResizer.setVisible(showLabelResizer);
         if (showLabelResizer)
         {
-            this.labelResizer.relative(this).x(labelWidth - 3).y(0.35F).w(6).h(0.3F);
+            this.labelResizer.relative(this).x(1F, -labelWidth - 3).y(0.35F).w(6).h(0.3F);
         }
 
         super.resize();
@@ -1049,7 +1060,6 @@ public class UIKeyframes extends UIElement
         if (showLabelResizer)
         {
             this.graphArea.copy(this.area);
-            this.graphArea.x += labelWidth;
             this.graphArea.w -= labelWidth;
         }
         else

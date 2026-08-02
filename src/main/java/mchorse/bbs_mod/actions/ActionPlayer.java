@@ -1,12 +1,14 @@
 package mchorse.bbs_mod.actions;
 
 import mchorse.bbs_mod.BBSMod;
+import mchorse.bbs_mod.actions.crowd.CrowdFormRuntimeManager;
 import mchorse.bbs_mod.data.types.BaseType;
 import mchorse.bbs_mod.entity.ActorEntity;
 import mchorse.bbs_mod.film.Film;
 import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.forms.FormUtils;
 import mchorse.bbs_mod.forms.forms.Form;
+import mchorse.bbs_mod.forms.forms.CrowdForm;
 import mchorse.bbs_mod.morphing.Morph;
 import mchorse.bbs_mod.network.ServerNetwork;
 import mchorse.bbs_mod.settings.values.base.BaseValue;
@@ -42,6 +44,7 @@ public class ActionPlayer
     private ServerPlayerEntity serverPlayer;
     private ServerWorld world;
     private int duration;
+    private final CrowdFormRuntimeManager crowdRuntime;
 
     private Map<String, LivingEntity> actors = new HashMap<>();
 
@@ -64,6 +67,7 @@ public class ActionPlayer
 
         this.serverPlayer = serverPlayer;
         this.duration = film.camera.calculateDuration();
+        this.crowdRuntime = new CrowdFormRuntimeManager(world, film);
 
         this.updateReplayEntities();
 
@@ -122,7 +126,7 @@ public class ActionPlayer
             Replay replay = list.get(i);
             boolean isActor = replay.actor.get() || replay.fp.get();
 
-            if (i == this.exception || !isActor || !replay.enabled.get())
+            if (i == this.exception || !isActor || !replay.enabled.get() || replay.form.get() instanceof CrowdForm)
             {
                 continue;
             }
@@ -256,6 +260,8 @@ public class ActionPlayer
         SuperFakePlayer fakePlayer = SuperFakePlayer.get(this.world);
         List<Replay> list = this.film.replays.getList();
 
+        this.crowdRuntime.tick(this.tick, fakePlayer);
+
         for (int i = 0; i < list.size(); i++)
         {
             if (i == this.exception)
@@ -291,6 +297,12 @@ public class ActionPlayer
             {
                 this.updateReplayEntities();
             }
+
+            /* Film-editor playback is normally paused while property controls are adjusted.
+             * tick() returns before applyAction() in that state, so crowd changes would remain
+             * queued until playback resumed. Evaluate the crowd runtime immediately at the
+             * stationary cursor tick after every accepted live edit. */
+            this.crowdRuntime.tick(this.tick, SuperFakePlayer.get(this.world));
         }
         else if (!this.pendingResync && this.serverPlayer != null)
         {
@@ -335,6 +347,8 @@ public class ActionPlayer
 
     public void stop()
     {
+        this.crowdRuntime.reset();
+
         for (LivingEntity value : this.actors.values())
         {
             if (!value.isPlayer())

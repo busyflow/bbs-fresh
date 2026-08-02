@@ -1,6 +1,7 @@
 package mchorse.bbs_mod.ui.film.controller;
 
 import mchorse.bbs_mod.film.BaseFilmController;
+import mchorse.bbs_mod.actions.crowd.CrowdTexture;
 import mchorse.bbs_mod.film.Film;
 import mchorse.bbs_mod.film.FilmControllerContext;
 import mchorse.bbs_mod.film.replays.Replay;
@@ -8,8 +9,10 @@ import mchorse.bbs_mod.forms.entities.IEntity;
 import mchorse.bbs_mod.forms.entities.MCEntity;
 import mchorse.bbs_mod.forms.entities.StubEntity;
 import mchorse.bbs_mod.forms.forms.Form;
+import mchorse.bbs_mod.forms.forms.CrowdForm;
 import mchorse.bbs_mod.settings.values.base.BaseValue;
 import mchorse.bbs_mod.settings.values.ui.ValueOnionSkin;
+import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UICrowdMotionPathKeyframeFactory;
 import mchorse.bbs_mod.utils.CollectionUtils;
 import mchorse.bbs_mod.utils.Pair;
 import mchorse.bbs_mod.utils.colors.Colors;
@@ -78,6 +81,7 @@ public class FilmEditorController extends BaseFilmController
         if (entity != this.controller.getControlled() || (this.controller.isRecording() && this.controller.getRecordingCountdown() <= 0 && groups != null))
         {
             replay.keyframes.apply(ticks, entity, entity == this.controller.getControlled() ? groups : null);
+            this.applyCrowdTexture(replay, ticks, entity);
             replay.applyClientActions(ticks, entity, this.film);
         }
 
@@ -113,6 +117,40 @@ public class FilmEditorController extends BaseFilmController
                 diff -= 1;
             }
         }
+    }
+
+    private void applyCrowdTexture(Replay replay, int tick, IEntity entity)
+    {
+        if (!(entity.getForm() instanceof CrowdForm crowd) || replay.keyframes.crowdTexture.isEmpty())
+        {
+            return;
+        }
+
+        CrowdTexture value = replay.keyframes.crowdTexture.interpolate(tick, new CrowdTexture());
+
+        if (value == null)
+        {
+            return;
+        }
+
+        var texture = value.random ? null : value.texture;
+        var folder = value.random ? value.folder : null;
+        boolean recursive = value.random && value.recursive;
+
+        if (java.util.Objects.equals(crowd.textureOverride.get(), texture)
+            && java.util.Objects.equals(crowd.randomTextureFolder.get(), folder)
+            && crowd.randomTextures.get() == value.random
+            && crowd.recursiveTextures.get() == recursive)
+        {
+            return;
+        }
+
+        crowd.textureOverride.set(texture);
+        crowd.randomTextures.set(value.random);
+        crowd.randomTextureFolder.set(folder);
+        crowd.textureFolder.set(folder);
+        crowd.recursiveTextures.set(recursive);
+        crowd.textureRevision.set(crowd.textureRevision.get() + 1);
     }
 
     @Override
@@ -247,12 +285,20 @@ public class FilmEditorController extends BaseFilmController
         boolean anchorGizmo = this.isCurrent(entity)
             && !this.controller.panel.recorder.isRecording()
             && this.controller.isAnchorGizmo();
+        UICrowdMotionPathKeyframeFactory crowdMotion = this.isCurrent(entity)
+            && !this.controller.panel.recorder.isRecording()
+            ? this.controller.getCrowdMotionEditor()
+            : null;
 
         return super.getFilmControllerContext(context, replay, entity)
             .transition(this.getTransition(entity, context.tickDelta()))
             .bone(aBone, local)
             .bone2(aBone2, local2)
-            .anchorGizmo(anchorGizmo, this.controller.getAnchorLocal());
+            .anchorGizmo(anchorGizmo, this.controller.getAnchorLocal())
+            .crowdMotionGizmo(
+                crowdMotion == null ? null : crowdMotion.getPath(),
+                crowdMotion == null ? 0F : crowdMotion.getMotionKeyframe().getTick()
+            );
     }
 
     private boolean isCurrent(IEntity entity)

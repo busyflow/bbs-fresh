@@ -1106,8 +1106,11 @@ public class UIReplayList extends UIList<ReplayListEntry>
     {
         ArrayList<String> out = new ArrayList<>();
         HashSet<String> added = new HashSet<>();
+        List<String> curated = replay.form.get() instanceof mchorse.bbs_mod.forms.forms.CrowdForm
+            ? ReplayKeyframes.CROWD_CHANNELS
+            : ReplayKeyframes.CURATED_CHANNELS;
 
-        for (String id : ReplayKeyframes.CURATED_CHANNELS)
+        for (String id : curated)
         {
             BaseValue baseValue = replay.keyframes.get(id);
 
@@ -1116,6 +1119,11 @@ public class UIReplayList extends UIList<ReplayListEntry>
                 out.add(id);
                 added.add(id);
             }
+        }
+
+        if (curated == ReplayKeyframes.CROWD_CHANNELS)
+        {
+            return out;
         }
 
         for (KeyframeChannel<?> channel : replay.keyframes.getChannels())
@@ -1942,7 +1950,13 @@ public class UIReplayList extends UIList<ReplayListEntry>
             }
         });
 
-        palette.updatable();
+        /* A form palette can already be open (for example after a viewport action).
+         * In that case UIFormPalette.open intentionally returns null; the replay was
+         * still created successfully, so leave it selected instead of crashing. */
+        if (palette != null)
+        {
+            palette.updatable();
+        }
     }
 
     public void addReplay()

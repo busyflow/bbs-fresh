@@ -1,8 +1,10 @@
 package mchorse.bbs_mod.forms;
 
+import com.mojang.logging.LogUtils;
 import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
 import mchorse.bbs_mod.forms.forms.AnchorForm;
 import mchorse.bbs_mod.forms.forms.BillboardForm;
+import mchorse.bbs_mod.forms.forms.CrowdForm;
 import mchorse.bbs_mod.forms.forms.BlockForm;
 import mchorse.bbs_mod.forms.forms.ExtrudedForm;
 import mchorse.bbs_mod.forms.forms.Form;
@@ -17,6 +19,7 @@ import mchorse.bbs_mod.forms.forms.TrailForm;
 import mchorse.bbs_mod.forms.forms.VanillaParticleForm;
 import mchorse.bbs_mod.forms.renderers.AnchorFormRenderer;
 import mchorse.bbs_mod.forms.renderers.BillboardFormRenderer;
+import mchorse.bbs_mod.forms.renderers.CrowdFormRenderer;
 import mchorse.bbs_mod.forms.renderers.BlockFormRenderer;
 import mchorse.bbs_mod.forms.renderers.ExtrudedFormRenderer;
 import mchorse.bbs_mod.forms.renderers.FormRenderer;
@@ -40,16 +43,21 @@ import net.minecraft.util.Util;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.Stack;
+import org.slf4j.Logger;
 
 public class FormUtilsClient
 {
+    private static final Logger LOGGER = LogUtils.getLogger();
     private static Map<Class, IFormRendererFactory> map = new HashMap<>();
     private static CustomVertexConsumerProvider customVertexConsumerProvider;
     private static Stack<Form> currentForm = new Stack<>();
+    private static final Set<Class<?>> reportedRenderFailures = Collections.synchronizedSet(new HashSet<>());
 
     static
     {
@@ -88,6 +96,7 @@ public class FormUtilsClient
         customVertexConsumerProvider = new CustomVertexConsumerProvider(new BufferBuilder(1536), sortedMap);
 
         register(BillboardForm.class, BillboardFormRenderer::new);
+        register(CrowdForm.class, CrowdFormRenderer::new);
         register(ExtrudedForm.class, ExtrudedFormRenderer::new);
         register(LabelForm.class, LabelFormRenderer::new);
         register(ModelForm.class, ModelFormRenderer::new);
@@ -171,9 +180,42 @@ public class FormUtilsClient
                 renderer.render(context);
             }
             catch (Exception e)
-            {}
+            {
+                if (reportedRenderFailures.add(form.getClass()))
+                {
+                    LOGGER.error("[BBS forms] Failed to render form type {}. Further failures of this type will be suppressed.", form.getClass().getName(), e);
+                }
+            }
+            finally
+            {
+                currentForm.pop();
+            }
+        }
+    }
 
-            currentForm.pop();
+    public static void renderPrepared(Form form, FormRenderingContext context)
+    {
+        FormRenderer renderer = getRenderer(form);
+
+        if (renderer != null)
+        {
+            currentForm.push(form);
+
+            try
+            {
+                renderer.renderPrepared(context);
+            }
+            catch (Exception e)
+            {
+                if (reportedRenderFailures.add(form.getClass()))
+                {
+                    LOGGER.error("[BBS forms] Failed to render batched form type {}. Further failures of this type will be suppressed.", form.getClass().getName(), e);
+                }
+            }
+            finally
+            {
+                currentForm.pop();
+            }
         }
     }
 

@@ -3,6 +3,7 @@ package mchorse.bbs_mod.forms.entities;
 import mchorse.bbs_mod.forms.forms.Form;
 import mchorse.bbs_mod.morphing.Morph;
 import mchorse.bbs_mod.utils.AABB;
+import mchorse.bbs_mod.utils.pose.Transform;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityPose;
 import net.minecraft.entity.EquipmentSlot;
@@ -23,6 +24,8 @@ public class MCEntity implements IEntity
 
     private float[] extraVariables = new float[10];
     private float[] prevExtraVariables = new float[10];
+    private final Transform mainHandTransform = new Transform();
+    private final Transform offHandTransform = new Transform();
 
     public MCEntity(Entity mcEntity)
     {
@@ -81,6 +84,21 @@ public class MCEntity implements IEntity
         {
             living.equipStack(slot, stack == null ? ItemStack.EMPTY : stack);
         }
+    }
+
+    @Override
+    public Transform getEquipmentTransform(EquipmentSlot slot)
+    {
+        return slot == EquipmentSlot.OFFHAND ? this.offHandTransform : this.mainHandTransform;
+    }
+
+    @Override
+    public void setEquipmentTransform(EquipmentSlot slot, Transform transform)
+    {
+        Transform target = this.getEquipmentTransform(slot);
+
+        if (transform == null) target.identity();
+        else target.copy(transform);
     }
 
     @Override

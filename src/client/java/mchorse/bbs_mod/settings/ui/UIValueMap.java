@@ -84,6 +84,68 @@ public class UIValueMap
 
         register(ValueInt.class, (value, ui) ->
         {
+            if (value == BBSSettings.colorPreset)
+            {
+                int detected = BBSSettings.detectColorPreset();
+
+                if (value.get() != detected)
+                {
+                    value.set(detected);
+                }
+
+                UIButton button = new UIButton(() -> BBSSettings.getColorPresetName(BBSSettings.detectColorPreset()), (b) ->
+                    b.getContext().replaceContextMenu((menu) ->
+                    {
+                        int current = BBSSettings.detectColorPreset();
+
+                        for (int i = 0; i < BBSSettings.getColorPresetCount(); i++)
+                        {
+                            int preset = i;
+
+                            menu.action(Icons.COLOR, IKey.constant(BBSSettings.getColorPresetName(i)), i == current, () ->
+                            {
+                                BBSSettings.applyColorPreset(preset);
+
+                                if (ui instanceof UISettingsOverlayPanel panel)
+                                {
+                                    panel.refresh();
+                                }
+                            });
+                        }
+                    }));
+
+                button.w(120);
+
+                return Arrays.asList(UIValueFactory.column(button, value));
+            }
+
+            if (value == BBSSettings.interfaceSurfaceColor)
+            {
+                UIColor color = UIValueFactory.colorUI(value, (c) -> BBSSettings.syncColorPreset());
+                UIIcon reset = new UIIcon(Icons.REFRESH, (b) ->
+                {
+                    int defaultColor = BBSSettings.getDefaultInterfaceSurfaceColor();
+
+                    value.set(defaultColor);
+                    BBSSettings.syncColorPreset();
+                    color.setColor(defaultColor);
+                });
+
+                color.w(70);
+                reset.wh(20, 20);
+
+                return Arrays.asList(UIValueFactory.column(UI.row(3, color, reset), value));
+            }
+
+            if (value == BBSSettings.primaryColor)
+            {
+                UIColor color = UIValueFactory.colorUI(value, (c) -> BBSSettings.syncColorPreset());
+
+                color.w(90);
+
+                return Arrays.asList(UIValueFactory.column(color, value));
+            }
+
             if (value == BBSSettings.editorPreviewSizeMode)
             {
                 UICirculate button = new UICirculate(null);

@@ -22,6 +22,7 @@ import net.minecraft.util.math.RotationAxis;
 public class ActorEntityRenderer extends EntityRenderer<ActorEntity>
 {
     public static ArmorRenderer armorRenderer;
+    private final FormRenderingContext formContext = new FormRenderingContext();
 
     public ActorEntityRenderer(EntityRendererFactory.Context ctx)
     {
@@ -54,7 +55,7 @@ public class ActorEntityRenderer extends EntityRenderer<ActorEntity>
 
         RenderSystem.enableBlend();
         RenderSystem.enableDepthTest();
-        FormUtilsClient.render(livingEntity.getForm(), new FormRenderingContext()
+        FormUtilsClient.render(livingEntity.getForm(), this.formContext
             .set(FormRenderType.ENTITY, livingEntity.getEntity(), matrices, light, overlay, tickDelta)
             .camera(MinecraftClient.getInstance().gameRenderer.getCamera()));
         RenderSystem.disableDepthTest();
@@ -75,6 +76,17 @@ public class ActorEntityRenderer extends EntityRenderer<ActorEntity>
         if (!entity.isInPose(EntityPose.SLEEPING))
         {
             matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-bodyYaw));
+        }
+
+        float ragdollTilt = entity.getCrowdRagdollTilt();
+
+        if (ragdollTilt > 0.001F)
+        {
+            float direction = entity.getCrowdRagdollDirection();
+
+            matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(direction));
+            matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(ragdollTilt));
+            matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-direction));
         }
 
         if (entity.deathTime > 0)

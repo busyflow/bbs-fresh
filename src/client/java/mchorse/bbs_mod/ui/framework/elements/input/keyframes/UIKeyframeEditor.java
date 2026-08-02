@@ -2,12 +2,15 @@ package mchorse.bbs_mod.ui.framework.elements.input.keyframes;
 
 import mchorse.bbs_mod.camera.clips.overwrite.KeyframeClip;
 import mchorse.bbs_mod.film.replays.PerLimbService;
+import mchorse.bbs_mod.film.replays.ReplayKeyframes;
+import mchorse.bbs_mod.forms.renderers.ModelFormRenderer;
 import mchorse.bbs_mod.data.DataStorageUtils;
 import mchorse.bbs_mod.data.types.BaseType;
 import mchorse.bbs_mod.data.types.ListType;
 import mchorse.bbs_mod.data.types.MapType;
 import mchorse.bbs_mod.ui.framework.elements.UIElement;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UIAnchorKeyframeFactory;
+import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UICrowdMotionPathKeyframeFactory;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UIKeyframeFactory;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UIPoseKeyframeFactory;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UIPoseTransformKeyframeFactory;
@@ -224,6 +227,13 @@ public class UIKeyframeEditor extends UIElement
                     bone = poseBonePath.formPath().isEmpty() ? poseBonePath.bone() : poseBonePath.formPath() + "/" + poseBonePath.bone();
                     local = transform.transform.isLocal();
                 }
+                else if (ReplayKeyframes.RIGHT_HAND_POSE.equals(id) || ReplayKeyframes.LEFT_HAND_POSE.equals(id))
+                {
+                    bone = ReplayKeyframes.RIGHT_HAND_POSE.equals(id)
+                        ? ModelFormRenderer.MAIN_HAND_ITEM_BONE
+                        : ModelFormRenderer.OFF_HAND_ITEM_BONE;
+                    local = true;
+                }
                 else if (id.startsWith("transform"))
                 {
                     int i = sheet.id.lastIndexOf('/');
@@ -277,6 +287,19 @@ public class UIKeyframeEditor extends UIElement
         UIKeyframeSheet sheet = this.getSheet(this.editor.getKeyframe());
 
         return sheet != null && sheet.property != null && "anchor".equals(sheet.id);
+    }
+
+    public UICrowdMotionPathKeyframeFactory getCrowdMotionEditor()
+    {
+        return this.editor instanceof UICrowdMotionPathKeyframeFactory factory ? factory : null;
+    }
+
+    public boolean isCrowdMotionPathTrack()
+    {
+        UICrowdMotionPathKeyframeFactory factory = this.getCrowdMotionEditor();
+        UIKeyframeSheet sheet = factory == null ? null : this.getSheet(factory.getMotionKeyframe());
+
+        return sheet != null && "crowd_motion_path".equals(sheet.id);
     }
 
     /** Whether the anchor gizmo should be oriented in the bone's local space (mirrors {@link #getBone()}'s flag). */

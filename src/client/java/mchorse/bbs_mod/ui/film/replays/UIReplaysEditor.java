@@ -22,6 +22,7 @@ import mchorse.bbs_mod.film.replays.ReplayKeyframes;
 import mchorse.bbs_mod.forms.FormUtils;
 import mchorse.bbs_mod.forms.entities.IEntity;
 import mchorse.bbs_mod.forms.forms.BodyPart;
+import mchorse.bbs_mod.forms.forms.CrowdForm;
 import mchorse.bbs_mod.forms.forms.Form;
 import mchorse.bbs_mod.forms.forms.ModelForm;
 import mchorse.bbs_mod.forms.renderers.ModelFormRenderer;
@@ -109,6 +110,7 @@ public class UIReplaysEditor extends UIElement
     /* «All tracks» view: shows every category's tracks at once, bypassing the category filter. */
     private UIIcon allToggle;
     private boolean allMode;
+    private boolean lastShowAllReplayTracks;
 
     /* Clips */
     private UIFilmPanel filmPanel;
@@ -163,6 +165,12 @@ public class UIReplaysEditor extends UIElement
         COLORS.put("transform_overlay", 0xaaff00);
         COLORS.put("color", Colors.INACTIVE);
         COLORS.put("shape_keys", Colors.PINK);
+        COLORS.put("crowd_look_target", Colors.CYAN);
+        COLORS.put("crowd_jump", Colors.YELLOW);
+        COLORS.put("crowd_motion_path", Colors.MAGENTA);
+        COLORS.put("crowd_texture", Colors.ORANGE);
+        COLORS.put(ReplayKeyframes.RIGHT_HAND_POSE, 0x36d9d0);
+        COLORS.put(ReplayKeyframes.LEFT_HAND_POSE, 0xff6699);
     }
 
     private static void putColors(int color, String... keys)
@@ -198,6 +206,12 @@ public class UIReplaysEditor extends UIElement
         ICONS.put("count", Icons.BUCKET);
         ICONS.put("settings", Icons.GEAR);
         ICONS.put("physics_targets", Icons.TIME);
+        ICONS.put("crowd_look_target", Icons.VISIBLE);
+        ICONS.put("crowd_jump", Icons.VERTICAL);
+        ICONS.put("crowd_motion_path", Icons.ALL_DIRECTIONS);
+        ICONS.put("crowd_texture", Icons.MATERIAL);
+        ICONS.put(ReplayKeyframes.RIGHT_HAND_POSE, Icons.LIMB);
+        ICONS.put(ReplayKeyframes.LEFT_HAND_POSE, Icons.LIMB);
     }
 
     public static Icon getIcon(String key)
@@ -251,6 +265,11 @@ public class UIReplaysEditor extends UIElement
         }
 
         if (PerLimbService.isPoseBoneChannel(id))
+        {
+            return ReplayCategory.POSE;
+        }
+
+        if (ReplayKeyframes.RIGHT_HAND_POSE.equals(id) || ReplayKeyframes.LEFT_HAND_POSE.equals(id))
         {
             return ReplayCategory.POSE;
         }
@@ -411,6 +430,7 @@ public class UIReplaysEditor extends UIElement
         this.layoutBottomToggles();
 
         this.setCategory(ReplayCategory.PLAYER);
+        this.lastShowAllReplayTracks = this.isShowingAllReplayTracks();
 
         this.keys().register(Keys.REPLAYS_TAB_1, () -> this.setCategoryByPosition(0))
             .category(UIKeys.FILM_REPLAY_TITLE);
@@ -429,6 +449,16 @@ public class UIReplaysEditor extends UIElement
 
     private void setCategory(ReplayCategory c)
     {
+        if (this.isShowingAllReplayTracks())
+        {
+            this.category = c;
+            this.actionsMode = false;
+            this.allMode = false;
+            this.updateChannelsList();
+
+            return;
+        }
+
         this.actionsMode = false;
         this.allMode = false;
         this.category = c;
@@ -438,6 +468,11 @@ public class UIReplaysEditor extends UIElement
     /** Show every category's tracks at once, bypassing the category filter. */
     private void setAllTracks()
     {
+        if (this.isShowingAllReplayTracks())
+        {
+            return;
+        }
+
         this.actionsMode = false;
         this.allMode = true;
         this.updateChannelsList();
@@ -450,6 +485,11 @@ public class UIReplaysEditor extends UIElement
      */
     private void setCategoryByPosition(int index)
     {
+        if (this.isShowingAllReplayTracks())
+        {
+            return;
+        }
+
         List<ReplayCategory> present = new ArrayList<>();
 
         for (ReplayCategory category : ReplayCategory.values())
@@ -591,11 +631,20 @@ public class UIReplaysEditor extends UIElement
         List<UIKeyframeSheet> sheets = new ArrayList<>();
         Map<UIKeyframeSheet, List<UIKeyframeSheet>> poseTabs = new HashMap<>();
         Map<UIKeyframeSheet, Integer> poseTabDepths = new HashMap<>();
+        boolean crowdOnly = this.replay.form.get() instanceof CrowdForm;
 
-        this.collectCuratedSheets(sheets);
-        this.collectFormPropertySheets(sheets, poseTabs, poseTabDepths);
-        this.collectIKSheets(sheets);
-        this.collectPhysicsSheets(sheets);
+        if (crowdOnly)
+        {
+            this.collectSheets(sheets, ReplayKeyframes.CROWD_CHANNELS);
+        }
+        else
+        {
+            this.collectCuratedSheets(sheets);
+            this.collectFormPropertySheets(sheets, poseTabs, poseTabDepths);
+            this.collectIKSheets(sheets);
+            this.collectPhysicsSheets(sheets);
+            this.placeHandPoseTracks(sheets);
+        }
 
         this.keys.clear();
 
@@ -608,7 +657,7 @@ public class UIReplaysEditor extends UIElement
 
         sheets.removeIf((v) ->
         {
-            if (!this.allMode && categoryOf(v) != this.category)
+            if (!crowdOnly && !this.isShowingAllReplayTracks() && !this.allMode && categoryOf(v) != this.category)
             {
                 return true;
             }
@@ -659,7 +708,7 @@ public class UIReplaysEditor extends UIElement
             this.keyframeEditor = new UIKeyframeEditor((consumer) -> new UIFilmKeyframes(this.filmPanel.cameraEditor, consumer).absolute())
                 .target(this.filmPanel.editArea)
                 .editPanelTopOffset(this.filmPanel::getEditPanelTopOffsetPx);
-            this.keyframeEditor.relative(this).x(CATEGORY_BAR_WIDTH).y(0).w(1F, -CATEGORY_BAR_WIDTH).h(1F);
+            this.layoutTimeline(this.keyframeEditor);
             this.keyframeEditor.setUndoId("replay_keyframe_editor");
 
             this.layoutBottomToggles();
@@ -789,13 +838,68 @@ public class UIReplaysEditor extends UIElement
 
     private void collectCuratedSheets(List<UIKeyframeSheet> sheets)
     {
-        for (String key : ReplayKeyframes.CURATED_CHANNELS)
+        this.collectSheets(sheets, ReplayKeyframes.CURATED_CHANNELS);
+    }
+
+    private void placeHandPoseTracks(List<UIKeyframeSheet> sheets)
+    {
+        List<UIKeyframeSheet> handPoses = new ArrayList<>();
+
+        sheets.removeIf((sheet) ->
         {
+            boolean handPose = ReplayKeyframes.RIGHT_HAND_POSE.equals(sheet.id) || ReplayKeyframes.LEFT_HAND_POSE.equals(sheet.id);
+
+            if (handPose)
+            {
+                handPoses.add(sheet);
+            }
+
+            return handPose;
+        });
+
+        int index = -1;
+
+        for (int i = 0; i < sheets.size(); i++)
+        {
+            if (StringUtils.fileName(sheets.get(i).id).startsWith("pose_overlay"))
+            {
+                index = i;
+            }
+        }
+
+        if (index < 0)
+        {
+            for (int i = 0; i < sheets.size(); i++)
+            {
+                if (categoryOf(sheets.get(i)) == ReplayCategory.POSE)
+                {
+                    index = i;
+                }
+            }
+        }
+
+        sheets.addAll(index + 1, handPoses);
+    }
+
+    private void collectSheets(List<UIKeyframeSheet> sheets, List<String> channels)
+    {
+        for (String key : channels)
+        {
+            if (isCrowdChannel(key) && !(this.replay.form.get() instanceof CrowdForm))
+            {
+                continue;
+            }
+
             BaseValue value = this.replay.keyframes.get(key);
             KeyframeChannel channel = (KeyframeChannel) value;
 
             sheets.add(new UIKeyframeSheet(getColor(key), false, channel, null).icon(ICONS.get(key)));
         }
+    }
+
+    private static boolean isCrowdChannel(String key)
+    {
+        return ReplayKeyframes.CROWD_CHANNELS.contains(key);
     }
 
     private void collectFormPropertySheets(List<UIKeyframeSheet> sheets, Map<UIKeyframeSheet, List<UIKeyframeSheet>> poseTabs, Map<UIKeyframeSheet, Integer> poseTabDepths)
@@ -1113,7 +1217,7 @@ public class UIReplaysEditor extends UIElement
     public void attachActionTimeline(UIClipsPanel actionTimeline)
     {
         this.actionTimeline = actionTimeline;
-        actionTimeline.relative(this).x(CATEGORY_BAR_WIDTH).y(0).w(1F, -CATEGORY_BAR_WIDTH).h(1F);
+        this.layoutTimeline(actionTimeline);
         this.add(actionTimeline);
         this.bringBarToFront();
         this.updateTimelineModeVisibility();
@@ -1142,10 +1246,12 @@ public class UIReplaysEditor extends UIElement
 
     /**
      * Show either the keyframe timeline or the action-clips timeline in the same area;
-     * their parameters share editArea, so only the active mode's panel is shown.
+     * their parameters share editArea, so only the active mode's panel is shown. Show All
+     * Tracks still gives either editor the full-width timeline when it is active.
      */
     private void updateTimelineModeVisibility()
     {
+        boolean allTracks = this.isShowingAllReplayTracks();
         boolean keyframes = !this.actionsMode;
 
         if (this.keyframeEditor != null)
@@ -1160,6 +1266,19 @@ public class UIReplaysEditor extends UIElement
             this.actionTimeline.setTimelineVisible(this.timelineVisible && this.actionsMode);
             this.actionTimeline.setPropertiesVisible(this.propertiesVisible && this.actionsMode);
         }
+    }
+
+    private boolean isShowingAllReplayTracks()
+    {
+        return BBSSettings.editorShowAllReplayTracks != null && BBSSettings.editorShowAllReplayTracks.get();
+    }
+
+    /** The all-tracks preference reclaims the narrow category rail for the active timeline. */
+    private void layoutTimeline(UIElement timeline)
+    {
+        int inset = this.isShowingAllReplayTracks() ? 0 : CATEGORY_BAR_WIDTH;
+
+        timeline.relative(this).x(inset).y(0).w(1F, -inset).h(1F);
     }
 
     /** Keep the category bar and the actions toggle above the timelines. */
@@ -1220,7 +1339,7 @@ public class UIReplaysEditor extends UIElement
     {
         if (form instanceof ModelForm && bone != null && !bone.isEmpty())
         {
-            if (this.allMode)
+            if (this.isShowingAllReplayTracks() || this.allMode)
             {
                 this.setActionsMode(false);
             }
@@ -1396,11 +1515,27 @@ public class UIReplaysEditor extends UIElement
     @Override
     public void render(UIContext context)
     {
+        boolean allTracks = this.isShowingAllReplayTracks();
+
+        if (this.lastShowAllReplayTracks != allTracks)
+        {
+            this.lastShowAllReplayTracks = allTracks;
+
+            if (allTracks)
+            {
+                this.allMode = false;
+            }
+
+            this.updateChannelsList();
+            this.updateTimelineModeVisibility();
+        }
+
         /* Hide category bar + actions toggle while the "edit track" overlay is open */
         boolean notEditing = this.keyframeEditor == null || !this.keyframeEditor.view.isEditing();
 
-        this.iconBar.setVisible(this.timelineVisible && notEditing);
-        this.actionsToggle.setVisible(this.timelineVisible && notEditing);
+        this.iconBar.setVisible(!allTracks && this.timelineVisible && notEditing);
+        this.allToggle.setVisible(!allTracks && this.timelineVisible && notEditing);
+        this.actionsToggle.setVisible(!allTracks && this.timelineVisible && notEditing);
 
         UIReplaysEditorUtils.configureFilmHotkeyDrag(this.filmPanel, context);
 
@@ -1411,6 +1546,16 @@ public class UIReplaysEditor extends UIElement
     public void resize()
     {
         super.resize();
+
+        if (this.keyframeEditor != null)
+        {
+            this.layoutTimeline(this.keyframeEditor);
+        }
+
+        if (this.actionTimeline != null)
+        {
+            this.layoutTimeline(this.actionTimeline);
+        }
 
         this.layoutBottomToggles();
     }

@@ -122,7 +122,7 @@ public class UIClips extends UIElement
         /* Draw the marker */
         FontRenderer font = context.batcher.getFont();
         int width = font.getWidth(label) + 3;
-        int color = BBSSettings.primaryColor.get();
+        int color = BBSSettings.accentColor();
 
         context.batcher.box(x, area.y, x + 1, area.ey(), color | Colors.A100);
 
@@ -1878,10 +1878,12 @@ public class UIClips extends UIElement
 
         if (leftEdge > this.area.x)
         {
-            batcher.box(this.area.x, this.area.y, Math.min(leftEdge, this.area.ex()), this.area.ey(), BBSSettings.chromeSurface());
+            int outsideColor = BBSSettings.isOriginalBBSTheme() ? Colors.A75 : BBSSettings.chromeSurface();
+
+            batcher.box(this.area.x, this.area.y, Math.min(leftEdge, this.area.ex()), this.area.ey(), outsideColor);
         }
 
-        area.render(batcher, BBSSettings.deepSurface());
+        area.render(batcher, BBSSettings.isOriginalBBSTheme() ? Colors.A50 : BBSSettings.deepSurface());
         batcher.clip(this.vertical.area.x, rulerBottom, this.vertical.area.ex(), this.vertical.area.ey(), context);
 
         for (int i = 0; i < this.layers; i++)
@@ -1890,7 +1892,9 @@ public class UIClips extends UIElement
 
             if (i % 2 != 0)
             {
-                batcher.box(leftEdge, ly, this.area.ex(), ly + h, BBSSettings.baseSurface());
+                int layerColor = BBSSettings.isOriginalBBSTheme() ? Colors.A50 : BBSSettings.baseSurface();
+
+                batcher.box(leftEdge, ly, this.area.ex(), ly + h, layerColor);
             }
         }
 
@@ -1902,7 +1906,7 @@ public class UIClips extends UIElement
         batcher.unclip(context);
         batcher.clip(this.vertical.area.x, rulerBottom, this.vertical.area.ex(), this.vertical.area.ey(), context);
 
-        if (BBSSettings.editorTimelineGrid.get())
+        if (BBSSettings.isOriginalBBSTheme() || BBSSettings.editorTimelineGrid.get())
         {
             TimelineRulerRenderer.renderGrid(
                 context,
@@ -1923,15 +1927,23 @@ public class UIClips extends UIElement
             IUIClipRenderer renderer = this.renderers.get(clip);
 
             Area clipArea = this.getClipArea(clip, CLIP_AREA, h);
+            Area visibleClipArea = new Area(clipArea);
             boolean selected = this.hasSelected(i);
 
             if (!this.hasEmbeddedView())
             {
                 clipArea.y += 1;
                 clipArea.h -= 2;
+                visibleClipArea.y += 1;
+                visibleClipArea.h -= 2;
             }
 
-            renderer.renderClip(context, this, clip, clipArea, selected, this.delegate.getClip() == clip);
+            this.vertical.area.clamp(visibleClipArea);
+
+            if (visibleClipArea.w > 0 && visibleClipArea.h > 0)
+            {
+                renderer.renderClip(context, this, clip, visibleClipArea, selected, this.delegate.getClip() == clip);
+            }
 
             if (!selected && !this.grabbing && !this.selecting && clipArea.isInside(context))
             {
@@ -1941,11 +1953,13 @@ public class UIClips extends UIElement
             int clipHandle = this.getClipHandle(clip, context, h);
             int color = this.grabMode != 0 ? Colors.WHITE : Colors.A50;
 
-            if (clipHandle == 1 || (selected && this.grabMode == 1))
+            if ((clipHandle == 1 || (selected && this.grabMode == 1))
+                && clipArea.x >= this.vertical.area.x && clipArea.x <= this.vertical.area.ex())
             {
                 context.batcher.icon(Icons.CLIP_HANLDE_LEFT, color, clipArea.x, clipArea.y + 10, 0F, 0.5F);
             }
-            else if (clipHandle == 2 || (selected && this.grabMode == 2))
+            else if ((clipHandle == 2 || (selected && this.grabMode == 2))
+                && clipArea.ex() >= this.vertical.area.x && clipArea.ex() <= this.vertical.area.ex())
             {
                 context.batcher.icon(Icons.CLIP_HANLDE_RIGHT, color, clipArea.ex(), clipArea.y + 10, 1F, 0.5F);
             }

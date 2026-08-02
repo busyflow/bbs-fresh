@@ -11,12 +11,17 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.attribute.DefaultAttributeContainer;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.item.ItemStack;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.data.DataTracker;
+import net.minecraft.entity.data.TrackedData;
+import net.minecraft.entity.data.TrackedDataHandlerRegistry;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.packet.s2c.play.ItemPickupAnimationS2CPacket;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Arm;
 import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 
 import java.util.HashMap;
@@ -25,6 +30,10 @@ import java.util.Map;
 
 public class ActorEntity extends LivingEntity implements IEntityFormProvider
 {
+    private static final TrackedData<Boolean> CROWD_CONTROLLED = DataTracker.registerData(ActorEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
+    private static final TrackedData<Float> CROWD_RAGDOLL_TILT = DataTracker.registerData(ActorEntity.class, TrackedDataHandlerRegistry.FLOAT);
+    private static final TrackedData<Float> CROWD_RAGDOLL_DIRECTION = DataTracker.registerData(ActorEntity.class, TrackedDataHandlerRegistry.FLOAT);
+
     public static DefaultAttributeContainer.Builder createActorAttributes()
     {
         return LivingEntity.createLivingAttributes()
@@ -35,6 +44,15 @@ public class ActorEntity extends LivingEntity implements IEntityFormProvider
     }
 
     private boolean despawn;
+    private boolean crowdLook;
+    private float crowdYaw;
+    private float crowdBodyYaw;
+    private float crowdHeadYaw;
+    private float crowdPitch;
+    private boolean crowdApplyYaw;
+    private boolean crowdApplyBodyYaw;
+    private boolean crowdApplyHeadYaw;
+    private boolean crowdApplyPitch;
     private MCEntity entity = new MCEntity(this);
     private Form form;
 
@@ -74,6 +92,106 @@ public class ActorEntity extends LivingEntity implements IEntityFormProvider
             if (lastForm != null) lastForm.onDemorph(this);
             if (form != null) form.onMorph(this);
         }
+    }
+
+    @Override
+    protected void initDataTracker()
+    {
+        super.initDataTracker();
+
+        this.dataTracker.startTracking(CROWD_CONTROLLED, false);
+        this.dataTracker.startTracking(CROWD_RAGDOLL_TILT, 0F);
+        this.dataTracker.startTracking(CROWD_RAGDOLL_DIRECTION, 0F);
+    }
+
+    public void setCrowdControlled(boolean crowdControlled)
+    {
+        if (this.dataTracker.get(CROWD_CONTROLLED) != crowdControlled)
+        {
+            this.dataTracker.set(CROWD_CONTROLLED, crowdControlled);
+        }
+    }
+
+    public boolean isCrowdControlled()
+    {
+        return this.dataTracker.get(CROWD_CONTROLLED);
+    }
+
+    public void setCrowdRagdoll(float tilt, float direction)
+    {
+        float safeTilt = Math.max(0F, tilt);
+
+        if (Math.abs(this.dataTracker.get(CROWD_RAGDOLL_TILT) - safeTilt) > 0.001F)
+        {
+            this.dataTracker.set(CROWD_RAGDOLL_TILT, safeTilt);
+        }
+
+        if (Math.abs(this.dataTracker.get(CROWD_RAGDOLL_DIRECTION) - direction) > 0.001F)
+        {
+            this.dataTracker.set(CROWD_RAGDOLL_DIRECTION, direction);
+        }
+    }
+
+    public float getCrowdRagdollTilt()
+    {
+        return this.dataTracker.get(CROWD_RAGDOLL_TILT);
+    }
+
+    public float getCrowdRagdollDirection()
+    {
+        return this.dataTracker.get(CROWD_RAGDOLL_DIRECTION);
+    }
+
+    public void setCrowdLook(float bodyYaw, float headYaw, float pitch)
+    {
+        this.setCrowdLook(bodyYaw, bodyYaw, headYaw, pitch, true, true, true, true);
+    }
+
+    public void setCrowdLook(float yaw, float bodyYaw, float headYaw, float pitch,
+        boolean applyYaw, boolean applyBodyYaw, boolean applyHeadYaw, boolean applyPitch)
+    {
+        this.crowdLook = true;
+        this.crowdYaw = yaw;
+        this.crowdBodyYaw = bodyYaw;
+        this.crowdHeadYaw = headYaw;
+        this.crowdPitch = pitch;
+        this.crowdApplyYaw = applyYaw;
+        this.crowdApplyBodyYaw = applyBodyYaw;
+        this.crowdApplyHeadYaw = applyHeadYaw;
+        this.crowdApplyPitch = applyPitch;
+        this.applyCrowdLook();
+    }
+
+    public void clearCrowdLook()
+    {
+        this.crowdLook = false;
+    }
+
+    private void applyCrowdLook()
+    {
+        if (this.crowdApplyYaw) this.setYaw(this.crowdYaw);
+        if (this.crowdApplyBodyYaw) this.setBodyYaw(this.crowdBodyYaw);
+        if (this.crowdApplyHeadYaw) this.setHeadYaw(this.crowdHeadYaw);
+        if (this.crowdApplyPitch) this.setPitch(this.crowdPitch);
+    }
+
+    @Override
+    public boolean isPushable()
+    {
+        return !this.isCrowdControlled() && super.isPushable();
+    }
+
+    @Override
+    public void tickMovement()
+    {
+        if (this.isCrowdControlled())
+        {
+            this.setVelocity(Vec3d.ZERO);
+
+            return;
+        }
+
+        super.tickMovement();
     }
 
     @Override
@@ -126,12 +244,17 @@ public class ActorEntity extends LivingEntity implements IEntityFormProvider
 
         this.tickHandSwing();
 
-        if (this.form != null)
+        if (this.form != null && this.shouldUpdateForm())
         {
             this.form.update(this.entity);
         }
 
-        if (this.getWorld().isClient)
+        if (this.crowdLook)
+        {
+            this.applyCrowdLook();
+        }
+
+        if (this.getWorld().isClient || this.isCrowdControlled())
         {
             return;
         }
@@ -154,6 +277,31 @@ public class ActorEntity extends LivingEntity implements IEntityFormProvider
                 }
             }
         }
+    }
+
+    private boolean shouldUpdateForm()
+    {
+        if (!this.isCrowdControlled())
+        {
+            return true;
+        }
+
+        /* Crowd forms are visual state; the dedicated runtime owns movement, damage and look.
+         * Never run form animation logic on the server, and stagger distant client animation
+         * updates while still rendering every frame. */
+        if (!this.getWorld().isClient)
+        {
+            return false;
+        }
+
+        PlayerEntity viewer = this.getWorld().getClosestPlayer(this, 256D);
+        double distanceSquared = viewer == null ? Double.POSITIVE_INFINITY : this.squaredDistanceTo(viewer);
+        int interval = distanceSquared <= 32D * 32D ? 1
+            : distanceSquared <= 64D * 64D ? 2
+            : distanceSquared <= 128D * 128D ? 4
+            : 8;
+
+        return Math.floorMod(this.age + this.getId(), interval) == 0;
     }
 
     @Override

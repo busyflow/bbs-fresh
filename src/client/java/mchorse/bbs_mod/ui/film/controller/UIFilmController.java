@@ -64,6 +64,7 @@ import mchorse.bbs_mod.ui.framework.elements.buttons.UIIcon;
 import mchorse.bbs_mod.ui.framework.elements.context.UISimpleContextMenu;
 import mchorse.bbs_mod.ui.framework.elements.input.UIPropTransform;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.UIKeyframeEditor;
+import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UICrowdMotionPathKeyframeFactory;
 import mchorse.bbs_mod.ui.framework.elements.overlay.UIOverlay;
 import mchorse.bbs_mod.ui.framework.elements.utils.FontRenderer;
 import mchorse.bbs_mod.ui.framework.elements.utils.StencilMap;
@@ -1594,6 +1595,20 @@ public class UIFilmController extends UIElement implements GizmoViewport
         return keyframeEditor != null && keyframeEditor.getAnchorLocal();
     }
 
+    public UICrowdMotionPathKeyframeFactory getCrowdMotionEditor()
+    {
+        UIKeyframeEditor keyframeEditor = this.panel.replayEditor.keyframeEditor;
+
+        return keyframeEditor != null && keyframeEditor.isCrowdMotionPathTrack()
+            ? keyframeEditor.getCrowdMotionEditor()
+            : null;
+    }
+
+    public boolean isCrowdMotionGizmo()
+    {
+        return this.getCrowdMotionEditor() != null;
+    }
+
     /**
      * Whether the preview gizmo is actually drawn right now — the same gate the
      * renderer uses ({@link BaseFilmController#render}): axes enabled, not
@@ -1603,7 +1618,8 @@ public class UIFilmController extends UIElement implements GizmoViewport
      */
     private boolean canShowGizmo()
     {
-        return UIBaseMenu.shouldRenderAxes() && !this.isRecording() && (this.getBone() != null || this.isAnchorGizmo());
+        return UIBaseMenu.shouldRenderAxes() && !this.isRecording()
+            && (this.getBone() != null || this.isAnchorGizmo() || this.isCrowdMotionGizmo());
     }
 
     private void renderStencil(WorldRenderContext renderContext, UIContext context, boolean altPressed)
@@ -1641,6 +1657,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
             List<Replay> replays = this.panel.getData().replays.getList();
             int selectedReplayIndex = this.getCurrentReplayIndex();
             Pair<String, Boolean> bone = this.getBone();
+            UICrowdMotionPathKeyframeFactory crowdMotion = this.getCrowdMotionEditor();
 
             for (Map.Entry<Integer, IEntity> entry : this.getEntities().entrySet())
             {
@@ -1664,7 +1681,11 @@ public class UIFilmController extends UIElement implements GizmoViewport
 
                     filmContext
                         .bone(bone == null ? null : bone.a, bone != null && bone.b)
-                        .anchorGizmo(this.isAnchorGizmo(), this.getAnchorLocal());
+                        .anchorGizmo(this.isAnchorGizmo(), this.getAnchorLocal())
+                        .crowdMotionGizmo(
+                            crowdMotion == null ? null : crowdMotion.getPath(),
+                            crowdMotion == null ? 0F : crowdMotion.getMotionKeyframe().getTick()
+                        );
                 }
                 else
                 {
@@ -1679,6 +1700,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
         {
             Replay replay = this.panel.replayEditor.getReplay();
             Pair<String, Boolean> bone = this.getBone();
+            UICrowdMotionPathKeyframeFactory crowdMotion = this.getCrowdMotionEditor();
 
             this.stencilMap.setIncrement(true);
 
@@ -1688,7 +1710,11 @@ public class UIFilmController extends UIElement implements GizmoViewport
                 .stencil(this.stencilMap)
                 .relative(replay.relative.get())
                 .bone(bone == null ? null : bone.a, bone != null && bone.b)
-                .anchorGizmo(this.isAnchorGizmo(), this.getAnchorLocal()));
+                .anchorGizmo(this.isAnchorGizmo(), this.getAnchorLocal())
+                .crowdMotionGizmo(
+                    crowdMotion == null ? null : crowdMotion.getPath(),
+                    crowdMotion == null ? 0F : crowdMotion.getMotionKeyframe().getTick()
+                ));
         }
 
         int x = (int) ((context.mouseX - viewport.x) / (float) viewport.w * mainTexture.width);

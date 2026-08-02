@@ -95,6 +95,12 @@ public class UIPoseTransformKeyframeFactory extends UIKeyframeFactory<PoseTransf
         }
 
         @Override
+        protected boolean supportsPlaybackRecording()
+        {
+            return true;
+        }
+
+        @Override
         protected void applyToSelection(Consumer<Transform> consumer)
         {
             apply(this.editor.editor, this.editor.keyframe, (poseT) -> consumer.accept(poseT));

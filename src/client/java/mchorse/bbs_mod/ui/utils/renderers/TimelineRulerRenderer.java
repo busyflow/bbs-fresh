@@ -42,8 +42,8 @@ public class TimelineRulerRenderer
     private static final float MAJOR_ALPHA = 0.55F;
     private static final float MINOR_ALPHA = 0.28F;
     private static final float LABEL_ALPHA = 0.72F;
-    private static final float GRID_MAJOR_ALPHA = 0.35F;
-    private static final float GRID_MINOR_ALPHA = 0.16F;
+    private static final float GRID_MAJOR_ALPHA = 0.25F;
+    private static final float GRID_MINOR_ALPHA = 0.12F;
 
     public static int getTimelineBottom(Area area)
     {
@@ -124,7 +124,7 @@ public class TimelineRulerRenderer
         }
 
         int step = chooseStep(area, startTick, pxPerTick, context.batcher.getFont(), labelFormatter);
-        int minor = minorStep(step, pxPerTick);
+        int minor = BBSSettings.isOriginalBBSTheme() ? step : minorStep(step, pxPerTick);
         int labelMargin = (int) Math.ceil(step * pxPerTick);
 
         int majorColor = Colors.setA(BBSSettings.dividerColor(), MAJOR_ALPHA);
@@ -187,8 +187,10 @@ public class TimelineRulerRenderer
         int timelineEndX = durationTick > 0 ? toGraphX.applyAsInt(durationTick) : Integer.MAX_VALUE;
         int visibleEx = Math.min(area.ex(), timelineEndX);
 
-        int majorColor = Colors.setA(BBSSettings.dividerColor(), GRID_MAJOR_ALPHA);
-        int minorColor = Colors.setA(BBSSettings.dividerColor(), GRID_MINOR_ALPHA);
+        int majorColor = Colors.setA(Colors.WHITE, GRID_MAJOR_ALPHA);
+        int minorColor = BBSSettings.isOriginalBBSTheme()
+            ? majorColor
+            : Colors.setA(Colors.WHITE, GRID_MINOR_ALPHA);
 
         context.batcher.clip(area.x, top, area.ex(), area.ey(), context);
 

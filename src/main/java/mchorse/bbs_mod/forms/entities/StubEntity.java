@@ -1,7 +1,10 @@
 package mchorse.bbs_mod.forms.entities;
 
+import mchorse.bbs_mod.film.Film;
+import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.forms.forms.Form;
 import mchorse.bbs_mod.utils.AABB;
+import mchorse.bbs_mod.utils.pose.Transform;
 import net.minecraft.entity.EntityPose;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.LimbAnimator;
@@ -17,6 +20,9 @@ public class StubEntity implements IEntity
 {
     private World world;
     private int age;
+    private Film film;
+    private Replay replay;
+    private float replayTick;
 
     private Form form;
     private boolean sneaking;
@@ -52,6 +58,8 @@ public class StubEntity implements IEntity
 
     private LimbAnimator limbAnimator = new LimbAnimator();
     private final Map<EquipmentSlot, ItemStack> items = new HashMap<>();
+    private final Transform mainHandTransform = new Transform();
+    private final Transform offHandTransform = new Transform();
 
     public StubEntity(World world)
     {
@@ -76,6 +84,28 @@ public class StubEntity implements IEntity
     public World getWorld()
     {
         return this.world;
+    }
+
+    public void setReplayContext(Film film, Replay replay, float replayTick)
+    {
+        this.film = film;
+        this.replay = replay;
+        this.replayTick = replayTick;
+    }
+
+    public Film getFilm()
+    {
+        return this.film;
+    }
+
+    public Replay getReplay()
+    {
+        return this.replay;
+    }
+
+    public float getReplayTick()
+    {
+        return this.replayTick;
     }
 
     @Override
@@ -105,6 +135,21 @@ public class StubEntity implements IEntity
         }
 
         this.items.put(slot, stack);
+    }
+
+    @Override
+    public Transform getEquipmentTransform(EquipmentSlot slot)
+    {
+        return slot == EquipmentSlot.OFFHAND ? this.offHandTransform : this.mainHandTransform;
+    }
+
+    @Override
+    public void setEquipmentTransform(EquipmentSlot slot, Transform transform)
+    {
+        Transform target = this.getEquipmentTransform(slot);
+
+        if (transform == null) target.identity();
+        else target.copy(transform);
     }
 
     @Override

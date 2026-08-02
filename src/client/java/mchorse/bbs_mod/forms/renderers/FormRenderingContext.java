@@ -20,6 +20,7 @@ public class FormRenderingContext
     public float transition;
     public final Camera camera = new Camera();
     public StencilMap stencilMap;
+    public boolean suppressStencilUpdates;
     public boolean ui;
     public int color;
     public boolean modelRenderer;
@@ -37,8 +38,10 @@ public class FormRenderingContext
         this.overlay = overlay;
         this.transition = transition;
         this.stencilMap = null;
+        this.suppressStencilUpdates = false;
         this.ui = false;
         this.color = 0xffffffff;
+        this.modelRenderer = false;
 
         if (entity != null && (this.type == FormRenderType.ENTITY || this.type == FormRenderType.MODEL_BLOCK))
         {

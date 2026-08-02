@@ -16,6 +16,9 @@ import java.util.function.Consumer;
  */
 public abstract class UIKeyframePropTransform extends UIDeltaPropTransform
 {
+    private int playbackRecordingTick = Integer.MIN_VALUE;
+    private Transform playbackRecordingSample;
+
     protected abstract void applyDuringRecording(int tick, Consumer<Transform> consumer);
 
     protected Transform getRecordedTransform(int tick)
@@ -47,7 +50,22 @@ public abstract class UIKeyframePropTransform extends UIDeltaPropTransform
     {
         UIFilmPanel panel = this.getPanel();
 
-        return panel != null && panel.getController().isTransformRecording();
+        return panel != null && (panel.getController().isTransformRecording() || this.isPlaybackRecording(panel));
+    }
+
+    /**
+     * Pose editors opt into automatic recording while the film is playing and a
+     * gizmo gesture is active. Other transform tracks keep their existing edit
+     * behavior.
+     */
+    protected boolean supportsPlaybackRecording()
+    {
+        return false;
+    }
+
+    private boolean isPlaybackRecording(UIFilmPanel panel)
+    {
+        return this.supportsPlaybackRecording() && panel.isRunning() && this.isEditing();
     }
 
     protected int getRecordingTick()
@@ -78,6 +96,61 @@ public abstract class UIKeyframePropTransform extends UIDeltaPropTransform
         else
         {
             this.applyToSelection(consumer);
+        }
+    }
+
+    @Override
+    public void render(UIContext context)
+    {
+        UIFilmPanel panel = this.getPanel();
+        boolean recording = panel != null && this.isPlaybackRecording(panel);
+
+        if (recording)
+        {
+            int tick = this.getRecordingTick();
+
+            if (this.playbackRecordingTick == Integer.MIN_VALUE)
+            {
+                Transform target = this.getRecordedTransform(tick);
+
+                if (target != null)
+                {
+                    this.playbackRecordingTick = tick;
+                    this.playbackRecordingSample = target.copy();
+                    this.setTransform(target);
+                }
+            }
+            else if (tick != this.playbackRecordingTick && this.playbackRecordingSample != null)
+            {
+                Transform sample = this.playbackRecordingSample.copy();
+
+                this.applyDuringRecording(tick, (target) -> target.copy(sample));
+                this.playbackRecordingTick = tick;
+
+                Transform target = this.getRecordedTransform(tick);
+
+                if (target != null)
+                {
+                    this.setTransform(target);
+                }
+            }
+        }
+        else
+        {
+            this.playbackRecordingTick = Integer.MIN_VALUE;
+            this.playbackRecordingSample = null;
+        }
+
+        super.render(context);
+
+        if (recording)
+        {
+            Transform target = this.getRecordedTransform(this.getRecordingTick());
+
+            if (target != null)
+            {
+                this.playbackRecordingSample = target.copy();
+            }
         }
     }
 }

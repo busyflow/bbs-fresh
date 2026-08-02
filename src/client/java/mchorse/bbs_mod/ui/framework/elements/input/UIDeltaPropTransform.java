@@ -127,6 +127,32 @@ public abstract class UIDeltaPropTransform extends UIPropTransform
     }
 
     @Override
+    public void setR2(Axis axis, double x, double y, double z)
+    {
+        Transform transform = this.getTargetTransform();
+
+        if (transform == null)
+        {
+            return;
+        }
+
+        float dx = MathUtils.toRad((float) x) - transform.rotate2.x;
+        float dy = MathUtils.toRad((float) y) - transform.rotate2.y;
+        float dz = MathUtils.toRad((float) z) - transform.rotate2.z;
+
+        this.preCallback();
+        this.applyToTarget((t) ->
+        {
+            t.rotate2.x += dx;
+            t.rotate2.y += dy;
+            t.rotate2.z += dz;
+        });
+        this.postCallback();
+
+        this.syncTargetTransform();
+    }
+
+    @Override
     public void pasteTranslation(Vector3d translation)
     {
         this.preCallback();

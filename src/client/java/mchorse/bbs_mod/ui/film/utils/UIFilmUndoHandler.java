@@ -2,6 +2,7 @@ package mchorse.bbs_mod.ui.film.utils;
 
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.data.types.BaseType;
+import mchorse.bbs_mod.forms.forms.CrowdForm;
 import mchorse.bbs_mod.network.ClientNetwork;
 import mchorse.bbs_mod.settings.values.base.BaseValue;
 import mchorse.bbs_mod.ui.film.UIFilmPanel;
@@ -89,6 +90,7 @@ public class UIFilmUndoHandler extends UIFormUndoHandler
             path.contains("/keyframes/item_chest") ||
             path.contains("/keyframes/item_legs") ||
             path.contains("/keyframes/item_feet") ||
+            path.contains("/form/") ||
             path.contains("/properties/") ||
             path.endsWith("/properties") ||
             path.endsWith("/actor") ||
@@ -107,6 +109,11 @@ public class UIFilmUndoHandler extends UIFormUndoHandler
 
         while (value != null)
         {
+            if (value instanceof CrowdForm)
+            {
+                return true;
+            }
+
             if (value instanceof Clips clips && clips.getFactory() == BBSMod.getFactoryActionClips())
             {
                 return true;
