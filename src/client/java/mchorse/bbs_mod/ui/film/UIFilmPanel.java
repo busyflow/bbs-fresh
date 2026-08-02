@@ -48,6 +48,7 @@ import mchorse.bbs_mod.ui.film.replays.UIReplaysEditor;
 import mchorse.bbs_mod.ui.film.utils.UIFilmUndoHandler;
 import mchorse.bbs_mod.ui.film.utils.undo.UIUndoHistoryOverlay;
 import mchorse.bbs_mod.ui.framework.UIContext;
+import mchorse.bbs_mod.ui.framework.elements.IUIElement;
 import mchorse.bbs_mod.ui.framework.elements.UIElement;
 import mchorse.bbs_mod.ui.framework.elements.buttons.UIIcon;
 import mchorse.bbs_mod.ui.framework.elements.layout.ILayoutSource;
@@ -58,10 +59,13 @@ import mchorse.bbs_mod.ui.framework.elements.overlay.UIOverlay;
 import mchorse.bbs_mod.ui.framework.elements.overlay.UIPromptOverlayPanel;
 import mchorse.bbs_mod.ui.framework.elements.utils.UIRenderable;
 import mchorse.bbs_mod.ui.utils.Area;
+import mchorse.bbs_mod.ui.utils.Gizmo;
 import mchorse.bbs_mod.ui.utils.UIUtils;
 import mchorse.bbs_mod.ui.utils.context.ContextMenuManager;
 import mchorse.bbs_mod.ui.utils.icons.Icon;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
+import mchorse.bbs_mod.ui.utils.keys.KeyAction;
+import mchorse.bbs_mod.ui.utils.keys.KeyCombo;
 import mchorse.bbs_mod.ui.utils.presets.UICopyPasteController;
 import mchorse.bbs_mod.utils.CollectionUtils;
 import mchorse.bbs_mod.utils.Direction;
@@ -83,6 +87,7 @@ import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 import org.joml.Vector2i;
 import org.joml.Vector3d;
+import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
@@ -266,13 +271,8 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         this.keys().register(Keys.LOOPING_SET_MAX, () -> this.cameraEditor.clips.setLoopMax()).active(active).category(looping);
         this.keys().register(Keys.JUMP_FORWARD, () -> this.setCursor(this.getCursor() + BBSSettings.editorJump.get())).active(active).category(editor);
         this.keys().register(Keys.JUMP_BACKWARD, () -> this.setCursor(this.getCursor() - BBSSettings.editorJump.get())).active(active).category(editor);
-        this.keys().register(Keys.FILM_CONTROLLER_CYCLE_EDITORS, this::cycleMainEditor).category(editor);
-        this.keys().register(Keys.FILM_CONTROLLER_TOGGLE_ACTIONS, () ->
-        {
-            this.showPanel(this.replayEditor);
-            this.replayEditor.setActionsMode(!this.replayEditor.isActionsMode());
-            UIUtils.playClick();
-        }).category(editor);
+        this.keys().register(Keys.FILM_CONTROLLER_CYCLE_EDITORS, this::cycleMainEditor).strict().category(editor);
+        this.keys().register(Keys.FILM_CONTROLLER_TOGGLE_ACTIONS, this::toggleActionsEditor).strict().category(editor);
         this.keys().register(Keys.FILM_CONTROLLER_NEXT_DOCK_TAB, () ->
         {
             if (this.dock.cycleDockStackTab(1))
@@ -1013,7 +1013,7 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         {
             float scale = BBSSettings.editorPreviewResolutionScale.get();
 
-            if (this.cameraEditor.isVisible())
+            if (this.selectedMainEditorPanel == this.cameraEditor)
             {
                 int previewW = Math.max(2, this.preview.area.w);
                 int previewH = Math.max(2, this.preview.area.h);
@@ -1088,6 +1088,69 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         UIUtils.playClick();
     }
 
+    private void toggleActionsEditor()
+    {
+        this.showPanel(this.replayEditor);
+        this.replayEditor.setActionsMode(!this.replayEditor.isActionsMode());
+        UIUtils.playClick();
+    }
+
+    /**
+     * Film-level editor shortcuts must win before nested form/model editors inspect the same key.
+     * Otherwise Shift + grave can be consumed as plain grave by a child, leaving two editor layers
+     * with conflicting focus and visibility state.
+     */
+    @Override
+    protected IUIElement childrenKeyPressed(UIContext context)
+    {
+        if (this.captureEditorShortcut(context))
+        {
+            return this;
+        }
+
+        return super.childrenKeyPressed(context);
+    }
+
+    private boolean captureEditorShortcut(UIContext context)
+    {
+        if (!this.canBeSeen() || context.isFocused() || context.hasContextMenu() || context.getKeyAction() != KeyAction.PRESSED)
+        {
+            return false;
+        }
+
+        /* Test the longer combo first. Both checks are exact, so modifiers can never leak a press
+         * into a shorter shortcut registered by an editor below this panel. */
+        if (isExactShortcut(context, Keys.FILM_CONTROLLER_TOGGLE_ACTIONS))
+        {
+            this.toggleActionsEditor();
+
+            return true;
+        }
+
+        if (isExactShortcut(context, Keys.FILM_CONTROLLER_CYCLE_EDITORS))
+        {
+            this.cycleMainEditor();
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static boolean isExactShortcut(UIContext context, KeyCombo combo)
+    {
+        if (context.getKeyCode() != combo.getMainKey() || !combo.isHeld())
+        {
+            return false;
+        }
+
+        boolean shift = combo.keys.contains(GLFW.GLFW_KEY_LEFT_SHIFT) || combo.keys.contains(GLFW.GLFW_KEY_RIGHT_SHIFT);
+        boolean control = combo.keys.contains(GLFW.GLFW_KEY_LEFT_CONTROL) || combo.keys.contains(GLFW.GLFW_KEY_RIGHT_CONTROL);
+        boolean alt = combo.keys.contains(GLFW.GLFW_KEY_LEFT_ALT) || combo.keys.contains(GLFW.GLFW_KEY_RIGHT_ALT);
+
+        return Window.isShiftPressed() == shift && Window.isCtrlPressed() == control && Window.isAltPressed() == alt;
+    }
+
     public void showPanel(int index)
     {
         if (index >= 0 && index < this.panels.size())
@@ -1103,6 +1166,8 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
             return;
         }
 
+        this.prepareMainEditorTransition();
+
         if (element == this.selectedMainEditorPanel)
         {
             this.updateMainEditorVisibility(this.hasFilmInCurrentTab());
@@ -1114,8 +1179,6 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
 
         try
         {
-            this.cameraEditor.clips.embedView(null);
-
             String previousLayoutId = this.currentLayoutId();
             UIElement previousPanel = this.selectedMainEditorPanel;
 
@@ -1149,6 +1212,22 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         {
             this.switchingMainEditor = false;
         }
+    }
+
+    private void prepareMainEditorTransition()
+    {
+        /* Commit an in-flight transform before its editor is hidden, then discard every transient
+         * child surface. This also makes the next Escape act on the film screen immediately. */
+        UIContext context = this.getContext();
+
+        if (context != null && context.activeElement instanceof UIElement active && (active == this || this.isDescendant(active)))
+        {
+            context.unfocus();
+        }
+
+        Gizmo.INSTANCE.stop();
+        this.cameraEditor.clips.embedView(null);
+        this.actionEditor.clips.embedView(null);
     }
 
     private void captureTimelineViewport(UIElement panel)

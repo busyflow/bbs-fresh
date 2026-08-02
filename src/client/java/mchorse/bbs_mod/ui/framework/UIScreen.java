@@ -193,6 +193,7 @@ public class UIScreen extends Screen implements IFileDropListener
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta)
     {
+        BBSRendering.prepareForScreenRender();
         super.render(context, mouseX, mouseY, delta);
 
         this.menu.context.setTransition(this.client.getTickDelta());

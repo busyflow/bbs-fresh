@@ -347,6 +347,25 @@ public class BBSRendering
         }
     }
 
+    /**
+     * Last-resort handoff before a BBS screen renders. The normal HUD hook restores the client
+     * framebuffer after capturing the world, but screen changes can skip that hook for a frame.
+     * Never let editor widgets draw into the preview framebuffer in that gap.
+     */
+    public static void prepareForScreenRender()
+    {
+        if (toggleFramebuffer)
+        {
+            toggleFramebuffer(false);
+        }
+
+        MinecraftClient mc = MinecraftClient.getInstance();
+
+        mc.getFramebuffer().beginWrite(true);
+        RenderSystem.viewport(0, 0, mc.getWindow().getFramebufferWidth(), mc.getWindow().getFramebufferHeight());
+        RenderSystem.disableScissor();
+    }
+
     private static void reassignFramebuffer(Framebuffer framebuffer)
     {
         MinecraftClient.getInstance().framebuffer = framebuffer;
