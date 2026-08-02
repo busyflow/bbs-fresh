@@ -850,6 +850,18 @@ public class UIFilmController extends UIElement implements GizmoViewport
     @Override
     protected boolean subKeyPressed(UIContext context)
     {
+        if (context.getKeyAction() == KeyAction.PRESSED
+            && context.isPressed(GLFW.GLFW_KEY_Z)
+            && !Window.isCtrlPressed()
+            && !context.isFocused()
+            && this.orbit.enabled
+            && this.getCurrentEntity() != null)
+        {
+            this.orbit.teleportPivotToReplay();
+
+            return true;
+        }
+
         if (this.canControl())
         {
             if (this.isControlling() && context.isPressed(GLFW.GLFW_KEY_ESCAPE))
