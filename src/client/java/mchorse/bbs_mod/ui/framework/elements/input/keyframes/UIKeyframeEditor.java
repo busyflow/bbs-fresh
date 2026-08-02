@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.ui.framework.elements.input.keyframes;
 
+import mchorse.bbs_mod.ui.framework.elements.input.drag.TransformSpace;
 import mchorse.bbs_mod.camera.clips.overwrite.KeyframeClip;
 import mchorse.bbs_mod.film.replays.PerLimbService;
 import mchorse.bbs_mod.film.replays.ReplayKeyframes;
@@ -24,20 +25,15 @@ import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class UIKeyframeEditor extends UIElement
 {
     public static final int[] COLORS = {Colors.RED, Colors.GREEN, Colors.BLUE, Colors.CYAN, Colors.MAGENTA, Colors.YELLOW, Colors.LIGHTEST_GRAY & 0xffffff, Colors.DEEP_PINK};
 
-    /** Fixed top offset (px) for the parameters panel when target is set (space for drag icon). */
-    private static final int EDIT_PANEL_TOP_OFFSET_PX = 20;
-
     public UIKeyframes view;
     public UIKeyframeFactory editor;
 
     private UIElement target;
-    private Supplier<Integer> editPanelTopOffsetPx;
     private boolean timelineVisible = true;
     private boolean propertiesVisible = true;
 
@@ -55,6 +51,22 @@ public class UIKeyframeEditor extends UIElement
         this.add(this.view.full(this).w(1F, -140));
     }
 
+    /**
+     * The parameters panel is parented to {@link #target}, not to this editor, so nothing would take
+     * it down when this editor is dropped &mdash; it would stay in the edit area, clickable, and the
+     * next editor would stack its own panel on top of it.
+     */
+    @Override
+    public void removeFromParent()
+    {
+        super.removeFromParent();
+
+        if (this.editor != null)
+        {
+            this.editor.removeFromParent();
+        }
+    }
+
     public UIKeyframeEditor target(UIElement target)
     {
         this.target = target;
@@ -62,18 +74,6 @@ public class UIKeyframeEditor extends UIElement
         this.view.resetFlex().full(this).w(1F);
 
         return this;
-    }
-
-    /** Optional: supply top offset in px for the parameters panel (e.g. 0 when layout locked). */
-    public UIKeyframeEditor editPanelTopOffset(Supplier<Integer> supplier)
-    {
-        this.editPanelTopOffsetPx = supplier;
-        return this;
-    }
-
-    private int getEditPanelTopOffsetPx()
-    {
-        return this.editPanelTopOffsetPx != null ? this.editPanelTopOffsetPx.get() : EDIT_PANEL_TOP_OFFSET_PX;
     }
 
     private void pickKeyframe(Keyframe keyframe)
@@ -92,19 +92,23 @@ public class UIKeyframeEditor extends UIElement
 
             if (this.target != null)
             {
-                int top = this.getEditPanelTopOffsetPx();
-                this.editor.relative(this.target).x(0).y(0, top).w(1F).h(1F, -top);
-
-                this.target.resize();
+                this.editor.relative(this.target).x(0).y(0).w(1F).h(1F);
             }
             else
             {
                 this.editor.relative(this).x(1F, -140).w(140).h(1F);
             }
 
-            this.add(this.editor);
+            /* The panel lives in whichever element it is laid out over, so it stays visible when
+             * the timeline is hidden behind another dock tab. */
+            (this.target == null ? this : this.target).add(this.editor);
             this.editor.setVisible(this.propertiesVisible);
             this.resize();
+
+            if (this.target != null)
+            {
+                this.target.resize();
+            }
         }
 
         this.resize();
@@ -128,18 +132,6 @@ public class UIKeyframeEditor extends UIElement
         if (this.editor != null)
         {
             this.editor.setVisible(visible);
-        }
-    }
-
-    /** Re-applies edit panel position (e.g. after layout lock toggle). */
-    public void refreshEditPanelOffset()
-    {
-        if (this.editor != null && this.target != null)
-        {
-            int top = this.getEditPanelTopOffsetPx();
-            this.editor.relative(this.target).x(0).y(0, top).w(1F).h(1F, -top);
-            this.target.resize();
-            this.resize();
         }
     }
 
@@ -265,6 +257,34 @@ public class UIKeyframeEditor extends UIElement
         }
 
         return null;
+    }
+
+    /** The space of the active editable transform (mirrors
+     *  {@code UIReplaysEditorUtils.getEditableTransform}'s dispatch — the bone
+     *  tracks AND the form anchor), so the film gizmo is drawn in the very space
+     *  its drag operates in. */
+    public TransformSpace getBoneSpace()
+    {
+        UIKeyframeFactory editor = this.editor;
+
+        if (editor instanceof UIPoseKeyframeFactory pose)
+        {
+            return pose.poseEditor.transform.getSpace();
+        }
+        else if (editor instanceof UITransformKeyframeFactory transform)
+        {
+            return transform.transform.getSpace();
+        }
+        else if (editor instanceof UIPoseTransformKeyframeFactory poseTransform)
+        {
+            return poseTransform.transform.getSpace();
+        }
+        else if (editor instanceof UIAnchorKeyframeFactory anchor)
+        {
+            return anchor.transform.getSpace();
+        }
+
+        return TransformSpace.LOCAL;
     }
 
     /**
