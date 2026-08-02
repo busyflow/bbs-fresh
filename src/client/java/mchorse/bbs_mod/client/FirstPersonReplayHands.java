@@ -10,6 +10,8 @@ import mchorse.bbs_mod.ui.film.UIFilmPanel;
 import mchorse.bbs_mod.ui.film.controller.UIFilmController;
 import mchorse.bbs_mod.ui.framework.UIBaseMenu;
 import mchorse.bbs_mod.ui.framework.UIScreen;
+import mchorse.bbs_mod.utils.MatrixStackUtils;
+import mchorse.bbs_mod.utils.pose.Transform;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.render.item.HeldItemRenderer;
@@ -122,8 +124,27 @@ public class FirstPersonReplayHands
         return hand == Hand.MAIN_HAND ? mainArm : mainArm == Arm.RIGHT ? Arm.LEFT : Arm.RIGHT;
     }
 
-    public static void applyTransform(MatrixStack matrices, Hand hand)
-    {}
+    /**
+     * Applies the animated item-only pose after Minecraft has positioned the
+     * first-person item. The arm is rendered before this point, so a talking
+     * item can move and scale without dragging the replay's arm with it.
+     */
+    public static void applyItemTransform(MatrixStack matrices, Hand hand)
+    {
+        if (active == null)
+        {
+            return;
+        }
+
+        Transform transform = hand == Hand.MAIN_HAND
+            ? active.replay.keyframes.rightHandPose.interpolate(active.tick)
+            : active.replay.keyframes.leftHandPose.interpolate(active.tick);
+
+        if (transform != null)
+        {
+            MatrixStackUtils.applyTransform(matrices, transform);
+        }
+    }
 
     private static Active resolve(float tickDelta)
     {

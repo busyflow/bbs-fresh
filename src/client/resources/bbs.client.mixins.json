@@ -8,6 +8,7 @@
         "GameRendererMixin",
         "HeldItemRendererAccessor",
         "HeldItemRendererMixin",
+        "HeldItemFeatureRendererMixin",
         "MouseMixin",
         "EntityRendererDispatcherInvoker",
         "PlayerEntityRendererMixin",

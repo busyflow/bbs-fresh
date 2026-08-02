@@ -38,6 +38,21 @@ public class UITransformKeyframeFactory extends UIKeyframeFactory<Transform>
         }
 
         @Override
+        protected boolean supportsPlaybackRecording()
+        {
+            UIKeyframeSheet sheet = this.editor.editor.getGraph().getSheet(this.editor.keyframe);
+
+            if (sheet == null)
+            {
+                return false;
+            }
+
+            String id = sheet.id;
+
+            return "right_hand_pose".equals(id) || "left_hand_pose".equals(id);
+        }
+
+        @Override
         protected void applyToSelection(Consumer<Transform> consumer)
         {
             apply(this.editor.editor, this.editor.keyframe, consumer);

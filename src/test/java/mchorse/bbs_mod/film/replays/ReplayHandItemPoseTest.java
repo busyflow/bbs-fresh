@@ -18,7 +18,9 @@ public class ReplayHandItemPoseTest
 
         rightEnd.translate.set(10F, 4F, -2F);
         rightEnd.scale.set(3F, 2F, 0.5F);
+        rightEnd.rotate.set(0F, (float) Math.PI / 2F, 0F);
         left.translate.set(-7F, 1F, 9F);
+        left.scale.set(0.5F, 1.5F, 2.5F);
 
         keyframes.rightHandPose.insert(0, rightStart);
         keyframes.rightHandPose.insert(10, rightEnd);
@@ -34,7 +36,9 @@ public class ReplayHandItemPoseTest
         assertEquals(2F, rightResult.translate.y, 0.0001F);
         assertEquals(-1F, rightResult.translate.z, 0.0001F);
         assertEquals(2F, rightResult.scale.x, 0.0001F);
+        assertEquals((float) Math.PI / 4F, rightResult.rotate.y, 0.0001F);
         assertEquals(-7F, leftResult.translate.x, 0.0001F);
+        assertEquals(0.5F, leftResult.scale.x, 0.0001F);
 
         rightResult.translate.x = 100F;
         assertEquals(-7F, leftResult.translate.x, 0.0001F);

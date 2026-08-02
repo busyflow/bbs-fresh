@@ -5,6 +5,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.brigadier.StringReader;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.client.BBSShaders;
+import mchorse.bbs_mod.client.HeldItemPoseContext;
 import mchorse.bbs_mod.forms.CustomVertexConsumerProvider;
 import mchorse.bbs_mod.forms.FormTranslucentQueue;
 import mchorse.bbs_mod.forms.FormUtilsClient;
@@ -345,7 +346,24 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
                 FormTranslucentQueue.setSortOrigin(new Matrix4f(RenderSystem.getModelViewMatrix()).transformPosition(origin));
             }
 
-            MinecraftClient.getInstance().getEntityRenderDispatcher().render(this.entity, 0D, 0D, 0D, 0F, context.getTransition(), context.stack, consumers, light);
+            boolean posedItems = context.entity != null;
+
+            if (posedItems)
+            {
+                HeldItemPoseContext.push(context.entity);
+            }
+
+            try
+            {
+                MinecraftClient.getInstance().getEntityRenderDispatcher().render(this.entity, 0D, 0D, 0D, 0F, context.getTransition(), context.stack, consumers, light);
+            }
+            finally
+            {
+                if (posedItems)
+                {
+                    HeldItemPoseContext.pop();
+                }
+            }
 
             currentPose = currentPoseOverlay = null;
 
