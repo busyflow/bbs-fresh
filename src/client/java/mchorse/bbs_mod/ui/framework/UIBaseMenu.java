@@ -18,6 +18,9 @@ import net.minecraft.client.MinecraftClient;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL11;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * Base class for GUI screens using this framework
  */
@@ -57,6 +60,11 @@ public abstract class UIBaseMenu
 
     public int width;
     public int height;
+
+    /* GLFW should send one PRESS followed by REPEAT events, but some keyboard layouts and
+     * screen transitions can deliver duplicate PRESS events before RELEASE. Normalize those
+     * here so non-repeatable UI keybinds can never toggle multiple times from one key hold. */
+    private final Set<Integer> pressedKeys = new HashSet<>();
 
     public UIBaseMenu()
     {
@@ -212,6 +220,19 @@ public abstract class UIBaseMenu
 
     public boolean handleKey(int key, int scanCode, int action, int mods)
     {
+        if (action == GLFW.GLFW_RELEASE)
+        {
+            this.pressedKeys.remove(key);
+        }
+        else if (action == GLFW.GLFW_PRESS && !this.pressedKeys.add(key))
+        {
+            action = GLFW.GLFW_REPEAT;
+        }
+        else if (action == GLFW.GLFW_REPEAT)
+        {
+            this.pressedKeys.add(key);
+        }
+
         if (action == GLFW.GLFW_PRESS)
         {
             inputRenderer.keyPressed(this.context, key);

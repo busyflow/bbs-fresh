@@ -166,9 +166,14 @@ public class BBSRendering
         return customSize;
     }
 
+    public static boolean matchesCustomSize(int w, int h)
+    {
+        return customSize && width == w && height == h;
+    }
+
     public static void setCustomSize(boolean customSize)
     {
-        setCustomSize(customSize, 0, 0);
+        setCustomSize(customSize, customSize ? getVideoWidth() : 0, customSize ? getVideoHeight() : 0);
     }
 
     public static void setCustomSize(boolean customSize, int w, int h)
@@ -186,7 +191,7 @@ public class BBSRendering
             return;
         }
 
-        LOGGER.info("[BBS film] setCustomSize customSize={} w={} h={} (stored width/height will be {})",
+        LOGGER.debug("[BBS film] setCustomSize customSize={} w={} h={} (stored width/height will be {})",
             customSize, w, h, customSize ? w + "/" + h : "0/0");
         BBSRendering.customSize = customSize;
 

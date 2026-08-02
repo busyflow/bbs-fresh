@@ -166,6 +166,7 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
     private static final int FILM_TOP_BAR_SEPARATOR_WIDTH = 8;
     private static final int FILM_TOP_BAR_ACTIONS_WIDTH = FILM_TOP_BAR_BUTTON_SIZE * 3 + FILM_TOP_BAR_SEPARATOR_WIDTH;
     private UIElement selectedMainEditorPanel;
+    private boolean switchingMainEditor;
     private UIElement topBarActions;
     private UIElement topBarSeparator;
 
@@ -265,11 +266,7 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         this.keys().register(Keys.LOOPING_SET_MAX, () -> this.cameraEditor.clips.setLoopMax()).active(active).category(looping);
         this.keys().register(Keys.JUMP_FORWARD, () -> this.setCursor(this.getCursor() + BBSSettings.editorJump.get())).active(active).category(editor);
         this.keys().register(Keys.JUMP_BACKWARD, () -> this.setCursor(this.getCursor() - BBSSettings.editorJump.get())).active(active).category(editor);
-        this.keys().register(Keys.FILM_CONTROLLER_CYCLE_EDITORS, () ->
-        {
-            this.showPanel(MathUtils.cycler(this.getPanelIndex() + 1, this.panels));
-            UIUtils.playClick();
-        }).category(editor);
+        this.keys().register(Keys.FILM_CONTROLLER_CYCLE_EDITORS, this::cycleMainEditor).category(editor);
         this.keys().register(Keys.FILM_CONTROLLER_TOGGLE_ACTIONS, () ->
         {
             this.showPanel(this.replayEditor);
@@ -1039,8 +1036,8 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         if (w % 2 != 0) w++;
         if (h % 2 != 0) h++;
 
-        boolean applied = w != BBSRendering.getVideoWidth() || h != BBSRendering.getVideoHeight();
-        LOGGER.info("[BBS film] applyPreviewSizeToBBS mode={} cameraEditor={} -> w={} h={} applied={}",
+        boolean applied = !BBSRendering.matchesCustomSize(w, h);
+        LOGGER.debug("[BBS film] applyPreviewSizeToBBS mode={} cameraEditor={} -> w={} h={} applied={}",
             previewMode, this.cameraEditor.isVisible(), w, h, applied);
 
         if (applied)
@@ -1059,6 +1056,13 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
 
     public int getPanelIndex()
     {
+        int selected = this.panels.indexOf(this.selectedMainEditorPanel);
+
+        if (selected >= 0)
+        {
+            return selected;
+        }
+
         for (int i = 0; i < this.panels.size(); i++)
         {
             if (this.panels.get(i).isVisible())
@@ -1068,6 +1072,20 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         }
 
         return -1;
+    }
+
+    private void cycleMainEditor()
+    {
+        if (this.switchingMainEditor || this.panels.isEmpty())
+        {
+            return;
+        }
+
+        int index = this.getPanelIndex();
+        int next = index < 0 ? 0 : MathUtils.cycler(index + 1, this.panels);
+
+        this.showPanel(next);
+        UIUtils.playClick();
     }
 
     public void showPanel(int index)
@@ -1080,34 +1098,56 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
 
     public void showPanel(UIElement element)
     {
-        this.cameraEditor.clips.embedView(null);
-
-        EditorLayoutNode previousRoot = this.getCurrentFilmLayoutRoot();
-        int index = this.getPanelIndex();
-
-        if (index >= 0)
+        if (element == null || !this.panels.contains(element) || this.switchingMainEditor)
         {
-            this.captureTimelineViewport(this.panels.get(index));
+            return;
         }
 
-        this.selectedMainEditorPanel = element;
-
-        /* Switching editors switches the layout tree too when each one is bound to its own. */
-        if (previousRoot != this.getCurrentFilmLayoutRoot())
-        {
-            this.dock.refresh();
-        }
-        else
+        if (element == this.selectedMainEditorPanel)
         {
             this.updateMainEditorVisibility(this.hasFilmInCurrentTab());
+
+            return;
         }
 
-        this.applyTimelineViewport(element);
-        this.applyPreviewSizeToBBS();
+        this.switchingMainEditor = true;
 
-        if (this.isFlying())
+        try
         {
-            this.toggleFlight();
+            this.cameraEditor.clips.embedView(null);
+
+            String previousLayoutId = this.currentLayoutId();
+            UIElement previousPanel = this.selectedMainEditorPanel;
+
+            if (previousPanel != null)
+            {
+                this.captureTimelineViewport(previousPanel);
+            }
+
+            this.selectedMainEditorPanel = element;
+
+            /* A bound editor owns a distinct dock tree. Compare stable ids rather than panel
+             * visibility or node identity, both of which are transient during a dock rebuild. */
+            if (!previousLayoutId.equals(this.currentLayoutId()))
+            {
+                this.dock.refresh();
+            }
+            else
+            {
+                this.updateMainEditorVisibility(this.hasFilmInCurrentTab());
+            }
+
+            this.applyTimelineViewport(element);
+            this.applyPreviewSizeToBBS();
+
+            if (this.isFlying())
+            {
+                this.toggleFlight();
+            }
+        }
+        finally
+        {
+            this.switchingMainEditor = false;
         }
     }
 
@@ -1484,7 +1524,6 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
             BBSModClient.getFilms().unfreeze(this.data.getId());
         }
 
-        BBSRendering.setCustomSize(true);
         MorphRenderer.hidePlayer = true;
 
         CameraController cameraController = this.getCameraController();
@@ -1492,6 +1531,10 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         this.fillData();
         this.setFlight(false);
         cameraController.add(this.runner);
+
+        /* Enable the preview framebuffer with the actual resolved dimensions. Passing only
+         * true used to create a transient 0x0 target that could leak partial dock frames. */
+        this.applyPreviewSizeToBBS();
 
         this.getContext().menu.getRoot().add(this.secretPlay);
     }
