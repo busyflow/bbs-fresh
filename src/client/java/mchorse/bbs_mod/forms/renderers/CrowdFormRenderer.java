@@ -1,6 +1,7 @@
 package mchorse.bbs_mod.forms.renderers;
 
 import mchorse.bbs_mod.BBSMod;
+import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.actions.crowd.CrowdJumpEvaluator;
 import mchorse.bbs_mod.actions.crowd.CrowdLookEvaluator;
 import mchorse.bbs_mod.actions.crowd.CrowdLookTarget;
@@ -62,7 +63,7 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
     private final double[] motionPosition = new double[3];
     private final float[] lookRotation = new float[2];
     private final Vector3f worldPosition = new Vector3f();
-    private MemberTransform[] members = new MemberTransform[0];
+    private MemberLayout members = MemberLayout.EMPTY;
 
     public CrowdFormRenderer(CrowdForm form)
     {
@@ -97,6 +98,12 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
             ? this.form.behaviorJumpRate.get()
             : 0D;
         CrowdJumpEvaluator.Frame jumps = CrowdJumpEvaluator.frame(replay, replayTick, ambientJumpRate);
+
+        if (jumps != null && !jumps.hasPotential())
+        {
+            jumps = null;
+        }
+
         CrowdLookEvaluator.Sample look = stub == null
             ? null
             : CrowdLookEvaluator.sample(stub.getFilm(), replay, replayTick);
@@ -119,12 +126,21 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
 
         try
         {
-            for (MemberTransform memberTransform : this.members)
+            for (int slot = 0; slot < this.members.size; slot++)
             {
-                float x = memberTransform.x;
+                int logicalIndex = this.members.logicalIndices[slot];
+
+                /* Reject a visual proxy before motion, jump, look, texture and matrix work.
+                 * The logical index makes the subset stable while seeking or recording. */
+                if (this.members.lodRanks[slot] % lodStride != 0)
+                {
+                    continue;
+                }
+
+                float x = this.members.x[slot];
                 float y = 0F;
-                float z = memberTransform.z;
-                float yaw = memberTransform.yaw;
+                float z = this.members.z[slot];
+                float yaw = this.members.yaw[slot];
 
                 if (motion != null)
                 {
@@ -139,14 +155,9 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
                     }
                 }
 
-                double jumpHeight = jumps == null ? 0D : jumps.height(memberTransform.logicalIndex);
+                double jumpHeight = jumps == null ? 0D : jumps.height(logicalIndex);
 
                 y += (float) jumpHeight;
-
-                if (memberTransform.logicalIndex % lodStride != 0)
-                {
-                    continue;
-                }
 
                 if (stubPose != null)
                 {
@@ -181,14 +192,15 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
                     stub.setOnGround(jumpHeight <= 0.000001D);
                 }
 
-                Form member = this.getMemberForm(memberTransform.sourceIndex);
+                int sourceIndex = this.members.sourceIndices[slot];
+                Form member = this.getMemberForm(sourceIndex);
 
                 if (member == null || member instanceof CrowdForm)
                 {
                     continue;
                 }
 
-                member = this.getTexturedForm(memberTransform.sourceIndex, member, memberTransform.textureIndex);
+                member = this.getTexturedForm(sourceIndex, member, this.members.textureIndices[slot]);
                 boolean batchable = member.parts.getAllTyped().isEmpty();
 
                 if (!batchable || member != batchedForm)
@@ -220,18 +232,20 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
 
                 try
                 {
-                    this.applyMemberTransform(context.stack, x, y, z, yaw, memberTransform.scale,
-                        ragdoll, ragdollProgress, memberTransform.logicalIndex);
+                    this.applyMemberTransform(context.stack, x, y, z, yaw, this.members.scale[slot],
+                        ragdoll, ragdollProgress, logicalIndex);
 
                     if (!batchable && parentWorld != null)
                     {
-                        this.applyMemberTransform(parentWorld, x, y, z, yaw, memberTransform.scale,
-                            ragdoll, ragdollProgress, memberTransform.logicalIndex);
+                        this.applyMemberTransform(parentWorld, x, y, z, yaw, this.members.scale[slot],
+                            ragdoll, ragdollProgress, logicalIndex);
                     }
 
                     if (batchable)
                     {
-                        FormUtilsClient.renderPrepared(member, context);
+                        /* The batch already owns this renderer and the crowd stack scope.
+                         * Avoid another renderer lookup and another matrix push/pop. */
+                        batchedRenderer.renderPreparedInPlace(context);
                     }
                     else
                     {
@@ -294,19 +308,26 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
      */
     private int getLodStride(FormRenderingContext context, MatrixStack world)
     {
-        if (this.members.length <= 2048)
+        int size = this.members.size;
+
+        if (size <= 2048)
         {
             return 1;
         }
 
         if (context.ui)
         {
-            return Math.max(1, (this.members.length + 1023) / 1024);
+            return strideForTarget(size, 1024);
+        }
+
+        if (BBSModClient.getVideoRecorder() != null && BBSModClient.getVideoRecorder().isRecording())
+        {
+            return 1;
         }
 
         if (world == null)
         {
-            return 1;
+            return strideForTarget(size, 4_096);
         }
 
         world.peek().getPositionMatrix().transformPosition(this.worldPosition.set(0F, 0F, 0F));
@@ -318,20 +339,25 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
 
         if (distanceSquared <= 24D * 24D)
         {
-            return 1;
+            return strideForTarget(size, 12_000);
         }
 
         if (distanceSquared <= 48D * 48D)
         {
-            return 2;
+            return strideForTarget(size, 8_000);
         }
 
         if (distanceSquared <= 96D * 96D)
         {
-            return 4;
+            return strideForTarget(size, 4_096);
         }
 
-        return 8;
+        return strideForTarget(size, 2_048);
+    }
+
+    private static int strideForTarget(int size, int target)
+    {
+        return Math.max(1, (size + Math.max(1, target) - 1) / Math.max(1, target));
     }
 
     private void applyMemberTransform(MatrixStack stack, float x, float y, float z, float yaw, float scale,
@@ -418,16 +444,14 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
             }
         }
 
-        this.members = new MemberTransform[indices.length];
+        MemberLayout members = new MemberLayout(indices.length);
 
         for (int i = 0; i < indices.length; i++)
         {
-            this.members[i] = this.point(indices[i], count);
+            this.point(indices[i], count, members, i);
         }
 
-        Arrays.sort(this.members, Comparator
-            .comparingInt(MemberTransform::sourceIndex)
-            .thenComparingInt(MemberTransform::textureIndex));
+        this.members = members.sortedByAppearance();
     }
 
     private void updateTextures()
@@ -536,7 +560,7 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
         return original;
     }
 
-    private MemberTransform point(int index, int count)
+    private void point(int index, int count, MemberLayout members, int slot)
     {
         float spacing = this.form.spacing.get();
         float radius = this.form.radius.get();
@@ -597,7 +621,14 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
         float scale = source == null ? 1F : source.getScale(this.random(index, 43));
         int textureIndex = this.form.getStableTextureIndex(index, this.textures.size());
 
-        return new MemberTransform(index, x, z, yaw, sourceIndex, textureIndex, scale);
+        members.logicalIndices[slot] = index;
+        members.lodRanks[slot] = slot;
+        members.x[slot] = x;
+        members.z[slot] = z;
+        members.yaw[slot] = yaw;
+        members.sourceIndices[slot] = sourceIndex;
+        members.textureIndices[slot] = (short) textureIndex;
+        members.scale[slot] = scale;
     }
 
     private Form getMemberForm(int sourceIndex)
@@ -619,8 +650,73 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
         return (value & 0x00ffffff) / 16777216F;
     }
 
-    private record MemberTransform(int logicalIndex, float x, float z, float yaw, int sourceIndex, int textureIndex, float scale)
-    {}
+    /** Compact structure-of-arrays layout. It avoids one heap object per visual member and
+     * keeps the hot render loop reading contiguous primitive memory. */
+    private static final class MemberLayout
+    {
+        private static final MemberLayout EMPTY = new MemberLayout(0);
+
+        private final int size;
+        private final int[] logicalIndices;
+        private final int[] lodRanks;
+        private final int[] sourceIndices;
+        private final short[] textureIndices;
+        private final float[] x;
+        private final float[] z;
+        private final float[] yaw;
+        private final float[] scale;
+
+        private MemberLayout(int size)
+        {
+            this.size = Math.max(0, size);
+            this.logicalIndices = new int[this.size];
+            this.lodRanks = new int[this.size];
+            this.sourceIndices = new int[this.size];
+            this.textureIndices = new short[this.size];
+            this.x = new float[this.size];
+            this.z = new float[this.size];
+            this.yaw = new float[this.size];
+            this.scale = new float[this.size];
+        }
+
+        private MemberLayout sortedByAppearance()
+        {
+            if (this.size < 2)
+            {
+                return this;
+            }
+
+            long[] order = new long[this.size];
+
+            for (int i = 0; i < this.size; i++)
+            {
+                long source = Integer.toUnsignedLong(this.sourceIndices[i]);
+                long texture = (this.textureIndices[i] + 1L) & 0x1ffL;
+
+                order[i] = source << 32 | texture << 23 | (i & 0x7fffffL);
+            }
+
+            Arrays.sort(order);
+
+            MemberLayout sorted = new MemberLayout(this.size);
+
+            for (int i = 0; i < order.length; i++)
+            {
+                int sourceSlot = (int) (order[i] & 0x7fffffL);
+
+                sorted.logicalIndices[i] = this.logicalIndices[sourceSlot];
+                sorted.lodRanks[i] = this.lodRanks[sourceSlot];
+                sorted.sourceIndices[i] = this.sourceIndices[sourceSlot];
+                sorted.textureIndices[i] = this.textureIndices[sourceSlot];
+                sorted.x[i] = this.x[sourceSlot];
+                sorted.z[i] = this.z[sourceSlot];
+                sorted.yaw[i] = this.yaw[sourceSlot];
+                sorted.scale[i] = this.scale[sourceSlot];
+            }
+
+            return sorted;
+        }
+    }
 
     private record SourceTexture(int sourceIndex, Link texture)
     {}

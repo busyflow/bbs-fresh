@@ -137,7 +137,7 @@ public class CrowdFormTest
         crowd.validateCrowd();
 
         assertEquals(1, crowd.count.get());
-        assertEquals(20_000, crowd.renderBudget.get());
+        assertEquals(CrowdForm.MAX_RENDER_BUDGET, crowd.renderBudget.get());
         assertEquals(1, source.weight.get());
         assertEquals(0.01F, source.minimumScale.get());
     }

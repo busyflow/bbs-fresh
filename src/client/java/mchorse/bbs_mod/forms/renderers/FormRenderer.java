@@ -141,6 +141,20 @@ public abstract class FormRenderer <T extends Form>
      */
     public final void renderPrepared(FormRenderingContext context)
     {
+        this.renderPrepared(context, true);
+    }
+
+    /**
+     * Render into a matrix scope already isolated by the caller. Crowd batches use this to
+     * avoid a redundant push/pop for every member; ordinary form rendering stays isolated.
+     */
+    public final void renderPreparedInPlace(FormRenderingContext context)
+    {
+        this.renderPrepared(context, false);
+    }
+
+    private void renderPrepared(FormRenderingContext context, boolean isolateMatrices)
+    {
         int light = context.light;
         boolean stackPushed = false;
         boolean worldPushed = false;
@@ -154,10 +168,13 @@ public abstract class FormRenderer <T extends Form>
 
             boolean isPicking = context.stencilMap != null;
 
-            context.stack.push();
-            stackPushed = true;
+            if (isolateMatrices)
+            {
+                context.stack.push();
+                stackPushed = true;
+            }
 
-            if (context.world != null)
+            if (isolateMatrices && context.world != null)
             {
                 context.world.push();
                 worldPushed = true;

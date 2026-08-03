@@ -72,7 +72,8 @@ public class UICrowdFormPanel extends UIFormPanel<CrowdForm>
         this.hollowRow = UI.labelRow(IKey.constant("Center hole"), this.hollow);
         this.seed = new UITrackpad((v) -> this.form.seed.set(v.intValue())).integer();
         this.variation = new UITrackpad((v) -> this.form.variation.set(v.floatValue())).limit(0, 180);
-        this.renderBudget = new UITrackpad((v) -> this.form.renderBudget.set(v.intValue())).limit(1, 20_000, true);
+        this.renderBudget = new UITrackpad((v) -> this.form.renderBudget.set(v.intValue()))
+            .limit(1, CrowdForm.MAX_RENDER_BUDGET, true);
         this.perBlock = new UIToggle(IKey.constant("Per block"), false, (b) -> this.form.perBlock.set(b.getValue()));
 
         this.options.add(
