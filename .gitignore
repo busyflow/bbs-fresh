@@ -44,6 +44,8 @@ replay_*.log
 # local deployment helper
 deploy-v*.ps1
 logs/
+deployment-backups/
+bbs-fs-v*.jar
 
 ik_test/*
 .claude/settings.local.json
