@@ -12,6 +12,7 @@ import net.minecraft.world.World;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -78,8 +79,18 @@ public class CrowdUtils
 
         List<LivingEntity> entities = world.getEntitiesByClass(LivingEntity.class, box, (entity) -> hasTags(entity, film, crowdTag));
 
+        /* entityIndex walks the entity's command tags, so read it once per member and sort on
+         * the cached number - a comparator that recomputed it would do that walk on every one
+         * of the n log n comparisons, which is what a five-figure crowd notices. */
+        Map<Entity, Integer> indices = new IdentityHashMap<>(entities.size());
+
+        for (LivingEntity entity : entities)
+        {
+            indices.put(entity, entityIndex(entity));
+        }
+
         entities.sort(Comparator
-            .comparingInt(CrowdUtils::entityIndex)
+            .comparingInt((LivingEntity entity) -> indices.get(entity))
             .thenComparingInt(Entity::getId));
 
         return entities;
