@@ -37,6 +37,7 @@ public class UICrowdFormPanel extends UIFormPanel<CrowdForm>
     private final UITrackpad variation;
     private final UITrackpad renderBudget;
     private final UIToggle perBlock;
+    private final UIToggle instancing;
 
     private int selectedSource;
 
@@ -82,6 +83,7 @@ public class UICrowdFormPanel extends UIFormPanel<CrowdForm>
         this.renderBudget = new UITrackpad((v) -> this.form.renderBudget.set(v.intValue()))
             .limit(1, CrowdForm.MAX_RENDER_BUDGET, true);
         this.perBlock = new UIToggle(IKey.constant("Per block"), false, (b) -> this.form.perBlock.set(b.getValue()));
+        this.instancing = new UIToggle(IKey.constant("Fast crowd"), true, (b) -> this.form.instancing.set(b.getValue()));
 
         this.options.add(
             UI.labelRow(IKey.constant("Member source"), this.source),
@@ -100,7 +102,8 @@ public class UICrowdFormPanel extends UIFormPanel<CrowdForm>
             this.hollowRow,
             UI.labelRow(IKey.constant("Seed"), this.seed),
             UI.labelRow(IKey.constant("Yaw variation"), this.variation),
-            UI.labelRow(IKey.constant("Render budget"), this.renderBudget)
+            UI.labelRow(IKey.constant("Render budget"), this.renderBudget),
+            this.instancing
         );
     }
 
@@ -183,6 +186,7 @@ public class UICrowdFormPanel extends UIFormPanel<CrowdForm>
         this.variation.setValue(form.variation.get());
         this.renderBudget.setValue(form.renderBudget.get());
         this.perBlock.setValue(form.perBlock.get());
+        this.instancing.setValue(form.instancing.get());
         this.updateLabels();
         this.updateSourceControls();
     }

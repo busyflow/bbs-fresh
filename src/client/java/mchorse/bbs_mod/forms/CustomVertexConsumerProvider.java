@@ -22,6 +22,7 @@ public class CustomVertexConsumerProvider extends VertexConsumerProvider.Immedia
     private static Consumer<RenderLayer> runnables;
 
     private Function<VertexConsumer, VertexConsumer> substitute;
+    private java.util.function.BiFunction<RenderLayer, VertexConsumer, VertexConsumer> layerSubstitute;
     private boolean ui;
 
     public static void drawLayer(RenderLayer layer)
@@ -57,6 +58,21 @@ public class CustomVertexConsumerProvider extends VertexConsumerProvider.Immedia
         }
     }
 
+    /**
+     * Layer-aware substitute. Crowd rendering needs the {@link RenderLayer} alongside the buffer
+     * so it can record a member's geometry once and replay it into the same layer for every
+     * other member. Applied after {@link #setSubstitute(Function)} so recolouring still wins.
+     */
+    public void setLayerSubstitute(java.util.function.BiFunction<RenderLayer, VertexConsumer, VertexConsumer> layerSubstitute)
+    {
+        this.layerSubstitute = layerSubstitute;
+    }
+
+    public java.util.function.BiFunction<RenderLayer, VertexConsumer, VertexConsumer> getLayerSubstitute()
+    {
+        return this.layerSubstitute;
+    }
+
     public void setUI(boolean ui)
     {
         this.ui = ui;
@@ -70,6 +86,16 @@ public class CustomVertexConsumerProvider extends VertexConsumerProvider.Immedia
         if (this.substitute != null)
         {
             VertexConsumer apply = this.substitute.apply(buffer);
+
+            if (apply != null)
+            {
+                buffer = apply;
+            }
+        }
+
+        if (this.layerSubstitute != null)
+        {
+            VertexConsumer apply = this.layerSubstitute.apply(renderLayer, buffer);
 
             if (apply != null)
             {

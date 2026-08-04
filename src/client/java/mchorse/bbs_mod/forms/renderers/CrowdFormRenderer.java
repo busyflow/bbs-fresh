@@ -12,8 +12,10 @@ import mchorse.bbs_mod.actions.types.crowd.CrowdRagdollActionClip;
 import mchorse.bbs_mod.actions.types.crowd.CrowdSpawnActionClip;
 import mchorse.bbs_mod.actions.types.crowd.CrowdUtils;
 import mchorse.bbs_mod.film.replays.Replay;
+import mchorse.bbs_mod.forms.CustomVertexConsumerProvider;
 import mchorse.bbs_mod.forms.FormUtils;
 import mchorse.bbs_mod.forms.FormUtilsClient;
+import mchorse.bbs_mod.forms.renderers.crowd.CrowdGeometryCapture;
 import mchorse.bbs_mod.forms.entities.StubEntity;
 import mchorse.bbs_mod.forms.forms.CrowdForm;
 import mchorse.bbs_mod.forms.forms.Form;
@@ -46,12 +48,15 @@ import java.util.HashSet;
 public class CrowdFormRenderer extends FormRenderer<CrowdForm>
 {
     private static final int MAX_TEXTURES = 256;
-    private static final int UI_DENSITY_TARGET = 20_000;
-    private static final int RECORDING_DENSITY_TARGET = 100_000;
-    private static final int NEAR_DENSITY_TARGET = 50_000;
-    private static final int MID_DENSITY_TARGET = 30_000;
-    private static final int FAR_DENSITY_TARGET = 20_000;
-    private static final int DISTANT_DENSITY_TARGET = 10_000;
+    /**
+     * Fallback ceilings for the slow path only. Members that need per-member pose work
+     * (look targets, part-bearing forms) still go through the full form renderer, and that
+     * path cannot afford cinematic counts. Instanced members are limited by the user's
+     * render budget alone.
+     */
+    private static final int UNINSTANCED_UI_TARGET = 5_000;
+    private static final int UNINSTANCED_NEAR_TARGET = 8_000;
+    private static final int UNINSTANCED_FAR_TARGET = 4_000;
     private static final int MAX_TERRAIN_CACHE_COLUMNS = 262_144;
     private static final int MISSING_TERRAIN_HEIGHT = Integer.MIN_VALUE;
 
@@ -82,6 +87,10 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
     private MemberLayout members = MemberLayout.EMPTY;
     private int cachedVisibleStride = -1;
     private int[] visibleSlots = new int[0];
+    private final CrowdGeometryCapture capture = new CrowdGeometryCapture();
+    private final Matrix4f parentMatrix = new Matrix4f();
+    private final Matrix4f parentInverse = new Matrix4f();
+    private final Matrix4f memberMatrix = new Matrix4f();
 
     public CrowdFormRenderer(CrowdForm form)
     {
@@ -130,7 +139,13 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
         CrowdRagdollActionClip ragdoll = this.getRagdoll(replay, MathHelper.floor(replayTick));
         float ragdollProgress = ragdoll == null ? 0F : ragdoll.progress(MathHelper.floor(replayTick));
         MatrixStack parentWorld = context.world;
-        int lodStride = this.getLodStride(context, parentWorld);
+        CustomVertexConsumerProvider provider = FormUtilsClient.getProvider();
+        /* Members with look targets get individual poses, so their geometry is not shared
+         * and cannot be captured once. Picking needs real per-member stencil draws. */
+        boolean instanced = provider != null && this.form.instancing.get() && look == null
+            && context.stencilMap == null && this.captureParentMatrix(context);
+        float detail = instanced ? this.getDetailFraction(context, parentWorld) : 1F;
+        int lodStride = this.getLodStride(context, parentWorld, instanced);
         int[] visibleSlots = this.getVisibleSlots(lodStride);
         boolean suppressStencilUpdates = context.suppressStencilUpdates;
         StubPose stubPose = stub == null ? null : StubPose.capture(stub);
@@ -268,10 +283,24 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
                     batchedForm = batchable ? member : null;
                     batchedRenderer = batchable ? FormUtilsClient.getRenderer(member) : null;
                     batchOpen = batchedRenderer != null && batchedRenderer.beginBatch(context);
+
+                    if (batchOpen && instanced)
+                    {
+                        this.captureAppearance(context, batchedRenderer, provider);
+                    }
                 }
 
                 if (batchable && !batchOpen)
                 {
+                    continue;
+                }
+
+                if (batchable && instanced && this.capture.isUsable())
+                {
+                    this.buildMemberMatrix(x, y, z, yaw, this.members.scale[slot],
+                        ragdoll, ragdollProgress, logicalIndex);
+                    this.capture.replay(provider::getBuffer, this.memberMatrix, detail);
+
                     continue;
                 }
 
@@ -326,6 +355,12 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
                 batchedRenderer.endBatch();
             }
 
+            if (provider != null)
+            {
+                provider.setLayerSubstitute(null);
+            }
+
+            this.capture.reset();
             context.world = parentWorld;
             context.suppressStencilUpdates = suppressStencilUpdates;
 
@@ -395,55 +430,91 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
     /**
      * Use one LOD density for the whole formation. Per-member distance bands
      * make the camera-facing half denser and visibly deform circles.
+     *
+     * <p>When members are instanced from a captured appearance, the only ceiling is the
+     * user's render budget: raising Count then genuinely raises the number of bodies drawn.
+     * Detail, not population, is what distance reduces — see
+     * {@link #getDetailFraction(FormRenderingContext, MatrixStack)}.</p>
      */
-    private int getLodStride(FormRenderingContext context, MatrixStack world)
+    private int getLodStride(FormRenderingContext context, MatrixStack world, boolean instanced)
     {
         int size = this.members.size;
         int renderLimit = Math.max(1, Math.min(size, this.form.renderBudget.get()));
 
-        if (size <= Math.min(UI_DENSITY_TARGET, renderLimit))
+        if (instanced)
+        {
+            return strideForTarget(size, renderLimit);
+        }
+
+        if (size <= Math.min(UNINSTANCED_UI_TARGET, renderLimit))
         {
             return 1;
         }
 
         if (context.ui)
         {
-            return strideForTarget(size, Math.min(UI_DENSITY_TARGET, renderLimit));
+            return strideForTarget(size, Math.min(UNINSTANCED_UI_TARGET, renderLimit));
         }
 
         if (BBSModClient.getVideoRecorder() != null && BBSModClient.getVideoRecorder().isRecording())
         {
-            return strideForTarget(size, Math.min(RECORDING_DENSITY_TARGET, renderLimit));
+            return strideForTarget(size, renderLimit);
+        }
+
+        if (world == null || this.distanceSquaredToCamera(context, world) <= 32D * 32D)
+        {
+            return strideForTarget(size, Math.min(UNINSTANCED_NEAR_TARGET, renderLimit));
+        }
+
+        return strideForTarget(size, Math.min(UNINSTANCED_FAR_TARGET, renderLimit));
+    }
+
+    /**
+     * Share of each member's quads to draw, largest faces first. Distant crowd members keep
+     * their silhouette while shedding most of their geometry, which is where the headroom
+     * for very large counts comes from.
+     */
+    private float getDetailFraction(FormRenderingContext context, MatrixStack world)
+    {
+        if (BBSModClient.getVideoRecorder() != null && BBSModClient.getVideoRecorder().isRecording())
+        {
+            return 1F;
         }
 
         if (world == null)
         {
-            return strideForTarget(size, Math.min(MID_DENSITY_TARGET, renderLimit));
+            return 1F;
         }
 
+        double distanceSquared = this.distanceSquaredToCamera(context, world);
+
+        if (distanceSquared <= 24D * 24D)
+        {
+            return 1F;
+        }
+
+        if (distanceSquared <= 64D * 64D)
+        {
+            return 0.6F;
+        }
+
+        if (distanceSquared <= 160D * 160D)
+        {
+            return 0.35F;
+        }
+
+        return 0.2F;
+    }
+
+    private double distanceSquaredToCamera(FormRenderingContext context, MatrixStack world)
+    {
         world.peek().getPositionMatrix().transformPosition(this.worldPosition.set(0F, 0F, 0F));
 
         double dx = this.worldPosition.x - context.camera.position.x;
         double dy = this.worldPosition.y - context.camera.position.y;
         double dz = this.worldPosition.z - context.camera.position.z;
-        double distanceSquared = dx * dx + dy * dy + dz * dz;
 
-        if (distanceSquared <= 24D * 24D)
-        {
-            return strideForTarget(size, Math.min(NEAR_DENSITY_TARGET, renderLimit));
-        }
-
-        if (distanceSquared <= 48D * 48D)
-        {
-            return strideForTarget(size, Math.min(MID_DENSITY_TARGET, renderLimit));
-        }
-
-        if (distanceSquared <= 96D * 96D)
-        {
-            return strideForTarget(size, Math.min(FAR_DENSITY_TARGET, renderLimit));
-        }
-
-        return strideForTarget(size, Math.min(DISTANT_DENSITY_TARGET, renderLimit));
+        return dx * dx + dy * dy + dz * dz;
     }
 
     private static int strideForTarget(int size, int target)
@@ -475,6 +546,72 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
         this.visibleSlots = cursor == slots.length ? slots : Arrays.copyOf(slots, cursor);
 
         return this.visibleSlots;
+    }
+
+    /**
+     * Snapshot the matrix every member's geometry will be captured in, plus its inverse.
+     * Replay conjugates each member transform through it, so captured vertices land exactly
+     * where the ordinary per-member matrix stack would have put them.
+     */
+    private boolean captureParentMatrix(FormRenderingContext context)
+    {
+        this.parentMatrix.set(context.stack.peek().getPositionMatrix());
+
+        if (Math.abs(this.parentMatrix.determinant()) < 1.0E-9F)
+        {
+            return false;
+        }
+
+        this.parentInverse.set(this.parentMatrix).invert();
+
+        return true;
+    }
+
+    /** Render one member into the recorder instead of the screen, keeping its vertex stream. */
+    private void captureAppearance(FormRenderingContext context, FormRenderer renderer,
+        CustomVertexConsumerProvider provider)
+    {
+        MatrixStack world = context.world;
+
+        this.capture.beginRecording();
+        provider.setLayerSubstitute(this.capture::intercept);
+        context.stack.push();
+        context.world = null;
+
+        try
+        {
+            renderer.renderPreparedInPlace(context);
+        }
+        finally
+        {
+            context.world = world;
+            context.stack.pop();
+            provider.setLayerSubstitute(null);
+            this.capture.endRecording();
+        }
+    }
+
+    private void buildMemberMatrix(float x, float y, float z, float yaw, float scale,
+        CrowdRagdollActionClip ragdoll, float ragdollProgress, int logicalIndex)
+    {
+        this.memberMatrix.set(this.parentMatrix)
+            .translate(x, y, z)
+            .rotateY((float) Math.toRadians(yaw))
+            .scale(scale);
+
+        if (ragdoll != null && ragdollProgress > 0F)
+        {
+            float direction = ragdoll.randomDirection.get()
+                ? this.random(logicalIndex, 97) * 360F - 180F
+                : ragdoll.direction.get();
+
+            this.memberMatrix
+                .rotateY((float) Math.toRadians(direction))
+                .rotateZ((float) Math.toRadians(ragdoll.tilt.get() * ragdollProgress))
+                .rotateY((float) Math.toRadians(-direction));
+        }
+
+        this.memberMatrix.mul(this.parentInverse);
     }
 
     private void applyMemberTransform(MatrixStack stack, float x, float y, float z, float yaw, float scale,
@@ -681,13 +818,23 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
 
     private void point(int index, int count, MemberLayout members, int slot)
     {
-        float spacing = this.form.spacing.get();
+        CrowdFormation formation = CrowdFormation.get(this.form.formation.get());
+        boolean perBlock = this.form.perBlock.get();
+        float spacing = perBlock ? 1F : this.form.spacing.get();
         float radius = this.form.radius.get();
         float yaw = (this.random(index, 11) - 0.5F) * this.form.variation.get();
         float x;
         float z;
 
-        CrowdFormation formation = CrowdFormation.get(this.form.formation.get());
+        if (perBlock && (formation == CrowdFormation.CIRCLE || formation == CrowdFormation.CIRCLE_OUTLINE))
+        {
+            /* One member per block: grow the circle to match the population instead of
+             * packing everyone into the authored radius. Hole area is excluded so a
+             * ring keeps its one-per-block density too. */
+            double hole = formation == CrowdFormation.CIRCLE ? this.form.hollow.get() : 0D;
+
+            radius = (float) Math.sqrt(count / (Math.PI * Math.max(0.05D, 1D - hole * hole)));
+        }
 
         if (formation == CrowdFormation.CIRCLE)
         {

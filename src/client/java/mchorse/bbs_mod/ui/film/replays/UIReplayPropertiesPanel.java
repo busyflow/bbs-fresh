@@ -73,6 +73,7 @@ public class UIReplayPropertiesPanel extends UIElement
     public UITrackpad crowdSeed;
     public UITrackpad crowdVariation;
     public UITrackpad crowdRenderBudget;
+    public UIToggle crowdInstancing;
     public UITrackpad crowdHealth;
     public UIToggle crowdRandomArmor;
     public UITrackpad crowdArmorCoverage;
@@ -227,6 +228,8 @@ public class UIReplayPropertiesPanel extends UIElement
             .limit(0, 180);
         this.crowdRenderBudget = new UITrackpad((v) -> this.editCrowd((crowd) -> crowd.renderBudget.set(v.intValue())))
             .limit(1, CrowdForm.MAX_RENDER_BUDGET, true);
+        this.crowdInstancing = new UIToggle(IKey.constant("Fast crowd"), (b) ->
+            this.editCrowd((crowd) -> crowd.instancing.set(b.getValue())));
         this.crowdHealth = new UITrackpad((v) -> this.editCrowd((crowd) -> crowd.health.set(v.floatValue())))
             .limit(0, 1024);
         this.crowdRandomArmor = new UIToggle(IKey.constant("Randomize armor"), (b) ->
@@ -288,7 +291,8 @@ public class UIReplayPropertiesPanel extends UIElement
                 this.crowdHollowField,
                 this.compactCrowdField("Seed", this.crowdSeed),
                 this.compactCrowdField("Yaw", this.crowdVariation),
-                this.compactCrowdField("Budget", this.crowdRenderBudget)
+                this.compactCrowdField("Budget", this.crowdRenderBudget),
+                this.crowdInstancing
             ),
             UI.row(4,
                 this.compactCrowdField("Health", this.crowdHealth),
@@ -565,6 +569,7 @@ public class UIReplayPropertiesPanel extends UIElement
         this.crowdSeed.setValue(crowd.seed.get());
         this.crowdVariation.setValue(crowd.variation.get());
         this.crowdRenderBudget.setValue(crowd.renderBudget.get());
+        this.crowdInstancing.setValue(crowd.instancing.get());
         this.crowdHealth.setValue(crowd.health.get());
         this.crowdRandomArmor.setValue(crowd.randomArmor.get());
         this.crowdArmorCoverage.setValue(crowd.randomArmorCoverage.get());

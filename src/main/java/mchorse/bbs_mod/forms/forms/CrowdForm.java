@@ -36,6 +36,8 @@ public class CrowdForm extends Form
     public final ValueInt seed = new ValueInt("seed", 0);
     public final ValueFloat variation = new ValueFloat("variation", 0F, 0F, 180F);
     public final ValueInt renderBudget = new ValueInt("render_budget", MAX_RENDER_BUDGET, 1, MAX_RENDER_BUDGET);
+    /** Capture a member's geometry once per frame and replay it for the rest of the crowd. */
+    public final ValueBoolean instancing = new ValueBoolean("instancing", true);
     public final ValueLink textureFolder = new ValueLink("texture_folder", null);
     public final ValueBoolean recursiveTextures = new ValueBoolean("recursive_textures", false);
     public final ValueInt textureRevision = new ValueInt("texture_revision", 0);
@@ -86,6 +88,7 @@ public class CrowdForm extends Form
         this.seed.invisible();
         this.variation.invisible();
         this.renderBudget.invisible();
+        this.instancing.invisible();
         this.textureFolder.invisible();
         this.recursiveTextures.invisible();
         this.textureRevision.invisible();
@@ -133,6 +136,7 @@ public class CrowdForm extends Form
         this.add(this.seed);
         this.add(this.variation);
         this.add(this.renderBudget);
+        this.add(this.instancing);
         this.add(this.textureFolder);
         this.add(this.recursiveTextures);
         this.add(this.textureRevision);
