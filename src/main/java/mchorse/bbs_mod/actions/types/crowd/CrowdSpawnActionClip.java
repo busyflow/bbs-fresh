@@ -45,7 +45,10 @@ public class CrowdSpawnActionClip extends ActionClip
     public final ValueForm actorForm = new ValueForm("actor_form");
     public final ValueBoolean randomTextures = new ValueBoolean("random_textures", false);
     public final ValueLink randomTextureFolder = new ValueLink("random_texture_folder", null);
-    public final ValueInt count = new ValueInt("count", 20, 1, 500);
+    /* Neighbour work is bucketed rather than all-pairs (see CrowdGrid), so the ceiling is now
+     * the entity tick itself rather than the crowd logic. 5000 stays interactive on a normal
+     * machine; past that vanilla's own entity ticking is the wall, not this. */
+    public final ValueInt count = new ValueInt("count", 20, 1, 5000);
     public final ValueInt seed = new ValueInt("seed", 1);
     public final ValueFloat spacing = new ValueFloat("spacing", 1.0F, 0.1F, 64F);
     public final ValueInt formation = new ValueInt("formation", CrowdFormation.CIRCLE.ordinal(), 0, CrowdFormation.values().length - 1);

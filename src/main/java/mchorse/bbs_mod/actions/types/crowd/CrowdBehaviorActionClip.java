@@ -65,6 +65,9 @@ public class CrowdBehaviorActionClip extends ActionClip
     public final ValueInt pathRefresh = new ValueInt("path_refresh", 5, 1, 40);
     public final ValueInt seed = new ValueInt("seed", 1);
     public final ValueFloat wanderRadius = new ValueFloat("wander_radius", 12F, 0.1F, 256F);
+
+    /** Neighbour index for the tick being applied; null outside of it. Not saved. */
+    private CrowdGrid grid;
     public final ValueFloat separation = new ValueFloat("separation", 0.85F, 0F, 6F);
     public final ValueFloat maxStepHeight = new ValueFloat("max_step_height", 0.55F, 0F, 0.75F);
     public final ValueBoolean crouch = new ValueBoolean("crouch", false);
@@ -240,6 +243,12 @@ public class CrowdBehaviorActionClip extends ActionClip
         GunProperties projectileProperties = shootRate > 0F ? this.createProjectileProperties() : null;
         float lookBlend = this.getLookBlend(tick);
 
+        /* Neighbour lookups below run once per member, so they get an index instead of a scan
+         * over the whole crowd. Held in a field rather than threaded through five signatures;
+         * this only ever runs on the server tick, one clip at a time. Cell is sized for the
+         * widest neighbour query (the 8-block glance), so both users can share one index. */
+        this.grid = new CrowdGrid(crowd, Math.max(8D, this.separation.get()));
+
         for (LivingEntity entity : crowd)
         {
             if (!entity.isAlive() || entity.isRemoved())
@@ -313,6 +322,8 @@ public class CrowdBehaviorActionClip extends ActionClip
                 this.shootSnowballLike(world, entity, gatherPos, projectileProperties);
             }
         }
+
+        this.grid = null;
     }
 
     private void prepareCrowdEntity(LivingEntity entity)
@@ -729,13 +740,22 @@ public class CrowdBehaviorActionClip extends ActionClip
             return null;
         }
 
+        /* Only members within 8 blocks can be glanced at, so search the buckets that can hold
+         * them instead of walking the whole crowd to find the same handful. */
+        List<LivingEntity> nearby = this.grid == null ? crowd : this.grid.neighbours(entity.getX(), entity.getZ());
+
+        if (nearby.isEmpty())
+        {
+            return null;
+        }
+
         int step = Math.floorDiv(Math.max(0, tick - this.tick.get()), 55);
-        int start = Math.floorMod(CrowdUtils.entityIndex(entity) + step, crowd.size());
+        int start = Math.floorMod(CrowdUtils.entityIndex(entity) + step, nearby.size());
         double maxDistanceSq = 8D * 8D;
 
-        for (int i = 0; i < crowd.size(); i++)
+        for (int i = 0; i < nearby.size(); i++)
         {
-            LivingEntity candidate = crowd.get(Math.floorMod(start + i, crowd.size()));
+            LivingEntity candidate = nearby.get(Math.floorMod(start + i, nearby.size()));
 
             if (candidate != entity && this.isValidConversationEntity(candidate) && candidate.squaredDistanceTo(entity) <= maxDistanceSq)
             {
@@ -940,7 +960,7 @@ public class CrowdBehaviorActionClip extends ActionClip
         Vec3d push = Vec3d.ZERO;
         int samples = 0;
 
-        for (LivingEntity other : crowd)
+        for (LivingEntity other : this.grid == null ? crowd : this.grid.neighbours(entity.getX(), entity.getZ()))
         {
             if (other == entity || !other.isAlive() || other.isRemoved())
             {
