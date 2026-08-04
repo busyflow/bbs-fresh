@@ -53,6 +53,15 @@ public class CrowdUtilsTest
     }
 
     @Test
+    public void withoutSpawnedActorsTheVisualTierDrawsEveryMember()
+    {
+        /* Editor previews have no live crowd. Reserving live slots there used to blank the
+         * whole formation for any count at or below the live cap. */
+        assertEquals(29, CrowdUtils.visualFormationIndices(29, 1_000_000, 0).length);
+        assertEquals(3903, CrowdUtils.visualFormationIndices(3903, 1_000_000, 0).length);
+    }
+
+    @Test
     public void tenThousandMemberPartitionIsCompleteAndUnique()
     {
         int count = 10_000;

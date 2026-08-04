@@ -35,7 +35,11 @@ public class CrowdForm extends Form
      * Members per square block at density 100. A villager occupies roughly 0.6x0.6 blocks,
      * so three per block overlaps enough to hide the ground completely.
      */
-    public static final float PACKED_MEMBERS_PER_BLOCK = 3F;
+    /**
+     * Members per square block at density 100. Four puts neighbours half a block apart,
+     * which is tighter than a villager is wide, so the ground behind them is covered.
+     */
+    public static final float PACKED_MEMBERS_PER_BLOCK = 4F;
     public static final float MAX_DENSITY = 100F;
 
     /**

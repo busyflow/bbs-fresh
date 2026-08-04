@@ -76,7 +76,7 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
     private Link cachedTextureFolder;
     private boolean cachedRecursiveTextures;
     private int cachedTextureRevision = Integer.MIN_VALUE;
-    private boolean cachedExcludeLive;
+    private int cachedLiveMembers = -1;
     private List<Link> textures = List.of();
     private final Map<SourceTexture, Form> texturedForms = new HashMap<>();
     private final Set<Integer> untexturedSources = new HashSet<>();
@@ -120,10 +120,12 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
             return;
         }
 
-        this.updateLayout(context.entity instanceof StubEntity);
         StubEntity stub = context.entity instanceof StubEntity value ? value : null;
         Replay replay = stub == null ? null : stub.getReplay();
         float replayTick = stub == null ? 0F : stub.getReplayTick();
+
+        this.updateLayout(this.getLiveMemberCount(replay, MathHelper.floor(replayTick)));
+
         CrowdWalkEvaluator.Frame motion = CrowdWalkEvaluator.frame(replay, replayTick);
         double ambientJumpRate = this.form.behaviorEnabled.get() && this.form.behaviorRandomJump.get()
             ? this.form.behaviorJumpRate.get()
@@ -484,9 +486,12 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
         {
             double distanceSquared = this.distanceSquaredToCamera(context, world);
 
-            if (distanceSquared > 160D * 160D) distanceDetail = 0.2F;
-            else if (distanceSquared > 64D * 64D) distanceDetail = 0.35F;
-            else if (distanceSquared > 24D * 24D) distanceDetail = 0.6F;
+            /* Bands sit well past normal framing distance. Earlier thresholds turned members
+             * into blocks at the distance a crowd is usually shot from, which reads as broken
+             * rendering rather than as a level of detail. */
+            if (distanceSquared > 384D * 384D) distanceDetail = 0.28F;
+            else if (distanceSquared > 192D * 192D) distanceDetail = 0.5F;
+            else if (distanceSquared > 96D * 96D) distanceDetail = 0.8F;
         }
 
         boolean recording = BBSModClient.getVideoRecorder() != null
@@ -637,7 +642,36 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
         stack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-direction));
     }
 
-    private void updateLayout(boolean excludeLive)
+    /**
+     * How many members of this crowd are drawn by real spawned entities right now.
+     *
+     * <p>Only an active crowd spawn clip creates them. Reserving those slots unconditionally
+     * whenever a stub entity is present punched {@code MAX_LIVE_MEMBERS} holes in every
+     * editor preview — and blanked small crowds entirely, since a count below the live cap
+     * left the visual tier with nothing to draw.</p>
+     */
+    private int getLiveMemberCount(Replay replay, int tick)
+    {
+        if (replay == null)
+        {
+            return 0;
+        }
+
+        int live = 0;
+
+        for (Clip clip : replay.actions.getClips(tick))
+        {
+            if (clip instanceof CrowdSpawnActionClip spawn && spawn.enabled.get())
+            {
+                live = Math.max(live, Math.min(spawn.count.get(),
+                    Math.min(CrowdSpawnActionClip.MAX_LIVE_MEMBERS, spawn.liveLimit.get())));
+            }
+        }
+
+        return live;
+    }
+
+    private void updateLayout(int liveMembers)
     {
         this.updateTextures();
 
@@ -667,7 +701,7 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
             && this.form.spacing.get() == this.cachedSpacing && this.form.radius.get() == this.cachedRadius
             && this.form.hollow.get() == this.cachedHollow
             && this.form.variation.get() == this.cachedVariation && sourceSignature == this.cachedSourceSignature
-            && textureSignature == this.cachedTextureSignature && excludeLive == this.cachedExcludeLive)
+            && textureSignature == this.cachedTextureSignature && liveMembers == this.cachedLiveMembers)
         {
             return;
         }
@@ -683,12 +717,12 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
         this.cachedVariation = this.form.variation.get();
         this.cachedSourceSignature = sourceSignature;
         this.cachedTextureSignature = textureSignature;
-        this.cachedExcludeLive = excludeLive;
+        this.cachedLiveMembers = liveMembers;
         int[] indices;
 
-        if (excludeLive)
+        if (liveMembers > 0)
         {
-            indices = CrowdUtils.visualFormationIndices(count, budget, CrowdSpawnActionClip.MAX_LIVE_MEMBERS);
+            indices = CrowdUtils.visualFormationIndices(count, budget, liveMembers);
         }
         else
         {

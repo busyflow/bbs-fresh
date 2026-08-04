@@ -266,6 +266,46 @@ public class CrowdFormTest
     }
 
     @Test
+    public void fullDensityPacksMembersCloserThanTheyAreWide()
+    {
+        CrowdForm crowd = new CrowdForm();
+
+        crowd.formation.set(CrowdFormation.CIRCLE.ordinal());
+        crowd.radius.set(20F);
+        crowd.density.set(CrowdForm.MAX_DENSITY);
+        crowd.validateCrowd();
+
+        double area = Math.PI * 20D * 20D;
+        double spacing = Math.sqrt(area / crowd.count.get());
+
+        assertTrue(spacing < 0.6D, "at density 100 neighbours must be closer than a villager is wide, was " + spacing);
+        assertTrue(crowd.renderBudget.get() >= crowd.count.get(), "budget must never clip the density it derived");
+    }
+
+    @Test
+    public void densityScalesWithTheAuthoredRadiusInsteadOfChangingIt()
+    {
+        CrowdForm small = new CrowdForm();
+        CrowdForm large = new CrowdForm();
+
+        for (CrowdForm crowd : new CrowdForm[] {small, large})
+        {
+            crowd.formation.set(CrowdFormation.CIRCLE.ordinal());
+            crowd.density.set(50F);
+        }
+
+        small.radius.set(10F);
+        large.radius.set(20F);
+        small.validateCrowd();
+        large.validateCrowd();
+
+        assertEquals(10F, small.radius.get(), "density must never move the radius");
+        assertEquals(20F, large.radius.get());
+        assertEquals(4D, large.count.get() / (double) small.count.get(), 0.05D,
+            "four times the ground must hold four times the members");
+    }
+
+    @Test
     public void crowdTexturesRoundTripInChosenAndRandomModes()
     {
         CrowdTexture chosen = new CrowdTexture();

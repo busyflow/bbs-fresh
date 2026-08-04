@@ -70,31 +70,53 @@ public class CrowdRadiusGizmo
         BufferBuilder builder = Tessellator.getInstance().getBuffer();
 
         RenderSystem.setShader(GameRenderer::getPositionColorProgram);
-        RenderSystem.enableDepthTest();
         RenderSystem.disableCull();
-        builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
 
+        /* Ghost pass first, with depth off and the writes masked: uneven ground otherwise
+         * buries most of the ring and leaves two floating arcs that read as nothing at all.
+         * The dim copy keeps the whole circle legible while the bright pass below still
+         * shows which parts genuinely sit on visible ground. */
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
+        builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
         stack.push();
         stack.translate(x, y + thickness, z);
+        ring(builder, stack, radius, hole, thickness, 0.12F, 0.36F, 0.45F);
+        stack.pop();
+        BufferRenderer.drawWithGlobalProgram(builder.end());
+        RenderSystem.depthMask(true);
 
-        Draw.arc3D(builder, stack, Axis.Y, radius, thickness, 0.25F, 0.85F, 1F);
+        RenderSystem.enableDepthTest();
+        builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+        stack.push();
+        stack.translate(x, y + thickness, z);
+        ring(builder, stack, radius, hole, thickness, 0.25F, 0.85F, 1F);
+        stack.pop();
+        BufferRenderer.drawWithGlobalProgram(builder.end());
+
+        RenderSystem.enableCull();
+    }
+
+    /**
+     * Outer rim, optional centre hole, a half-radius reference ring and four rim markers.
+     * The reference ring is what makes the absolute size readable: a lone circle looks the
+     * same at every radius once it fills the view.
+     */
+    private static void ring(BufferBuilder builder, MatrixStack stack, float radius, float hole,
+        float thickness, float r, float g, float b)
+    {
+        Draw.arc3D(builder, stack, Axis.Y, radius, thickness, r, g, b);
+        Draw.arc3D(builder, stack, Axis.Y, radius * 0.5F, thickness * 0.5F, r, g, b);
 
         if (hole > 0.001F)
         {
-            Draw.arc3D(builder, stack, Axis.Y, radius * hole, thickness, 1F, 0.55F, 0.25F);
+            Draw.arc3D(builder, stack, Axis.Y, radius * hole, thickness, r, g * 0.65F, b * 0.3F);
         }
 
-        /* Quarter markers: short radial stubs that make the scale easier to read than a
-         * bare outline, especially at large radii where the ring fills the screen. */
         for (int quarter = 0; quarter < 4; quarter++)
         {
-            Draw.arc3D(builder, stack, Axis.Y, radius * 0.5F, thickness * 0.6F,
-                0.25F, 0.85F, 1F, quarter * 90F - 1.5F, 3F);
+            Draw.arc3D(builder, stack, Axis.Y, radius * 1.04F, thickness * 2F,
+                r, g, b, quarter * 90F - 2F, 4F);
         }
-
-        stack.pop();
-
-        BufferRenderer.drawWithGlobalProgram(builder.end());
-        RenderSystem.enableCull();
     }
 }
