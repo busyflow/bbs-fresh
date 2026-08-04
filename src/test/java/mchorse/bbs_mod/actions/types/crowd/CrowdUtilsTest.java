@@ -3,7 +3,12 @@ package mchorse.bbs_mod.actions.types.crowd;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -207,6 +212,70 @@ public class CrowdUtilsTest
 
             assertTrue(maximum - minimum <= 12, "LOD stride " + stride + " distorted one side of the circle");
         }
+    }
+
+    @Test
+    public void largeCircleUsesEvenRingsAndItsLiveTierCannotCollapseIntoSpokes()
+    {
+        int count = 3000;
+        int liveCount = CrowdSpawnActionClip.MAX_LIVE_MEMBERS;
+        Map<Long, List<Double>> rings = new TreeMap<>();
+        int[] sectors = new int[24];
+
+        for (int i = 0; i < count; i++)
+        {
+            var point = CrowdUtils.circlePoint(i, count, 62.6D, 1.5D, 0D);
+            double radius = Math.hypot(point.x, point.z);
+            double angle = Math.atan2(point.z, point.x);
+
+            if (angle < 0D)
+            {
+                angle += Math.PI * 2D;
+            }
+
+            rings.computeIfAbsent(Math.round(radius * 1_000_000D), (key) -> new ArrayList<>()).add(angle);
+        }
+
+        assertEquals(31, rings.size(), "the filled circle stopped using deterministic density rings");
+
+        for (List<Double> angles : rings.values())
+        {
+            if (angles.size() < 3)
+            {
+                continue;
+            }
+
+            Collections.sort(angles);
+            double expectedGap = Math.PI * 2D / angles.size();
+
+            for (int i = 0; i < angles.size(); i++)
+            {
+                double next = i + 1 < angles.size() ? angles.get(i + 1) : angles.get(0) + Math.PI * 2D;
+
+                assertEquals(expectedGap, next - angles.get(i), 1.0E-8D,
+                    "a circle ring developed a spoke, star, or spiral gap");
+            }
+        }
+
+        for (int slot = 0; slot < liveCount; slot++)
+        {
+            int index = CrowdSpawnActionClip.liveFormationIndex(slot, liveCount, count);
+            var point = CrowdUtils.circlePoint(index, count, 62.6D, 1.5D, 0D);
+            double angle = Math.atan2(point.z, point.x);
+
+            if (angle < 0D)
+            {
+                angle += Math.PI * 2D;
+            }
+
+            sectors[Math.min(sectors.length - 1, (int) (angle / (Math.PI * 2D) * sectors.length))]++;
+        }
+
+        int minimum = java.util.Arrays.stream(sectors).min().orElse(0);
+        int maximum = java.util.Arrays.stream(sectors).max().orElse(0);
+
+        assertTrue(minimum > 0, "the live tier left an empty angular sector");
+        assertTrue(maximum - minimum <= 8, "the live tier collapsed into visible spokes");
     }
 
     @Test

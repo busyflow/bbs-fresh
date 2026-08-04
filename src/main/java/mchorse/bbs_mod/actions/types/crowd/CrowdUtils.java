@@ -17,8 +17,6 @@ import java.util.UUID;
 
 public class CrowdUtils
 {
-    private static final double GOLDEN_ANGLE = Math.PI * (3D - Math.sqrt(5D));
-
     public static final String INTERNAL_TAG = "bbs_crowd";
     public static final String RUN_TAG_PREFIX = "bbs_crowd_run_";
     public static final String FILM_TAG_PREFIX = "bbs_crowd_film_";
@@ -380,8 +378,10 @@ public class CrowdUtils
     }
 
     /**
-     * Deterministic equal-area sunflower packing. Unlike concentric rings, its
-     * irrational turn angle cannot line neighboring rows up into clumps.
+     * Deterministic circumference-balanced ring packing. A golden-angle sunflower is
+     * area-uniform, but sparse/live-tier samples expose its sequence as stars and spirals.
+     * Rings keep the authored silhouette circular at every count, while independent phase
+     * offsets prevent neighboring rings from forming radial spokes.
      */
     public static Vec3d circlePoint(int index, int count, double outerRadius, double spacing, double hollow)
     {
@@ -390,32 +390,131 @@ public class CrowdUtils
         outerRadius = Math.max(0.1D, outerRadius);
 
         double hole = MathHelper.clamp(hollow, 0D, 0.95D);
-        double innerRadius = outerRadius * hole;
-
         if (count == 1)
         {
             return hole <= 1.0E-8D ? Vec3d.ZERO : new Vec3d(outerRadius, 0D, 0D);
         }
 
-        double annulusWidth = outerRadius - innerRadius;
-        double areaPerMember = Math.PI
-            * (outerRadius * outerRadius - innerRadius * innerRadius) / count;
-
-        /* A very thin annulus has room for only one radial lane. In that case,
-         * exact angular spacing is the unique maximally even solution. */
-        if (annulusWidth <= Math.sqrt(areaPerMember) * 0.8D)
+        if (hole <= 1.0E-8D)
         {
-            double angle = index * Math.PI * 2D / count;
+            if (index == 0)
+            {
+                return Vec3d.ZERO;
+            }
 
-            return new Vec3d(Math.cos(angle) * outerRadius, 0D, Math.sin(angle) * outerRadius);
+            int rings = Math.max(1, (int) Math.floor(Math.sqrt(count / Math.PI)));
+            int ring = filledCircleRing(index, count, rings);
+            int start = filledCircleRingBoundary(ring - 1, count, rings);
+            int end = filledCircleRingBoundary(ring, count, rings);
+            int ringCount = Math.max(1, end - start);
+            double radius = outerRadius * ring / rings;
+            double angle = circleRingPhase(ring) + (index - start) * Math.PI * 2D / ringCount;
+
+            return new Vec3d(Math.cos(angle) * radius, 0D, Math.sin(angle) * radius);
         }
 
-        double areaFraction = (index + 0.5D) / (count - 0.5D);
-        double radius = Math.sqrt(innerRadius * innerRadius
-            + areaFraction * (outerRadius * outerRadius - innerRadius * innerRadius));
-        double angle = index * GOLDEN_ANGLE;
+        int rings = Math.max(1, (int) Math.round(
+            (1D - hole) * Math.sqrt(count / (Math.PI * (1D - hole * hole)))
+        ));
+        int ring = hollowCircleRing(index, count, rings, hole);
+        int start = hollowCircleRingBoundary(ring, count, rings, hole);
+        int end = hollowCircleRingBoundary(ring + 1, count, rings, hole);
+        int ringCount = Math.max(1, end - start);
+        double radiusFactor = rings == 1
+            ? 1D
+            : hole + (1D - hole) * ring / (rings - 1D);
+        double radius = outerRadius * radiusFactor;
+        double angle = circleRingPhase(ring) + (index - start) * Math.PI * 2D / ringCount;
 
         return new Vec3d(Math.cos(angle) * radius, 0D, Math.sin(angle) * radius);
+    }
+
+    private static int filledCircleRing(int index, int count, int rings)
+    {
+        double rank = index - 1D;
+        double scaled = rank * rings * (rings + 1D) / Math.max(1D, count - 1D);
+        int ring = Math.max(1, Math.min(rings,
+            (int) Math.floor((Math.sqrt(1D + 4D * scaled) - 1D) * 0.5D) + 1));
+
+        while (ring > 1 && index < filledCircleRingBoundary(ring - 1, count, rings))
+        {
+            ring--;
+        }
+
+        while (ring < rings && index >= filledCircleRingBoundary(ring, count, rings))
+        {
+            ring++;
+        }
+
+        return ring;
+    }
+
+    private static int filledCircleRingBoundary(int ring, int count, int rings)
+    {
+        if (ring <= 0)
+        {
+            return 1;
+        }
+
+        long numerator = (long) (count - 1) * ring * (ring + 1L);
+        long denominator = (long) rings * (rings + 1L);
+
+        return 1 + (int) Math.min(count - 1L, Math.round(numerator / (double) denominator));
+    }
+
+    private static int hollowCircleRing(int index, int count, int rings, double hole)
+    {
+        if (rings <= 1)
+        {
+            return 0;
+        }
+
+        double step = (1D - hole) / (rings - 1D);
+        double totalWeight = rings * (hole + 1D) * 0.5D;
+        double targetWeight = (index + 0.5D) * totalWeight / count;
+        double linear = hole - step * 0.5D;
+        double discriminant = linear * linear + 2D * step * targetWeight;
+        int ring = step <= 1.0E-12D
+            ? 0
+            : (int) Math.floor((-linear + Math.sqrt(Math.max(0D, discriminant))) / step);
+
+        ring = Math.max(0, Math.min(rings - 1, ring));
+
+        while (ring > 0 && index < hollowCircleRingBoundary(ring, count, rings, hole))
+        {
+            ring--;
+        }
+
+        while (ring < rings - 1 && index >= hollowCircleRingBoundary(ring + 1, count, rings, hole))
+        {
+            ring++;
+        }
+
+        return ring;
+    }
+
+    private static int hollowCircleRingBoundary(int ring, int count, int rings, double hole)
+    {
+        if (ring <= 0)
+        {
+            return 0;
+        }
+
+        if (ring >= rings)
+        {
+            return count;
+        }
+
+        double step = (1D - hole) / (rings - 1D);
+        double cumulativeWeight = ring * hole + step * ring * (ring - 1D) * 0.5D;
+        double totalWeight = rings * (hole + 1D) * 0.5D;
+
+        return (int) Math.round(count * cumulativeWeight / totalWeight);
+    }
+
+    private static double circleRingPhase(int ring)
+    {
+        return randomUnit(ring, 0x6a09e667) * Math.PI * 2D;
     }
 
     /** Exact authored footprint used to make the route's first gate match the spawn formation. */
