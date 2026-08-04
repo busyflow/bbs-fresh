@@ -5,6 +5,7 @@ import mchorse.bbs_mod.actions.types.crowd.CrowdFormation;
 import mchorse.bbs_mod.actions.types.crowd.CrowdSpawnActionClip;
 import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.forms.FormUtils;
+import mchorse.bbs_mod.forms.entities.IEntity;
 import mchorse.bbs_mod.forms.forms.CrowdForm;
 import mchorse.bbs_mod.forms.forms.Form;
 import mchorse.bbs_mod.forms.forms.crowd.CrowdMemberSource;
@@ -387,6 +388,8 @@ public class UIReplayPropertiesPanel extends UIElement
             return;
         }
 
+        var film = this.filmPanel.getData();
+
         for (Replay replay : this.list.getSelectedReplays())
         {
             if (replay.form.get() instanceof CrowdForm crowd)
@@ -396,6 +399,20 @@ public class UIReplayPropertiesPanel extends UIElement
                  * replay form itself around every crowd edit; the existing 100 ms sync debounce
                  * then sends one complete, server-resolvable form update while a control is dragged. */
                 BaseValue.edit(replay.form, (value) -> consumer.accept(crowd));
+
+                /* BaseFilmController renders a copy of replay.form. Mirror the same edit into
+                 * that persistent preview copy so sliders update this frame without rebuilding
+                 * entities (which used to leave the visual crowd stuck at its old count). */
+                if (film != null)
+                {
+                    int index = film.replays.getList().indexOf(replay);
+                    IEntity entity = index < 0 ? null : this.filmPanel.getController().getEntities().get(index);
+
+                    if (entity != null && entity.getForm() instanceof CrowdForm preview && preview != crowd)
+                    {
+                        consumer.accept(preview);
+                    }
+                }
             }
         }
     }
