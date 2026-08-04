@@ -9,7 +9,17 @@ public enum CrowdBehaviorMode
     TALK("Talk"),
     HOLD("Hold"),
     WANDER("Wander"),
-    WANDER_LOOK("Wander + look");
+    WANDER_LOOK("Wander + look"),
+    IDLE_CROWD("Idle crowd"),
+    GATHER("Gather"),
+    WATCH("Watch event"),
+    FLEE("Flee"),
+    MARKET("Marketplace"),
+    MEETING("Meeting circle"),
+    PANIC("Crowd panic"),
+    GUARD_PATROL("Guard patrol"),
+    WORKERS("Workers"),
+    FIGHT("Crowd fight");
 
     public final String title;
 

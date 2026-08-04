@@ -122,7 +122,6 @@ public class CrowdFormRuntimeManager
 		private byte[] memberData = new byte[0];
         private int lastMemberDataCheckTick = Integer.MIN_VALUE;
         private int count;
-        private int renderBudget;
         private int liveLimit;
         private float spacing;
         private boolean perBlock;
@@ -181,9 +180,20 @@ public class CrowdFormRuntimeManager
             this.replay = replay;
         }
 
+        /**
+         * The name this crowd answers to. An authored group name lets another crowd form
+         * name it as its enemy group; without one the crowd gets a private tag derived from
+         * its replay so unrelated crowds never fight or gather each other by accident.
+         */
         private String tag()
         {
-            return "crowd_form_" + Integer.toHexString(this.replay.getId().hashCode());
+            String group = this.crowd == null || this.crowd.groupName.get() == null
+                ? ""
+                : this.crowd.groupName.get().trim();
+
+            return group.isEmpty()
+                ? "crowd_form_" + Integer.toHexString(this.replay.getId().hashCode())
+                : group;
         }
 
         private void spawn(int tick, SuperFakePlayer player)
@@ -277,7 +287,6 @@ public class CrowdFormRuntimeManager
 				: DataStorageUtils.writeToBytes(FormUtils.toData(this.member));
             this.lastMemberDataCheckTick = tick;
             this.count = this.crowd.count.get();
-            this.renderBudget = this.crowd.renderBudget.get();
             this.liveLimit = this.desiredLiveLimit();
             this.spacing = this.crowd.spacing.get();
             this.perBlock = this.crowd.perBlock.get();
@@ -315,10 +324,13 @@ public class CrowdFormRuntimeManager
             this.ragdollActive = false;
         }
 
+        /**
+         * Every member is a real actor now, so the crowd spawns its full count. CrowdForm's
+         * own ceiling is what keeps that from melting a server tick.
+         */
         private int desiredLiveLimit()
         {
-            return Math.min(this.crowd.count.get(),
-                Math.min(this.crowd.renderBudget.get(), CrowdSpawnActionClip.MAX_LIVE_MEMBERS));
+            return this.crowd.count.get();
         }
 
         private boolean needsRespawn(int tick)
@@ -828,21 +840,59 @@ public class CrowdFormRuntimeManager
             }
 
             this.behavior.crowdTag.set(this.tag());
+            this.behavior.seed.set(this.crowd.seed.get());
             this.behavior.target.set(this.crowd.behaviorTarget.get());
             this.behavior.mode.set(this.crowd.behaviorMode.get());
+            this.behavior.pause.set(this.crowd.behaviorPause.get());
             this.behavior.speed.set(this.crowd.behaviorSpeed.get());
             this.behavior.sprint.set(this.crowd.behaviorSprint.get());
+            this.behavior.moveEase.set(this.crowd.behaviorMoveEase.get());
             this.behavior.stopDistance.set(this.crowd.behaviorStopDistance.get());
             this.behavior.targetSpread.set(this.crowd.behaviorTargetSpread.get());
+            this.behavior.disperseRadius.set(this.crowd.behaviorDisperseRadius.get());
             this.behavior.wanderInterval.set(this.crowd.behaviorWanderInterval.get());
+            this.behavior.lookAroundTicks.set(this.crowd.behaviorLookAroundTicks.get());
+            this.behavior.areaX.set(this.crowd.behaviorAreaX.get());
+            this.behavior.areaY.set(this.crowd.behaviorAreaY.get());
+            this.behavior.areaZ.set(this.crowd.behaviorAreaZ.get());
+            this.behavior.separation.set(this.crowd.behaviorSeparation.get());
+            this.behavior.maxStepHeight.set(this.crowd.behaviorMaxStepHeight.get());
+            this.behavior.crouch.set(this.crowd.behaviorCrouch.get());
+            this.behavior.zigZag.set(this.crowd.behaviorZigZag.get());
             /* Crowd actors have gravity disabled. The deterministic jump pass below owns
              * cheering arcs, while the behavior clip continues to own horizontal motion. */
             this.behavior.randomJump.set(false);
             this.behavior.jumpRate.set(this.crowd.behaviorJumpRate.get());
+            this.behavior.armSwing.set(this.crowd.behaviorArmSwing.get());
+            this.behavior.armSwingRate.set(this.crowd.behaviorArmSwingRate.get());
+            this.behavior.headMotion.set(this.crowd.behaviorHeadMotion.get());
+            this.behavior.energy.set(this.crowd.behaviorEnergy.get());
             this.behavior.lookAtTarget.set(this.crowd.behaviorLookAtTarget.get());
+            this.behavior.lookEase.set(this.crowd.behaviorLookEase.get());
             this.behavior.headYawLimit.set(this.crowd.behaviorHeadYawLimit.get());
+            this.behavior.lookBodyYaw.set(this.crowd.behaviorLookBodyYaw.get());
+            this.behavior.lookHeadYaw.set(this.crowd.behaviorLookHeadYaw.get());
+            this.behavior.lookHeadPitch.set(this.crowd.behaviorLookHeadPitch.get());
+            this.behavior.enemyGroup.set(this.crowd.behaviorEnemyGroup.get());
+            this.behavior.fightDamage.set(this.crowd.behaviorFightDamage.get());
+            this.behavior.attackRate.set(this.crowd.behaviorAttackRate.get());
+            this.behavior.engagementDistance.set(this.crowd.behaviorEngagementDistance.get());
+            this.behavior.fightRadius.set(this.crowd.behaviorFightRadius.get());
+            this.behavior.retargetTicks.set(this.crowd.behaviorRetargetTicks.get());
+            this.behavior.fightRandomness.set(this.crowd.behaviorFightRandomness.get());
             this.behavior.shoot.set(this.crowd.behaviorShoot.get());
             this.behavior.shootRate.set(this.crowd.behaviorShootRate.get());
+            this.behavior.projectileModel.set(this.crowd.behaviorProjectileModel.get());
+            this.behavior.projectileSpeed.set(this.crowd.behaviorProjectileSpeed.get());
+            this.behavior.projectileLifeSpan.set(this.crowd.behaviorProjectileLifeSpan.get());
+            this.behavior.impactModel.set(this.crowd.behaviorImpactModel.get());
+            this.behavior.impactBounces.set(this.crowd.behaviorImpactBounces.get());
+            this.behavior.impactBounceDamping.set(this.crowd.behaviorImpactBounceDamping.get());
+            this.behavior.impactVanish.set(this.crowd.behaviorImpactVanish.get());
+            this.behavior.impactDamage.set(this.crowd.behaviorImpactDamage.get());
+            this.behavior.impactKnockback.set(this.crowd.behaviorImpactKnockback.get());
+            this.behavior.impactCollideBlocks.set(this.crowd.behaviorImpactCollideBlocks.get());
+            this.behavior.impactCollideEntities.set(this.crowd.behaviorImpactCollideEntities.get());
             this.behavior.range.set(512F);
             this.behavior.applyAction(null, player, CrowdFormRuntimeManager.this.film, this.replay, tick);
         }

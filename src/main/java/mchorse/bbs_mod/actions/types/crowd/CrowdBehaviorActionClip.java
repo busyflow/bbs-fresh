@@ -18,20 +18,24 @@ import mchorse.bbs_mod.settings.values.numeric.ValueFloat;
 import mchorse.bbs_mod.settings.values.numeric.ValueInt;
 import mchorse.bbs_mod.utils.clips.Clip;
 import net.minecraft.block.BlockState;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.MovementType;
+import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.particle.BlockStateParticleEffect;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.sound.SoundEvents;
 import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class CrowdBehaviorActionClip extends ActionClip
@@ -39,7 +43,7 @@ public class CrowdBehaviorActionClip extends ActionClip
     /** {@code target} value meaning "use this clip's own replay" (default). */
     public static final int TARGET_SELF = -1;
     /**
-     * {@code target} value meaning "no replay target" Ã¢â‚¬â€ the crowd ignores every
+     * {@code target} value meaning "no replay target" — the crowd ignores every
      * replay and anchors to each mob's spawn point instead, so Wander mopes /
      * wanders around where they spawned rather than walking to a replay.
      */
@@ -59,6 +63,12 @@ public class CrowdBehaviorActionClip extends ActionClip
     public final ValueInt lookAroundTicks = new ValueInt("look_around_ticks", 25, 0, 200);
     public final ValueFloat range = new ValueFloat("range", 128F, 8F, 512F);
     public final ValueInt pathRefresh = new ValueInt("path_refresh", 5, 1, 40);
+    public final ValueInt seed = new ValueInt("seed", 1);
+    public final ValueFloat areaX = new ValueFloat("area_x", 12F, 0.1F, 256F);
+    public final ValueFloat areaY = new ValueFloat("area_y", 2F, 0F, 128F);
+    public final ValueFloat areaZ = new ValueFloat("area_z", 12F, 0.1F, 256F);
+    public final ValueFloat separation = new ValueFloat("separation", 0.85F, 0F, 6F);
+    public final ValueFloat maxStepHeight = new ValueFloat("max_step_height", 0.55F, 0F, 0.75F);
     public final ValueBoolean crouch = new ValueBoolean("crouch", false);
     public final ValueBoolean zigZag = new ValueBoolean("zig_zag", false);
     public final ValueBoolean randomJump = new ValueBoolean("random_jump", false);
@@ -73,6 +83,13 @@ public class CrowdBehaviorActionClip extends ActionClip
     public final ValueBoolean lookBodyYaw = new ValueBoolean("look_body_yaw", false);
     public final ValueBoolean lookHeadYaw = new ValueBoolean("look_head_yaw", true);
     public final ValueBoolean lookHeadPitch = new ValueBoolean("look_head_pitch", true);
+    public final ValueString enemyGroup = new ValueString("enemy_group", "");
+    public final ValueFloat fightDamage = new ValueFloat("fight_damage", 2F, 0F, 1024F);
+    public final ValueFloat attackRate = new ValueFloat("attack_rate", 0.8F, 0F, 20F);
+    public final ValueFloat engagementDistance = new ValueFloat("engagement_distance", 1.6F, 0.25F, 16F);
+    public final ValueFloat fightRadius = new ValueFloat("fight_radius", 24F, 1F, 256F);
+    public final ValueInt retargetTicks = new ValueInt("retarget_ticks", 30, 1, 400);
+    public final ValueFloat fightRandomness = new ValueFloat("fight_randomness", 1F, 0F, 8F);
     public final ValueBoolean shoot = new ValueBoolean("shoot", false);
     public final ValueFloat shootRate = new ValueFloat("shoot_rate", 0.5F, 0F, 20F);
     public final ValueItemStack shootItem = new ValueItemStack("shoot_item");
@@ -97,8 +114,8 @@ public class CrowdBehaviorActionClip extends ActionClip
     {
         super();
 
-        this.shootItem.set(new ItemStack(Items.SNOWBALL));
-
+        /* Left empty on purpose: touching Items here drags the whole item registry into
+         * construction, and createProjectileForm already falls back to a snowball. */
         this.add(this.crowdTag);
         this.add(this.target);
         this.add(this.mode);
@@ -113,6 +130,12 @@ public class CrowdBehaviorActionClip extends ActionClip
         this.add(this.lookAroundTicks);
         this.add(this.range);
         this.add(this.pathRefresh);
+        this.add(this.seed);
+        this.add(this.areaX);
+        this.add(this.areaY);
+        this.add(this.areaZ);
+        this.add(this.separation);
+        this.add(this.maxStepHeight);
         this.add(this.crouch);
         this.add(this.zigZag);
         this.add(this.randomJump);
@@ -127,6 +150,13 @@ public class CrowdBehaviorActionClip extends ActionClip
         this.add(this.lookBodyYaw);
         this.add(this.lookHeadYaw);
         this.add(this.lookHeadPitch);
+        this.add(this.enemyGroup);
+        this.add(this.fightDamage);
+        this.add(this.attackRate);
+        this.add(this.engagementDistance);
+        this.add(this.fightRadius);
+        this.add(this.retargetTicks);
+        this.add(this.fightRandomness);
         this.add(this.shoot);
         this.add(this.shootRate);
         this.add(this.shootItem);
@@ -160,6 +190,7 @@ public class CrowdBehaviorActionClip extends ActionClip
 
         boolean noTarget = this.target.get() == TARGET_NONE;
         Vec3d gatherPos;
+        Replay targetReplay = null;
 
         if (noTarget)
         {
@@ -175,7 +206,7 @@ public class CrowdBehaviorActionClip extends ActionClip
         }
         else
         {
-            Replay targetReplay = CrowdUtils.getReplay(film, this.target.get());
+            targetReplay = CrowdUtils.getReplay(film, this.target.get());
 
             if (targetReplay == null)
             {
@@ -199,6 +230,7 @@ public class CrowdBehaviorActionClip extends ActionClip
             return;
         }
 
+        List<LivingEntity> enemies = this.getEnemyCrowd(world, film, gatherPos, mode);
         double stopDistance = Math.max(0D, this.stopDistance.get());
         double stopDistanceSq = stopDistance * stopDistance;
         double speed = Math.max(0D, this.speed.get()) * this.getMoveBlend(tick);
@@ -216,21 +248,29 @@ public class CrowdBehaviorActionClip extends ActionClip
                 continue;
             }
 
+            this.prepareCrowdEntity(entity);
+
+            FightTarget fightTarget = mode == CrowdBehaviorMode.FIGHT ? this.chooseFightTarget(entity, enemies, gatherPos, tick) : null;
             boolean lookingAround = this.isLookAroundPause(entity, mode, tick);
-            Vec3d destination = this.getDestination(entity, gatherPos, mode, tick, noTarget);
+            Vec3d destination = fightTarget == null
+                ? this.getDestination(entity, gatherPos, mode, tick, noTarget)
+                : fightTarget.position;
             double distanceSq = entity.squaredDistanceTo(destination);
             boolean holding = mode == CrowdBehaviorMode.HOLD;
-            boolean moving = !holding && !lookingAround && !paused && distanceSq > stopDistanceSq;
+            double effectiveStopDistanceSq = fightTarget == null ? stopDistanceSq : this.engagementDistance.get() * this.engagementDistance.get();
+            boolean moving = !holding && !lookingAround && !paused && distanceSq > effectiveStopDistanceSq;
             boolean sprinting = this.sprint.get() && moving;
 
             entity.setSprinting(sprinting);
-            entity.setSneaking(this.crouch.get() || mode == CrowdBehaviorMode.SAD_WALK);
-            this.moveEntity(world, entity, destination, speed, moving, refresh, tick);
+            entity.setSneaking(this.crouch.get() || mode == CrowdBehaviorMode.SAD_WALK || (mode == CrowdBehaviorMode.PANIC && this.shouldCrouchInPanic(entity, tick)));
+            this.moveEntity(world, entity, destination, speed, moving, refresh, tick, crowd);
 
-            Vec3d lookPoint = this.getLookPoint(entity, gatherPos, mode, tick, noTarget);
+            Vec3d lookPoint = fightTarget == null
+                ? this.getLookPoint(entity, gatherPos, mode, tick, noTarget, crowd)
+                : fightTarget.lookPoint;
 
             this.applyLook(entity, lookPoint, mode, tick, lookBlend);
-            this.applyPerformanceMotion(entity, mode, tick);
+            this.applyPerformanceMotion(entity, mode, tick, crowd);
             this.constrainHeadYaw(entity);
 
             double jumpChance = mode == CrowdBehaviorMode.CHEER
@@ -242,7 +282,7 @@ public class CrowdBehaviorActionClip extends ActionClip
                 jumpChance = 0D;
             }
 
-            if (jumpChance > 0D && entity.isOnGround() && !entity.isTouchingWater() && world.getRandom().nextDouble() < jumpChance)
+            if (jumpChance > 0D && !moving && entity.isOnGround() && !entity.isTouchingWater() && this.deterministicChance(entity, tick, jumpChance, 0x5a91))
             {
                 this.jump(entity);
             }
@@ -259,6 +299,11 @@ public class CrowdBehaviorActionClip extends ActionClip
                 entity.swingHand(Hand.MAIN_HAND);
             }
 
+            if (fightTarget != null)
+            {
+                this.applyFight(entity, fightTarget, tick);
+            }
+
             if (sprinting && moving)
             {
                 this.spawnSprintParticles(world, entity, tick);
@@ -269,6 +314,146 @@ public class CrowdBehaviorActionClip extends ActionClip
                 this.shootSnowballLike(world, entity, gatherPos, projectileProperties);
             }
         }
+    }
+
+    private void prepareCrowdEntity(LivingEntity entity)
+    {
+        entity.noClip = false;
+        entity.setStepHeight(Math.min(entity.getStepHeight(), Math.max(0F, Math.min(0.75F, this.maxStepHeight.get()))));
+
+        if (entity instanceof MobEntity mob)
+        {
+            mob.getNavigation().stop();
+            mob.setTarget(null);
+        }
+    }
+
+    private List<LivingEntity> getEnemyCrowd(ServerWorld world, Film film, Vec3d center, CrowdBehaviorMode mode)
+    {
+        if (mode != CrowdBehaviorMode.FIGHT)
+        {
+            return List.of();
+        }
+
+        String group = this.enemyGroup.get() == null ? "" : this.enemyGroup.get().trim();
+
+        if (group.isEmpty())
+        {
+            return List.of();
+        }
+
+        return CrowdUtils.getCrowd(world, film, group, center, Math.max(this.range.get(), this.fightRadius.get()));
+    }
+
+    /**
+     * Fight targets come from the enemy crowd tag. Targeting a replay's own actor is not
+     * supported here: this build has no playback actor registry to resolve a replay id to
+     * the entity performing it, so an empty enemy group simply converges on the target
+     * position instead of silently doing nothing.
+     */
+    private FightTarget chooseFightTarget(LivingEntity entity, List<LivingEntity> enemies, Vec3d fallback, int tick)
+    {
+        List<LivingEntity> candidates = new ArrayList<>();
+
+        for (LivingEntity enemy : enemies)
+        {
+            if (this.isValidEnemy(entity, enemy))
+            {
+                candidates.add(enemy);
+            }
+        }
+
+        if (candidates.isEmpty())
+        {
+            return new FightTarget(null, fallback, fallback.add(0D, 1.25D, 0D));
+        }
+
+        int targetStep = Math.floorDiv(Math.max(0, tick - this.tick.get()), Math.max(1, this.retargetTicks.get()));
+        int preferred = Math.floorMod(CrowdUtils.entityIndex(entity) + targetStep, candidates.size());
+        double randomness = Math.max(0D, this.fightRandomness.get());
+        LivingEntity best = null;
+        double bestScore = Double.MAX_VALUE;
+
+        for (int i = 0; i < candidates.size(); i++)
+        {
+            LivingEntity candidate = candidates.get(i);
+            double distance = entity.squaredDistanceTo(candidate);
+            double assignment = Math.floorMod(i - preferred, candidates.size()) * Math.max(0.25D, this.separation.get());
+            double jitter = CrowdUtils.randomUnit(CrowdUtils.entitySeed(entity, this.seed.get(), 0x312d), targetStep, 0x2000 + CrowdUtils.entityIndex(candidate)) * randomness;
+            double score = distance + assignment + jitter;
+
+            if (score < bestScore)
+            {
+                best = candidate;
+                bestScore = score;
+            }
+        }
+
+        Vec3d pos = best == null ? fallback : best.getPos();
+
+        return new FightTarget(best, pos, best == null ? pos.add(0D, 1.25D, 0D) : eyePoint(best));
+    }
+
+    private boolean isValidEnemy(LivingEntity entity, LivingEntity enemy)
+    {
+        return enemy != null && enemy != entity && enemy.isAlive() && !enemy.isRemoved();
+    }
+
+    private void applyFight(LivingEntity entity, FightTarget target, int tick)
+    {
+        if (target.entity == null || this.fightDamage.get() <= 0F || this.attackRate.get() <= 0F)
+        {
+            return;
+        }
+
+        double reach = Math.max(0.25D, this.engagementDistance.get() + 0.25D);
+
+        if (entity.squaredDistanceTo(target.entity) > reach * reach)
+        {
+            return;
+        }
+
+        if (!this.shouldPulse(entity, tick, this.attackRate.get(), 0x5f17))
+        {
+            return;
+        }
+
+        float damage = Math.max(0.001F, this.fightDamage.get());
+        float before = target.entity.getHealth();
+        DamageSource source = entity.getWorld().getDamageSources().mobAttack(entity);
+
+        entity.swingHand(Hand.MAIN_HAND);
+        target.entity.timeUntilRegen = 0;
+        target.entity.damage(source, damage);
+
+        float exact = Math.max(0F, before - damage);
+
+        if (target.entity.getHealth() != exact)
+        {
+            target.entity.setHealth(exact);
+        }
+    }
+
+    private boolean deterministicChance(LivingEntity entity, int tick, double chance, int salt)
+    {
+        if (chance <= 0D)
+        {
+            return false;
+        }
+
+        if (chance >= 1D)
+        {
+            return true;
+        }
+
+        return CrowdUtils.randomUnit(CrowdUtils.entitySeed(entity, this.seed.get(), salt), tick - this.tick.get(), salt ^ 0x55aa) < chance;
+    }
+
+    private boolean shouldCrouchInPanic(LivingEntity entity, int tick)
+    {
+        int phase = Math.floorMod(tick - this.tick.get() + CrowdUtils.entitySeed(entity, this.seed.get(), 0x4f00), 80);
+
+        return phase < 6;
     }
 
     private float getLookBlend(int tick)
@@ -308,7 +493,7 @@ public class CrowdBehaviorActionClip extends ActionClip
             return false;
         }
 
-        int offset = Math.floorMod(entity.getUuid().hashCode(), cycle);
+        int offset = Math.floorMod(CrowdUtils.entitySeed(entity, this.seed.get(), 0x1c77), cycle);
         int phase = Math.floorMod(tick - this.tick.get() + offset, cycle);
 
         return phase < pause;
@@ -322,6 +507,11 @@ public class CrowdBehaviorActionClip extends ActionClip
          * still stops them so they can glance around. */
         if (noTarget)
         {
+            if (mode == CrowdBehaviorMode.HOLD || mode == CrowdBehaviorMode.IDLE_CROWD || mode == CrowdBehaviorMode.WATCH || mode == CrowdBehaviorMode.MEETING)
+            {
+                return entity.getPos();
+            }
+
             if (mode == CrowdBehaviorMode.WANDER_LOOK && this.isLookAroundPause(entity, mode, tick))
             {
                 return entity.getPos();
@@ -332,7 +522,7 @@ public class CrowdBehaviorActionClip extends ActionClip
 
         Vec3d personal = CrowdUtils.personalOffset(entity, this.targetSpread.get());
 
-        if (mode == CrowdBehaviorMode.WANDER || mode == CrowdBehaviorMode.WANDER_LOOK)
+        if (mode == CrowdBehaviorMode.WANDER || mode == CrowdBehaviorMode.WANDER_LOOK || mode == CrowdBehaviorMode.MARKET || mode == CrowdBehaviorMode.WORKERS || mode == CrowdBehaviorMode.GUARD_PATROL)
         {
             if (this.isLookAroundPause(entity, mode, tick))
             {
@@ -342,7 +532,12 @@ public class CrowdBehaviorActionClip extends ActionClip
             return this.getWanderDestination(entity, targetPos, tick);
         }
 
-        if (mode == CrowdBehaviorMode.DISPERSE)
+        if (mode == CrowdBehaviorMode.GATHER || mode == CrowdBehaviorMode.WATCH || mode == CrowdBehaviorMode.IDLE_CROWD || mode == CrowdBehaviorMode.MEETING)
+        {
+            return targetPos.add(personal.multiply(mode == CrowdBehaviorMode.MEETING ? 1.45D : 1D));
+        }
+
+        if (mode == CrowdBehaviorMode.DISPERSE || mode == CrowdBehaviorMode.FLEE || mode == CrowdBehaviorMode.PANIC)
         {
             Vec3d direction = this.horizontalDirection(personal, entity);
             double radius = Math.max(this.targetSpread.get(), this.disperseRadius.get());
@@ -365,7 +560,7 @@ public class CrowdBehaviorActionClip extends ActionClip
     /**
      * Free, un-anchored wandering used by the "None" target. Each wander cycle
      * the mob picks a fresh random heading and aims a few blocks ahead of its
-     * CURRENT position, so the destination always stays reachable and ahead Ã¢â‚¬â€
+     * CURRENT position, so the destination always stays reachable and ahead —
      * the mob keeps strolling and simply turns every cycle, instead of fighting
      * to reach a fixed (often blocked) point and shuffling in place.
      */
@@ -373,11 +568,11 @@ public class CrowdBehaviorActionClip extends ActionClip
     {
         int cycle = Math.max(20, this.wanderInterval.get());
         int relative = Math.max(0, tick - this.tick.get());
-        int seed = entity.getUuid().hashCode();
+        int seed = CrowdUtils.entitySeed(entity, this.seed.get(), 0x6021);
         int step = Math.floorDiv(relative + Math.floorMod(seed, cycle), cycle);
-        double angle = randomUnit(seed, step, 0x3f91) * Math.PI * 2D;
+        double angle = CrowdUtils.randomUnit(seed, step, 0x3f91) * Math.PI * 2D;
         double radius = Math.max(2D, this.disperseRadius.get());
-        double distance = Math.max(3D, radius * (0.55D + randomUnit(seed, step, 0x71ab) * 0.6D));
+        double distance = Math.max(3D, radius * (0.55D + CrowdUtils.randomUnit(seed, step, 0x71ab) * 0.6D));
         Vec3d pos = entity.getPos();
 
         return pos.add(Math.cos(angle) * distance, 0D, Math.sin(angle) * distance);
@@ -387,16 +582,17 @@ public class CrowdBehaviorActionClip extends ActionClip
     {
         int cycle = Math.max(20, this.wanderInterval.get());
         int relative = Math.max(0, tick - this.tick.get());
-        int seed = entity.getUuid().hashCode();
+        int seed = CrowdUtils.entitySeed(entity, this.seed.get(), 0x729f);
         int step = Math.floorDiv(relative + Math.floorMod(seed, cycle), cycle);
-        double radius = Math.max(1D, this.disperseRadius.get());
-        double angle = randomUnit(seed, step, 0x3f91) * Math.PI * 2D;
-        double distance = radius * (0.35D + randomUnit(seed, step, 0x71ab) * 0.65D);
+        double halfX = Math.max(0.1D, this.areaX.get()) * 0.5D;
+        double halfZ = Math.max(0.1D, this.areaZ.get()) * 0.5D;
+        double x = CrowdUtils.randomSigned(seed, step, 0x3f91) * halfX;
+        double z = CrowdUtils.randomSigned(seed, step, 0x71ab) * halfZ;
 
-        return center.add(Math.cos(angle) * distance, 0D, Math.sin(angle) * distance);
+        return center.add(x, 0D, z);
     }
 
-    private Vec3d getLookPoint(LivingEntity entity, Vec3d targetPos, CrowdBehaviorMode mode, int tick, boolean noTarget)
+    private Vec3d getLookPoint(LivingEntity entity, Vec3d targetPos, CrowdBehaviorMode mode, int tick, boolean noTarget, List<LivingEntity> crowd)
     {
         if (mode == CrowdBehaviorMode.WANDER_LOOK && this.isLookAroundPause(entity, mode, tick))
         {
@@ -408,26 +604,126 @@ public class CrowdBehaviorActionClip extends ActionClip
             return entity.getPos().add(-Math.sin(yaw) * distance, entity.getEyeHeight(entity.getPose()), Math.cos(yaw) * distance);
         }
 
-        /* No replay target: don't stare anywhere Ã¢â‚¬â€ face the direction of travel
+        /* No replay target: don't stare anywhere — face the direction of travel
          * (handled by the movement code) so free-wandering looks natural. */
-        if (noTarget)
+        if (noTarget && mode != CrowdBehaviorMode.TALK && mode != CrowdBehaviorMode.MEETING && mode != CrowdBehaviorMode.IDLE_CROWD)
         {
             return null;
         }
 
-        if (mode == CrowdBehaviorMode.WANDER || mode == CrowdBehaviorMode.WANDER_LOOK)
+        if (mode == CrowdBehaviorMode.WANDER || mode == CrowdBehaviorMode.WANDER_LOOK || mode == CrowdBehaviorMode.MARKET || mode == CrowdBehaviorMode.WORKERS || mode == CrowdBehaviorMode.GUARD_PATROL)
         {
             return this.getWanderDestination(entity, targetPos, tick).add(0D, 1.25D, 0D);
         }
 
-        if (mode == CrowdBehaviorMode.TALK)
+        if (mode == CrowdBehaviorMode.TALK || mode == CrowdBehaviorMode.MEETING)
         {
+            LivingEntity conversationTarget = this.getConversationTarget(entity, crowd, tick);
+
+            if (conversationTarget != null)
+            {
+                return eyePoint(conversationTarget);
+            }
+
             Vec3d personal = CrowdUtils.personalOffset(entity, Math.max(1D, this.targetSpread.get()));
 
             return targetPos.subtract(personal.x, -1.1D, personal.z);
         }
 
+        if (mode == CrowdBehaviorMode.IDLE_CROWD)
+        {
+            LivingEntity glance = this.getNearbyGlanceTarget(entity, crowd, tick);
+
+            if (glance != null)
+            {
+                return eyePoint(glance);
+            }
+        }
+
         return targetPos.add(0D, 1.25D, 0D);
+    }
+
+    private LivingEntity getConversationTarget(LivingEntity entity, List<LivingEntity> crowd, int tick)
+    {
+        if (crowd.size() <= 1)
+        {
+            return null;
+        }
+
+        int turn = Math.floorDiv(Math.max(0, tick - this.tick.get()), 38);
+        int speakerIndex = Math.floorMod(turn, crowd.size());
+        LivingEntity speaker = crowd.get(speakerIndex);
+
+        if (!this.isValidConversationEntity(speaker))
+        {
+            return null;
+        }
+
+        if (speaker == entity)
+        {
+            int self = Math.max(0, crowd.indexOf(entity));
+
+            for (int i = 1; i < crowd.size(); i++)
+            {
+                LivingEntity candidate = crowd.get(Math.floorMod(self + i, crowd.size()));
+
+                if (this.isValidConversationEntity(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            return null;
+        }
+
+        return speaker;
+    }
+
+    private boolean isConversationSpeaker(LivingEntity entity, List<LivingEntity> crowd, int tick)
+    {
+        if (crowd.isEmpty())
+        {
+            return false;
+        }
+
+        int turn = Math.floorDiv(Math.max(0, tick - this.tick.get()), 38);
+        int speakerIndex = Math.floorMod(turn, crowd.size());
+
+        return crowd.get(speakerIndex) == entity;
+    }
+
+    private boolean isValidConversationEntity(LivingEntity entity)
+    {
+        return entity != null && entity.isAlive() && !entity.isRemoved();
+    }
+
+    private LivingEntity getNearbyGlanceTarget(LivingEntity entity, List<LivingEntity> crowd, int tick)
+    {
+        if (crowd.size() <= 1)
+        {
+            return null;
+        }
+
+        int step = Math.floorDiv(Math.max(0, tick - this.tick.get()), 55);
+        int start = Math.floorMod(CrowdUtils.entityIndex(entity) + step, crowd.size());
+        double maxDistanceSq = 8D * 8D;
+
+        for (int i = 0; i < crowd.size(); i++)
+        {
+            LivingEntity candidate = crowd.get(Math.floorMod(start + i, crowd.size()));
+
+            if (candidate != entity && this.isValidConversationEntity(candidate) && candidate.squaredDistanceTo(entity) <= maxDistanceSq)
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private static Vec3d eyePoint(LivingEntity entity)
+    {
+        return entity.getPos().add(0D, entity.getEyeHeight(entity.getPose()), 0D);
     }
 
     private Vec3d horizontalDirection(Vec3d vector, LivingEntity entity)
@@ -436,7 +732,7 @@ public class CrowdBehaviorActionClip extends ActionClip
 
         if (direction.lengthSquared() < 1.0E-6D)
         {
-            double angle = (entity.getUuid().hashCode() & 0xffff) / 65535D * Math.PI * 2D;
+            double angle = (CrowdUtils.entitySeed(entity, this.seed.get(), 0x4241) & 0xffff) / 65535D * Math.PI * 2D;
 
             direction = new Vec3d(Math.cos(angle), 0D, Math.sin(angle));
         }
@@ -444,41 +740,8 @@ public class CrowdBehaviorActionClip extends ActionClip
         return direction.normalize();
     }
 
-    private static double randomUnit(int seed, int step, int salt)
+    private void moveEntity(ServerWorld world, LivingEntity entity, Vec3d destination, double speed, boolean moving, int refresh, int tick, List<LivingEntity> crowd)
     {
-        int hash = seed;
-
-        hash ^= step * 0x9e3779b9;
-        hash ^= salt;
-        hash ^= hash >>> 16;
-        hash *= 0x7feb352d;
-        hash ^= hash >>> 15;
-        hash *= 0x846ca68b;
-        hash ^= hash >>> 16;
-
-        return (hash & 0x00ffffff) / (double) 0x01000000;
-    }
-
-    private void moveEntity(ServerWorld world, LivingEntity entity, Vec3d destination, double speed, boolean moving, int refresh, int tick)
-    {
-        if (entity instanceof MobEntity mob)
-        {
-            if (moving)
-            {
-                if (Math.floorMod(tick + mob.getId(), refresh) == 0 || mob.getNavigation().isIdle())
-                {
-                    mob.getNavigation().startMovingTo(destination.x, destination.y, destination.z, speed);
-                }
-            }
-            else
-            {
-                mob.getNavigation().stop();
-                this.stopHorizontal(entity);
-            }
-
-            return;
-        }
-
         if (!moving)
         {
             this.stopHorizontal(entity);
@@ -488,6 +751,12 @@ public class CrowdBehaviorActionClip extends ActionClip
 
         Vec3d delta = destination.subtract(entity.getPos());
         Vec3d horizontal = new Vec3d(delta.x, 0D, delta.z);
+        Vec3d separation = this.getSeparationMotion(entity, crowd);
+
+        if (separation.lengthSquared() > 1.0E-6D)
+        {
+            horizontal = horizontal.add(separation);
+        }
 
         if (horizontal.lengthSquared() < 1.0E-5D)
         {
@@ -496,23 +765,34 @@ public class CrowdBehaviorActionClip extends ActionClip
             return;
         }
 
-        double step = Math.min(0.42D, Math.max(0.02D, speed * 0.08D));
+        double distance = Math.sqrt(delta.x * delta.x + delta.z * delta.z);
+        double maxStep = Math.min(0.48D, Math.max(0.015D, speed * 0.08D));
+        double step = Math.min(maxStep, Math.max(0.015D, distance * 0.18D));
         Vec3d desired = horizontal.normalize().multiply(step);
         Vec3d motion = this.steerAroundObstacles(world, entity, desired, tick);
         Vec3d velocity = entity.getVelocity();
+        double blend = 0.28D + Math.min(0.22D, speed * 0.035D);
+        Vec3d smooth = new Vec3d(
+            velocity.x + (motion.x - velocity.x) * blend,
+            0D,
+            velocity.z + (motion.z - velocity.z) * blend
+        );
+        Vec3d safe = this.trimToSafeMotion(world, entity, smooth);
 
-        entity.setVelocity(motion.x, velocity.y, motion.z);
+        entity.setVelocity(safe.x, velocity.y, safe.z);
+        entity.velocityModified = true;
 
-        if (motion.lengthSquared() > 1.0E-6D)
+        if (safe.lengthSquared() > 1.0E-6D)
         {
-            float yaw = (float) Math.toDegrees(Math.atan2(-motion.x, motion.z));
+            float yaw = (float) Math.toDegrees(Math.atan2(-safe.x, safe.z));
+            float yawStep = (float) Math.min(24D, 8D + speed * 4D);
 
-            entity.setYaw(stepAngle(entity.getYaw(), yaw, 18F));
-            entity.setBodyYaw(stepAngle(entity.getBodyYaw(), yaw, 18F));
+            entity.setYaw(stepAngle(entity.getYaw(), yaw, yawStep));
+            entity.setBodyYaw(stepAngle(entity.getBodyYaw(), yaw, yawStep));
         }
-        else if (entity.isOnGround())
+        else
         {
-            this.jump(entity);
+            this.stopHorizontal(entity);
         }
     }
 
@@ -523,10 +803,10 @@ public class CrowdBehaviorActionClip extends ActionClip
             return desired;
         }
 
-        boolean flip = Math.floorMod(entity.getUuid().hashCode() + tick / 10, 2) == 0;
+        boolean flip = Math.floorMod(CrowdUtils.entitySeed(entity, this.seed.get(), 0x2a71) + tick / 10, 2) == 0;
         double[] angles = flip
-            ? new double[] {35D, -35D, 70D, -70D, 110D, -110D, 160D}
-            : new double[] {-35D, 35D, -70D, 70D, -110D, 110D, -160D};
+            ? new double[] {25D, -25D, 45D, -45D, 70D, -70D, 105D, -105D, 150D}
+            : new double[] {-25D, 25D, -45D, 45D, -70D, 70D, -105D, 105D, -150D};
 
         for (double angle : angles)
         {
@@ -545,7 +825,125 @@ public class CrowdBehaviorActionClip extends ActionClip
     {
         Box box = entity.getBoundingBox().offset(motion.x, 0D, motion.z);
 
-        return world.isSpaceEmpty(box);
+        if (world.isSpaceEmpty(entity, box))
+        {
+            return true;
+        }
+
+        double maxStep = Math.max(0D, Math.min(0.75D, this.maxStepHeight.get()));
+
+        if (maxStep <= 0D || !entity.isOnGround())
+        {
+            return false;
+        }
+
+        double[] lifts = new double[] {0.0625D, 0.125D, 0.25D, 0.375D, 0.5D, maxStep};
+
+        for (double lift : lifts)
+        {
+            if (lift <= 0D || lift > maxStep + 1.0E-5D)
+            {
+                continue;
+            }
+
+            Box lifted = box.offset(0D, lift, 0D);
+
+            if (world.isSpaceEmpty(entity, lifted))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private Vec3d trimToSafeMotion(ServerWorld world, LivingEntity entity, Vec3d motion)
+    {
+        if (motion.lengthSquared() < 1.0E-8D)
+        {
+            return Vec3d.ZERO;
+        }
+
+        if (this.canMove(world, entity, motion))
+        {
+            return motion;
+        }
+
+        for (int i = 7; i >= 1; i--)
+        {
+            Vec3d scaled = motion.multiply(i / 8D);
+
+            if (this.canMove(world, entity, scaled))
+            {
+                return scaled;
+            }
+        }
+
+        Vec3d xOnly = new Vec3d(motion.x, 0D, 0D);
+        Vec3d zOnly = new Vec3d(0D, 0D, motion.z);
+        boolean canX = Math.abs(motion.x) > 1.0E-5D && this.canMove(world, entity, xOnly);
+        boolean canZ = Math.abs(motion.z) > 1.0E-5D && this.canMove(world, entity, zOnly);
+
+        if (canX && canZ)
+        {
+            return Math.abs(motion.x) > Math.abs(motion.z) ? xOnly : zOnly;
+        }
+
+        if (canX)
+        {
+            return xOnly;
+        }
+
+        if (canZ)
+        {
+            return zOnly;
+        }
+
+        return Vec3d.ZERO;
+    }
+
+    private Vec3d getSeparationMotion(LivingEntity entity, List<LivingEntity> crowd)
+    {
+        double radius = Math.max(0D, this.separation.get());
+
+        if (radius <= 0D || crowd.size() <= 1)
+        {
+            return Vec3d.ZERO;
+        }
+
+        double radiusSq = radius * radius;
+        Vec3d push = Vec3d.ZERO;
+        int samples = 0;
+
+        for (LivingEntity other : crowd)
+        {
+            if (other == entity || !other.isAlive() || other.isRemoved())
+            {
+                continue;
+            }
+
+            double dx = entity.getX() - other.getX();
+            double dz = entity.getZ() - other.getZ();
+            double distanceSq = dx * dx + dz * dz;
+
+            if (distanceSq < 1.0E-6D || distanceSq > radiusSq)
+            {
+                continue;
+            }
+
+            double distance = Math.sqrt(distanceSq);
+            double strength = (radius - distance) / radius;
+
+            push = push.add(dx / distance * strength, 0D, dz / distance * strength);
+            samples += 1;
+        }
+
+        if (samples <= 0 || push.lengthSquared() < 1.0E-6D)
+        {
+            return Vec3d.ZERO;
+        }
+
+        return push.normalize().multiply(Math.min(2D, radius) * 0.65D);
     }
 
     private static Vec3d rotateXZ(Vec3d vector, double degrees)
@@ -562,6 +960,7 @@ public class CrowdBehaviorActionClip extends ActionClip
         Vec3d velocity = entity.getVelocity();
 
         entity.setVelocity(0D, velocity.y, 0D);
+        entity.velocityModified = true;
     }
 
     private void jump(LivingEntity entity)
@@ -577,6 +976,7 @@ public class CrowdBehaviorActionClip extends ActionClip
         Vec3d velocity = entity.getVelocity();
 
         entity.setVelocity(velocity.x, Math.max(velocity.y, 0.42D), velocity.z);
+        entity.velocityModified = true;
         entity.setJumping(true);
     }
 
@@ -615,7 +1015,20 @@ public class CrowdBehaviorActionClip extends ActionClip
         }
 
         int interval = Math.max(1, Math.round(20F / rate));
-        int offset = Math.floorMod(mob.getUuid().hashCode(), interval);
+        int offset = Math.floorMod(CrowdUtils.entityIndex(mob), interval);
+
+        return Math.floorMod(tick + offset, interval) == 0;
+    }
+
+    private boolean shouldPulse(LivingEntity mob, int tick, float rate, int salt)
+    {
+        if (rate <= 0F)
+        {
+            return false;
+        }
+
+        int interval = Math.max(1, Math.round(20F / rate));
+        int offset = Math.floorMod(CrowdUtils.entitySeed(mob, this.seed.get(), salt), interval);
 
         return Math.floorMod(tick + offset, interval) == 0;
     }
@@ -764,7 +1177,7 @@ public class CrowdBehaviorActionClip extends ActionClip
         }
     }
 
-    private void applyPerformanceMotion(LivingEntity entity, CrowdBehaviorMode mode, int tick)
+    private void applyPerformanceMotion(LivingEntity entity, CrowdBehaviorMode mode, int tick, List<LivingEntity> crowd)
     {
         if (!this.headMotion.get() && mode != CrowdBehaviorMode.SAD_WALK && mode != CrowdBehaviorMode.WANDER_LOOK)
         {
@@ -772,7 +1185,7 @@ public class CrowdBehaviorActionClip extends ActionClip
         }
 
         float energy = Math.max(0F, this.energy.get());
-        float phase = (tick + entity.getId() * 17) * 0.18F;
+        float phase = (tick + CrowdUtils.entitySeed(entity, this.seed.get(), 0x4221) * 0.0007F) * 0.18F;
 
         if (mode == CrowdBehaviorMode.WANDER_LOOK && this.isLookAroundPause(entity, mode, tick))
         {
@@ -788,16 +1201,29 @@ public class CrowdBehaviorActionClip extends ActionClip
             entity.setHeadYaw(entity.getHeadYaw() + (float) Math.sin(phase * 1.35F) * 10F * energy);
             entity.setPitch(entity.getPitch() + (float) Math.sin(phase * 1.9F) * 5F * energy);
         }
-        else if (mode == CrowdBehaviorMode.TALK)
+        else if (mode == CrowdBehaviorMode.TALK || mode == CrowdBehaviorMode.MEETING)
         {
-            float nod = (float) Math.sin(phase * 1.2F) > 0.15F ? 7F : -2F;
+            boolean speaker = this.isConversationSpeaker(entity, crowd, tick);
+            float nod = speaker && (float) Math.sin(phase * 1.2F) > 0.15F ? 6F : -1.5F;
 
-            entity.setPitch(stepAngle(entity.getPitch(), entity.getPitch() + nod * energy, 5F));
+            entity.setPitch(stepAngle(entity.getPitch(), entity.getPitch() + nod * energy, speaker ? 4.5F : 2F));
         }
         else if (mode == CrowdBehaviorMode.SAD_WALK)
         {
             entity.setPitch(stepAngle(entity.getPitch(), 28F, 5F));
             entity.setHeadYaw(entity.getHeadYaw() + (float) Math.sin(phase * 0.45F) * 2F);
+        }
+        else if (mode == CrowdBehaviorMode.IDLE_CROWD || mode == CrowdBehaviorMode.WATCH || mode == CrowdBehaviorMode.MARKET || mode == CrowdBehaviorMode.GATHER)
+        {
+            float yaw = (float) Math.sin(phase * 0.35F) * 4F * energy;
+            float pitch = (float) Math.sin(phase * 0.47F) * 2.5F * energy;
+
+            entity.setHeadYaw(entity.getHeadYaw() + yaw);
+            entity.setPitch(stepAngle(entity.getPitch(), entity.getPitch() + pitch, 2.5F));
+        }
+        else if (mode == CrowdBehaviorMode.PANIC || mode == CrowdBehaviorMode.FLEE)
+        {
+            entity.setHeadYaw(entity.getHeadYaw() + (float) Math.sin(phase * 1.4F) * 8F * energy);
         }
     }
 
@@ -850,6 +1276,8 @@ public class CrowdBehaviorActionClip extends ActionClip
 
         return angle;
     }
+
+    private record FightTarget(LivingEntity entity, Vec3d position, Vec3d lookPoint) {}
 
     @Override
     protected Clip create()

@@ -20,6 +20,7 @@ public class CrowdUtils
     public static final String INTERNAL_TAG = "bbs_crowd";
     public static final String RUN_TAG_PREFIX = "bbs_crowd_run_";
     public static final String FILM_TAG_PREFIX = "bbs_crowd_film_";
+    public static final String INDEX_TAG_PREFIX = "bbs_crowd_i";
 
     public static String crowdTag(String raw)
     {
@@ -46,6 +47,69 @@ public class CrowdUtils
         entity.addCommandTag(INTERNAL_TAG);
         entity.addCommandTag(getRunTag(film));
         entity.addCommandTag(crowdTag(crowdTag));
+    }
+
+    /**
+     * Tag a member with its formation slot as well. Behaviour derives every per-member
+     * random from this index, so a member keeps the same wander heading, attack rhythm and
+     * jump timing across respawns instead of reshuffling with a fresh entity UUID.
+     */
+    public static void tag(Entity entity, Film film, String crowdTag, int index)
+    {
+        tag(entity, film, crowdTag);
+        entity.addCommandTag(INDEX_TAG_PREFIX + Math.max(0, index));
+    }
+
+    public static int entityIndex(Entity entity)
+    {
+        for (String tag : entity.getCommandTags())
+        {
+            if (tag.startsWith(INDEX_TAG_PREFIX))
+            {
+                try
+                {
+                    return Integer.parseInt(tag.substring(INDEX_TAG_PREFIX.length()));
+                }
+                catch (NumberFormatException e)
+                {}
+            }
+        }
+
+        return Math.floorMod(entity.getUuid().hashCode(), 1_000_000);
+    }
+
+    public static int entitySeed(Entity entity, int seed, int salt)
+    {
+        return hash(seed ^ entityIndex(entity) * 0x9e3779b9 ^ salt);
+    }
+
+    public static double randomUnit(int seed, int step, int salt)
+    {
+        return (hash(seed ^ step * 0x632be5ab ^ salt) & 0x00ffffff) / (double) 0x01000000;
+    }
+
+    public static double randomSigned(int seed, int step, int salt)
+    {
+        return randomUnit(seed, step, salt) * 2D - 1D;
+    }
+
+    public static UUID deterministicUuid(Film film, String crowdTag, int seed, int index)
+    {
+        String filmId = film == null ? "unknown" : film.getId();
+        String key = filmId + "|" + crowdTag(crowdTag) + "|" + seed + "|" + index;
+
+        return UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static int hash(int value)
+    {
+        value ^= value >>> 16;
+        value *= 0x7feb352d;
+        value ^= value >>> 15;
+        value *= 0x846ca68b;
+        value ^= value >>> 16;
+
+        return value;
     }
 
     public static boolean hasTags(Entity entity, Film film, String crowdTag)

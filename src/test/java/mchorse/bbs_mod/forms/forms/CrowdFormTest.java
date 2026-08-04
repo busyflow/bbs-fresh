@@ -3,12 +3,15 @@ package mchorse.bbs_mod.forms.forms;
 import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.actions.crowd.CrowdWalk;
 import mchorse.bbs_mod.actions.crowd.CrowdTexture;
+import mchorse.bbs_mod.actions.types.crowd.CrowdBehaviorActionClip;
+import mchorse.bbs_mod.actions.types.crowd.CrowdBehaviorMode;
 import mchorse.bbs_mod.actions.types.crowd.CrowdFormation;
 import mchorse.bbs_mod.actions.types.crowd.CrowdSpawnActionClip;
 import mchorse.bbs_mod.data.types.BaseType;
 import mchorse.bbs_mod.data.types.MapType;
 import mchorse.bbs_mod.forms.forms.crowd.CrowdMemberSource;
 import mchorse.bbs_mod.resources.Link;
+import mchorse.bbs_mod.settings.values.base.BaseValue;
 import mchorse.bbs_mod.settings.values.numeric.ValueInt;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -60,7 +63,7 @@ public class CrowdFormTest
     {
         CrowdForm crowd = new CrowdForm();
 
-        assertEquals(5, CrowdForm.CURRENT_SCHEMA);
+        assertEquals(6, CrowdForm.CURRENT_SCHEMA);
         assertFalse(crowd.sources.isVisible());
         assertFalse(crowd.count.isVisible());
         assertFalse(crowd.formation.isVisible());
@@ -69,7 +72,6 @@ public class CrowdFormTest
         assertFalse(crowd.radius.isVisible());
         assertFalse(crowd.seed.isVisible());
         assertFalse(crowd.variation.isVisible());
-        assertFalse(crowd.renderBudget.isVisible());
         assertFalse(crowd.textureFolder.isVisible());
         assertFalse(crowd.recursiveTextures.isVisible());
         assertFalse(crowd.health.isVisible());
@@ -131,29 +133,26 @@ public class CrowdFormTest
         CrowdMemberSource source = crowd.sources.addSource(new LabelForm());
 
         crowd.count.set(-100);
-        crowd.renderBudget.set(9_999_999);
         source.weight.set(0);
         source.minimumScale.set(-2F);
 
         crowd.validateCrowd();
 
         assertEquals(1, crowd.count.get());
-        assertEquals(CrowdForm.MAX_RENDER_BUDGET, crowd.renderBudget.get());
         assertEquals(1, source.weight.get());
         assertEquals(0.01F, source.minimumScale.get());
     }
 
     @Test
-    public void millionMemberCrowdsKeepTheirFullLayoutAndWorldScaleRadius()
+    public void theCrowdKeepsItsWorldScaleRadiusAtTheLiveMemberCeiling()
     {
         CrowdForm crowd = new CrowdForm();
 
-        crowd.count.set(CrowdSpawnActionClip.MAX_MEMBERS);
+        crowd.count.set(CrowdForm.MAX_MEMBERS);
         crowd.radius.set(CrowdForm.MAX_RADIUS);
         crowd.validateCrowd();
 
-        assertEquals(CrowdSpawnActionClip.MAX_MEMBERS, crowd.count.get());
-        assertEquals(CrowdSpawnActionClip.MAX_MEMBERS, crowd.renderBudget.get());
+        assertEquals(CrowdForm.MAX_MEMBERS, crowd.count.get());
         assertEquals(CrowdForm.MAX_RADIUS, crowd.radius.get());
 
         CrowdSpawnActionClip spawn = new CrowdSpawnActionClip();
@@ -163,7 +162,7 @@ public class CrowdFormTest
     }
 
     @Test
-    public void schemaFourCrowdsMigrateAwayFromTheOldVisualCap()
+    public void fakeGeometryCrowdsAreClampedToWhatCanActuallySpawn()
     {
         MapType old = new MapType();
 
@@ -174,8 +173,69 @@ public class CrowdFormTest
         CrowdForm crowd = new CrowdForm();
         crowd.fromData(old);
 
-        assertEquals(250_000, crowd.count.get());
-        assertEquals(CrowdForm.MAX_RENDER_BUDGET, crowd.renderBudget.get());
+        assertEquals(CrowdForm.MAX_MEMBERS, crowd.count.get(),
+            "a quarter-million fake members cannot become a quarter-million real actors");
+    }
+
+    @Test
+    public void everyBehaviourTheOldActionClipsExposedIsAuthorableOnTheForm()
+    {
+        CrowdForm crowd = new CrowdForm();
+        java.util.Set<String> formIds = new java.util.HashSet<>();
+
+        for (BaseValue value : crowd.getAll())
+        {
+            formIds.add(value.getId());
+        }
+
+        /* Folding the two crowd action clips into one form was only worth doing if nothing
+         * was lost on the way. Every knob the behaviour clip authored is listed here, so
+         * dropping one from CrowdForm fails loudly instead of quietly disappearing from the
+         * editor. The clip itself cannot be constructed in a unit test: its projectile item
+         * stack pulls in Minecraft's item registry. */
+        java.util.List<String> missing = new java.util.ArrayList<>();
+
+        for (String id : new String[] {
+            "behavior_mode", "behavior_pause", "behavior_speed", "behavior_sprint",
+            "behavior_move_ease", "behavior_stop_distance", "behavior_target_spread",
+            "behavior_disperse_radius", "behavior_wander_interval", "behavior_look_around_ticks",
+            "behavior_area_x", "behavior_area_y", "behavior_area_z", "behavior_separation",
+            "behavior_max_step_height", "behavior_crouch", "behavior_zig_zag",
+            "behavior_random_jump", "behavior_jump_rate", "behavior_arm_swing",
+            "behavior_arm_swing_rate", "behavior_head_motion", "behavior_energy",
+            "behavior_look_at_target", "behavior_look_ease", "behavior_head_yaw_limit",
+            "behavior_look_body_yaw", "behavior_look_head_yaw", "behavior_look_head_pitch",
+            "behavior_enemy_group", "behavior_fight_damage", "behavior_attack_rate",
+            "behavior_engagement_distance", "behavior_fight_radius", "behavior_retarget_ticks",
+            "behavior_fight_randomness", "behavior_shoot", "behavior_shoot_rate",
+            "behavior_projectile_model", "behavior_projectile_speed", "behavior_projectile_life_span",
+            "behavior_impact_model", "behavior_impact_bounces", "behavior_impact_bounce_damping",
+            "behavior_impact_vanish", "behavior_impact_damage", "behavior_impact_knockback",
+            "behavior_impact_collide_blocks", "behavior_impact_collide_entities"
+        })
+        {
+            if (!formIds.contains(id))
+            {
+                missing.add(id);
+            }
+        }
+
+        assertTrue(missing.isEmpty(), "CrowdForm cannot author: " + missing);
+    }
+
+    @Test
+    public void fightingCrowdsFindEachOtherByGroupName()
+    {
+        CrowdForm crowd = new CrowdForm();
+
+        crowd.groupName.set("reds");
+        crowd.behaviorEnemyGroup.set("blues");
+        crowd.behaviorMode.set(CrowdBehaviorMode.FIGHT.ordinal());
+        crowd.validateCrowd();
+
+        assertEquals("reds", crowd.groupName.get());
+        assertEquals("blues", crowd.behaviorEnemyGroup.get());
+        assertEquals(CrowdBehaviorMode.FIGHT, CrowdBehaviorMode.get(crowd.behaviorMode.get()));
     }
 
     @Test
@@ -271,15 +331,14 @@ public class CrowdFormTest
         CrowdForm crowd = new CrowdForm();
 
         crowd.formation.set(CrowdFormation.CIRCLE.ordinal());
-        crowd.radius.set(20F);
+        crowd.radius.set(10F);
         crowd.density.set(CrowdForm.MAX_DENSITY);
         crowd.validateCrowd();
 
-        double area = Math.PI * 20D * 20D;
+        double area = Math.PI * 10D * 10D;
         double spacing = Math.sqrt(area / crowd.count.get());
 
         assertTrue(spacing < 0.6D, "at density 100 neighbours must be closer than a villager is wide, was " + spacing);
-        assertTrue(crowd.renderBudget.get() >= crowd.count.get(), "budget must never clip the density it derived");
     }
 
     @Test
@@ -294,13 +353,13 @@ public class CrowdFormTest
             crowd.density.set(50F);
         }
 
-        small.radius.set(10F);
-        large.radius.set(20F);
+        small.radius.set(5F);
+        large.radius.set(10F);
         small.validateCrowd();
         large.validateCrowd();
 
-        assertEquals(10F, small.radius.get(), "density must never move the radius");
-        assertEquals(20F, large.radius.get());
+        assertEquals(5F, small.radius.get(), "density must never move the radius");
+        assertEquals(10F, large.radius.get());
         assertEquals(4D, large.count.get() / (double) small.count.get(), 0.05D,
             "four times the ground must hold four times the members");
     }

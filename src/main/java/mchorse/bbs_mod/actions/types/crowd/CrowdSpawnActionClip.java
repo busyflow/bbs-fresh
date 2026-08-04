@@ -320,7 +320,7 @@ public class CrowdSpawnActionClip extends ActionClip
             }
             entity.setHealth(Math.max(0F, Math.min(this.health.get(), entity.getMaxHealth())));
             this.applyRandomArmor(entity, this.seededIndex(fi));
-            CrowdUtils.tag(entity, film, tag);
+            CrowdUtils.tag(entity, film, tag, fi);
 
             if (world.spawnEntity(entity))
             {

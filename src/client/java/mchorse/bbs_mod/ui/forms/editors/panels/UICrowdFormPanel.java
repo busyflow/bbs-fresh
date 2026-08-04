@@ -36,9 +36,7 @@ public class UICrowdFormPanel extends UIFormPanel<CrowdForm>
     private final UIElement hollowRow;
     private final UITrackpad seed;
     private final UITrackpad variation;
-    private final UITrackpad renderBudget;
     private final UIToggle perBlock;
-    private final UIToggle instancing;
 
     private int selectedSource;
 
@@ -74,8 +72,7 @@ public class UICrowdFormPanel extends UIFormPanel<CrowdForm>
             /* Typing a Count by hand hands authorship back to the user. */
             this.form.density.set(0F);
             this.form.count.set(count);
-            this.form.renderBudget.set(Math.max(this.form.renderBudget.get(), count));
-        }).limit(1, CrowdSpawnActionClip.MAX_MEMBERS, true);
+        }).limit(1, CrowdForm.MAX_MEMBERS, true);
         this.density = new UITrackpad((v) ->
         {
             this.form.density.set(v.floatValue());
@@ -94,10 +91,7 @@ public class UICrowdFormPanel extends UIFormPanel<CrowdForm>
         this.hollowRow = UI.labelRow(IKey.constant("Center hole"), this.hollow);
         this.seed = new UITrackpad((v) -> this.form.seed.set(v.intValue())).integer();
         this.variation = new UITrackpad((v) -> this.form.variation.set(v.floatValue())).limit(0, 180);
-        this.renderBudget = new UITrackpad((v) -> this.form.renderBudget.set(v.intValue()))
-            .limit(1, CrowdForm.MAX_RENDER_BUDGET, true);
         this.perBlock = new UIToggle(IKey.constant("Per block"), false, (b) -> this.form.perBlock.set(b.getValue()));
-        this.instancing = new UIToggle(IKey.constant("Fast crowd"), true, (b) -> this.form.instancing.set(b.getValue()));
 
         this.options.add(
             UI.labelRow(IKey.constant("Member source"), this.source),
@@ -116,9 +110,7 @@ public class UICrowdFormPanel extends UIFormPanel<CrowdForm>
             UI.labelRow(IKey.constant("Radius"), this.radius),
             this.hollowRow,
             UI.labelRow(IKey.constant("Seed"), this.seed),
-            UI.labelRow(IKey.constant("Yaw variation"), this.variation),
-            UI.labelRow(IKey.constant("Render budget"), this.renderBudget),
-            this.instancing
+            UI.labelRow(IKey.constant("Yaw variation"), this.variation)
         );
     }
 
@@ -127,7 +119,6 @@ public class UICrowdFormPanel extends UIFormPanel<CrowdForm>
     {
         this.count.setValue(this.form.count.get());
         this.spacing.setValue(this.form.spacing.get());
-        this.renderBudget.setValue(this.form.renderBudget.get());
     }
 
     private void pickSource(boolean add)
@@ -208,9 +199,7 @@ public class UICrowdFormPanel extends UIFormPanel<CrowdForm>
         this.hollow.setValue(form.hollow.get());
         this.seed.setValue(form.seed.get());
         this.variation.setValue(form.variation.get());
-        this.renderBudget.setValue(form.renderBudget.get());
         this.perBlock.setValue(form.perBlock.get());
-        this.instancing.setValue(form.instancing.get());
         this.updateLabels();
         this.updateSourceControls();
     }
