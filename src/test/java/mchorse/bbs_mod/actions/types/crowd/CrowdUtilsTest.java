@@ -28,45 +28,33 @@ public class CrowdUtilsTest
     }
 
     @Test
-    public void visualTierNeverDuplicatesLiveFormationSlots()
+    public void aFullyLiveCrowdOccupiesEveryLogicalSlotExactlyOnce()
     {
-        assertEquals(0, CrowdUtils.visualFormationIndices(1, 4096, 2000).length);
+        /* Every member is a real actor, so the live tier alone has to cover the whole
+         * formation: a repeated slot would stack two actors, a missing one would leave a
+         * visible hole where the old client-side tier used to paint a duplicate. */
+        int count = 2_000;
+        boolean[] seen = new boolean[count];
 
-        int count = 3000;
-        int liveCount = 2000;
-        int[] visual = CrowdUtils.visualFormationIndices(count, 4096, liveCount);
-        boolean[] live = new boolean[count];
-
-        for (int i = 0; i < liveCount; i++)
+        for (int i = 0; i < count; i++)
         {
-            live[CrowdSpawnActionClip.liveFormationIndex(i, liveCount, count)] = true;
+            int index = CrowdSpawnActionClip.liveFormationIndex(i, count, count);
+
+            assertTrue(!seen[index], "duplicate live slot " + index);
+            seen[index] = true;
         }
 
-        assertEquals(1000, visual.length);
-
-        for (int index : visual)
+        for (int i = 0; i < seen.length; i++)
         {
-            assertTrue(!live[index], "visual member duplicated live slot " + index);
+            assertTrue(seen[i], "logical crowd slot was omitted " + i);
         }
-
-        assertEquals(2096, CrowdUtils.visualFormationIndices(1_000_000, 4096, 2000).length);
     }
 
     @Test
-    public void withoutSpawnedActorsTheVisualTierDrawsEveryMember()
-    {
-        /* Editor previews have no live crowd. Reserving live slots there used to blank the
-         * whole formation for any count at or below the live cap. */
-        assertEquals(29, CrowdUtils.visualFormationIndices(29, 1_000_000, 0).length);
-        assertEquals(3903, CrowdUtils.visualFormationIndices(3903, 1_000_000, 0).length);
-    }
-
-    @Test
-    public void tenThousandMemberPartitionIsCompleteAndUnique()
+    public void aThinnedLiveCrowdSpreadsItsActorsAcrossTheWholeFormation()
     {
         int count = 10_000;
         int liveCount = CrowdSpawnActionClip.MAX_LIVE_MEMBERS;
-        int[] visual = CrowdUtils.visualFormationIndices(count, count, liveCount);
         boolean[] seen = new boolean[count];
 
         for (int i = 0; i < liveCount; i++)
@@ -77,18 +65,10 @@ public class CrowdUtilsTest
             seen[index] = true;
         }
 
-        assertEquals(count - liveCount, visual.length);
-
-        for (int index : visual)
-        {
-            assertTrue(!seen[index], "visual member duplicated slot " + index);
-            seen[index] = true;
-        }
-
-        for (int i = 0; i < seen.length; i++)
-        {
-            assertTrue(seen[i], "logical crowd slot was omitted " + i);
-        }
+        assertTrue(CrowdSpawnActionClip.liveFormationIndex(0, liveCount, count) < count / liveCount + 1,
+            "a thinned crowd must start at the inside of the formation");
+        assertTrue(CrowdSpawnActionClip.liveFormationIndex(liveCount - 1, liveCount, count) > count / 2,
+            "a thinned crowd must reach the far side of the formation");
     }
 
     @Test
@@ -227,7 +207,9 @@ public class CrowdUtilsTest
     public void largeCircleUsesEvenRingsAndItsLiveTierCannotCollapseIntoSpokes()
     {
         int count = 3000;
-        int liveCount = CrowdSpawnActionClip.MAX_LIVE_MEMBERS;
+        /* A hand-lowered live limit, not the ceiling: this checks the thinning itself, so it
+         * has to stay a fixed fraction of the crowd however high the ceiling is raised. */
+        int liveCount = 512;
         Map<Long, List<Double>> rings = new TreeMap<>();
         int[] sectors = new int[24];
 

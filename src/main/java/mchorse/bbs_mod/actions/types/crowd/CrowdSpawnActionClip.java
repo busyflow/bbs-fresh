@@ -48,15 +48,18 @@ import java.util.Set;
 
 public class CrowdSpawnActionClip extends ActionClip
 {
-	/** Logical cinematic crowd size. Mega crowds are visualized with client-side LOD. */
-	public static final int MAX_MEMBERS = 1_000_000;
+	/**
+	 * Crowd size. Every member is a real spawned actor, so this is what actually gets
+	 * ticked; there is no client-side stand-in tier behind it any more.
+	 */
+	public static final int MAX_MEMBERS = 2_000;
 	/** Minecraft's practical world boundary, rather than an arbitrary editor cap. */
 	public static final float MAX_RADIUS = 30_000_000F;
 	/**
-	 * Full living entities are the interactive damage/combat tier. The remaining
-	 * logical members are rendered by the client-side crowd tier.
+	 * Spawning is the only tier, so the live ceiling has to reach the full crowd size.
+	 * Anything lower silently thins the formation instead of drawing what was authored.
 	 */
-	public static final int MAX_LIVE_MEMBERS = 512;
+	public static final int MAX_LIVE_MEMBERS = MAX_MEMBERS;
     public static final int ARMOR_SALT_HEAD = 0x45d9f3b;
     public static final int ARMOR_SALT_CHEST = 0x119de1f3;
     public static final int ARMOR_SALT_LEGS = 0x3449a2d7;
