@@ -38,9 +38,7 @@ public class UICrowdBehaviorActionClip extends UIActionClip<CrowdBehaviorActionC
     private UITrackpad range;
     private UITrackpad pathRefresh;
     private UITrackpad seed;
-    private UITrackpad areaX;
-    private UITrackpad areaY;
-    private UITrackpad areaZ;
+    private UITrackpad wanderRadius;
     private UITrackpad separation;
     private UITrackpad maxStepHeight;
     private UIToggle crouch;
@@ -119,12 +117,8 @@ public class UICrowdBehaviorActionClip extends UIActionClip<CrowdBehaviorActionC
         this.pathRefresh.limit(this.clip.pathRefresh).integer();
         this.seed = new UITrackpad((value) -> this.editor.editMultiple(this.clip.seed, (v) -> v.set(value.intValue())));
         this.seed.integer();
-        this.areaX = new UITrackpad((value) -> this.editor.editMultiple(this.clip.areaX, (v) -> v.set(value.floatValue())));
-        this.areaX.limit(this.clip.areaX).values(0.25D, 0.05D, 1D);
-        this.areaY = new UITrackpad((value) -> this.editor.editMultiple(this.clip.areaY, (v) -> v.set(value.floatValue())));
-        this.areaY.limit(this.clip.areaY).values(0.25D, 0.05D, 1D);
-        this.areaZ = new UITrackpad((value) -> this.editor.editMultiple(this.clip.areaZ, (v) -> v.set(value.floatValue())));
-        this.areaZ.limit(this.clip.areaZ).values(0.25D, 0.05D, 1D);
+        this.wanderRadius = new UITrackpad((value) -> this.editor.editMultiple(this.clip.wanderRadius, (v) -> v.set(value.floatValue())));
+        this.wanderRadius.limit(this.clip.wanderRadius).values(0.25D, 0.05D, 1D);
         this.separation = new UITrackpad((value) -> this.editor.editMultiple(this.clip.separation, (v) -> v.set(value.floatValue())));
         this.separation.limit(this.clip.separation).values(0.05D, 0.01D, 0.25D);
         this.maxStepHeight = new UITrackpad((value) -> this.editor.editMultiple(this.clip.maxStepHeight, (v) -> v.set(value.floatValue())));
@@ -217,9 +211,7 @@ public class UICrowdBehaviorActionClip extends UIActionClip<CrowdBehaviorActionC
                 this.row("Soft step", this.maxStepHeight)
             ),
             this.section("Action Area",
-                this.row("Area X", this.areaX),
-                this.row("Area Y", this.areaY),
-                this.row("Area Z", this.areaZ)
+                this.row("Wander radius", this.wanderRadius)
             ),
             this.section("Performance",
                 UI.row(2, this.crouch, this.zigZag),
@@ -286,9 +278,7 @@ public class UICrowdBehaviorActionClip extends UIActionClip<CrowdBehaviorActionC
         this.range.setValue(this.clip.range.get());
         this.pathRefresh.setValue(this.clip.pathRefresh.get());
         this.seed.setValue(this.clip.seed.get());
-        this.areaX.setValue(this.clip.areaX.get());
-        this.areaY.setValue(this.clip.areaY.get());
-        this.areaZ.setValue(this.clip.areaZ.get());
+        this.wanderRadius.setValue(this.clip.wanderRadius.get());
         this.separation.setValue(this.clip.separation.get());
         this.maxStepHeight.setValue(this.clip.maxStepHeight.get());
         this.crouch.setValue(this.clip.crouch.get());

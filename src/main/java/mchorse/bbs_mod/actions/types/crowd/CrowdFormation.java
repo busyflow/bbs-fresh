@@ -4,6 +4,7 @@ public enum CrowdFormation
 {
     CIRCLE("Circle"),
     CIRCLE_OUTLINE("Circle outline"),
+    DONUT("Donut"),
     LINE("Line"),
     GRID("Grid"),
     SQUARE("Square"),

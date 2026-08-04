@@ -49,9 +49,7 @@ public class CrowdSpawnActionClip extends ActionClip
     public final ValueInt seed = new ValueInt("seed", 1);
     public final ValueFloat spacing = new ValueFloat("spacing", 1.0F, 0.1F, 64F);
     public final ValueInt formation = new ValueInt("formation", CrowdFormation.CIRCLE.ordinal(), 0, CrowdFormation.values().length - 1);
-    public final ValueFloat boxX = new ValueFloat("box_x", 8F, 0.1F, 256F);
-    public final ValueFloat boxY = new ValueFloat("box_y", 2F, 0F, 128F);
-    public final ValueFloat boxZ = new ValueFloat("box_z", 8F, 0.1F, 256F);
+    public final ValueFloat holeRadius = new ValueFloat("hole_radius", 4F, 0F, 128F);
     public final ValueBoolean randomYaw = new ValueBoolean("random_yaw", true);
     public final ValueBoolean spawnOnBlock = new ValueBoolean("spawn_on_block", true);
     public final ValueBoolean skipUnsafe = new ValueBoolean("skip_unsafe", true);
@@ -71,9 +69,7 @@ public class CrowdSpawnActionClip extends ActionClip
         this.add(this.seed);
         this.add(this.spacing);
         this.add(this.formation);
-        this.add(this.boxX);
-        this.add(this.boxY);
-        this.add(this.boxZ);
+        this.add(this.holeRadius);
         this.add(this.randomYaw);
         this.add(this.spawnOnBlock);
         this.add(this.skipUnsafe);
@@ -297,7 +293,7 @@ public class CrowdSpawnActionClip extends ActionClip
     private Vec3d getOffset(CrowdFormation formation, int index, int count, double spacing, int attempt)
     {
         int sampleIndex = index + attempt * Math.max(1, count) * 9973;
-        Vec3d offset = CrowdUtils.formationPoint(formation, sampleIndex, count, spacing, this.boxX.get(), this.boxY.get(), this.boxZ.get());
+        Vec3d offset = CrowdUtils.formationPoint(formation, sampleIndex, count, spacing, this.holeRadius.get());
 
         if ((formation == CrowdFormation.BOX || formation == CrowdFormation.BOX_OUTLINE) || attempt == 0)
         {
@@ -359,34 +355,42 @@ public class CrowdSpawnActionClip extends ActionClip
         return surface;
     }
 
+    /**
+     * Find the standable Y in this column. The search spans {@link #VERTICAL_RANGE} blocks
+     * both above <em>and</em> below the origin, so a crowd laid over sloping ground keeps its
+     * shape when the terrain drops away instead of losing every member on the low side.
+     */
     private Double findSurfaceY(ServerWorld world, Vec3d center, int bx, int bz)
     {
-        int minY = Math.max(world.getBottomY() + 1, (int) Math.floor(center.y));
-        int maxY = Math.min(world.getTopY() - 1, (int) Math.floor(center.y + Math.max(0D, this.boxY.get())));
+        int origin = (int) Math.floor(center.y);
+        int minY = Math.max(world.getBottomY() + 1, origin - VERTICAL_RANGE);
+        int maxY = Math.min(world.getTopY() - 2, origin + VERTICAL_RANGE);
 
         if (maxY < minY)
         {
             return null;
         }
 
-        int feetY = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, bx, bz);
+        /* Start from the heightmap when it falls inside the band - that skips the whole
+         * scan for open sky, which is the common case. */
+        int start = Math.min(maxY, world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, bx, bz));
 
-        if (feetY < minY || feetY > maxY)
+        for (int y = start; y >= minY; y--)
         {
-            return null;
-        }
+            BlockPos feet = new BlockPos(bx, y, bz);
+            BlockPos below = feet.down();
+            BlockState belowState = world.getBlockState(below);
 
-        BlockPos feet = new BlockPos(bx, feetY, bz);
-        BlockPos below = feet.down();
-        BlockState belowState = world.getBlockState(below);
-
-        if (belowState.isSideSolidFullSquare(world, below, Direction.UP) && world.isAir(feet) && world.isAir(feet.up()))
-        {
-            return (double) feetY;
+            if (belowState.isSideSolidFullSquare(world, below, Direction.UP) && world.isAir(feet) && world.isAir(feet.up()))
+            {
+                return (double) y;
+            }
         }
 
         return null;
     }
+
+    private static final int VERTICAL_RANGE = 32;
 
     private static long columnKey(int x, int z)
     {

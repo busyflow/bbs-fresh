@@ -137,36 +137,41 @@ public class CrowdUtils
 
     public static Vec3d formationPoint(CrowdFormation formation, int index, int count, double spacing)
     {
-        double side = Math.max(spacing, Math.ceil(Math.sqrt(Math.max(1, count))) * Math.max(0.1D, spacing));
-
-        return formationPoint(formation, index, count, spacing, side, 2D, side);
+        return formationPoint(formation, index, count, spacing, 0D);
     }
 
-    public static Vec3d formationPoint(CrowdFormation formation, int index, int count, double spacing, double boxX, double boxY, double boxZ)
+    /**
+     * Place one crowd member. Every formation derives its own extent from the member count and
+     * the spacing, so there is no separate area to configure - the shape is exactly as big as
+     * the crowd needs to be. {@code hole} is the empty inner radius used by
+     * {@link CrowdFormation#DONUT}.
+     */
+    public static Vec3d formationPoint(CrowdFormation formation, int index, int count, double spacing, double hole)
     {
         spacing = Math.max(0.1D, spacing);
         count = Math.max(1, count);
-        boxX = Math.max(0.1D, boxX);
-        boxY = Math.max(0D, boxY);
-        boxZ = Math.max(0.1D, boxZ);
+        hole = Math.max(0D, hole);
 
         if (formation == null)
         {
             formation = CrowdFormation.CIRCLE;
         }
 
+        double boxSide = Math.max(spacing, Math.ceil(Math.sqrt(count)) * spacing);
+
         switch (formation)
         {
             case BOX:
             {
-                double x = randomSigned(index, 0x45d9f3b) * boxX * 0.5D;
-                double y = boxY <= 0D ? 0D : randomUnit(index, 0x119de1f3) * boxY;
-                double z = randomSigned(index, 0x27d4eb2d) * boxZ * 0.5D;
+                double x = randomSigned(index, 0x45d9f3b) * boxSide * 0.5D;
+                double z = randomSigned(index, 0x27d4eb2d) * boxSide * 0.5D;
 
-                return new Vec3d(x, y, z);
+                return new Vec3d(x, 0D, z);
             }
             case BOX_OUTLINE:
             {
+                double boxX = boxSide;
+                double boxZ = boxSide;
                 double perimeter = boxX * 2D + boxZ * 2D;
                 double distance = count <= 1 ? 0D : (index / (double) count) * perimeter;
                 double halfX = boxX * 0.5D;
@@ -244,6 +249,18 @@ public class CrowdUtils
 
                 return new Vec3d(x, 0D, z);
             }
+            case DONUT:
+            {
+                /* Solve the outer radius so the ring's area still gives every member its
+                 * spacing^2 of floor, then sample r uniformly by area so the ring doesn't
+                 * bunch up against the hole. */
+                double outer = Math.sqrt(hole * hole + count * spacing * spacing / Math.PI);
+                double t = (index + 0.5D) / count;
+                double r = Math.sqrt(hole * hole + t * (outer * outer - hole * hole));
+                double angle = index * (Math.PI * (3D - Math.sqrt(5D)));
+
+                return new Vec3d(Math.cos(angle) * r, 0D, Math.sin(angle) * r);
+            }
             case CIRCLE_OUTLINE:
             {
                 double radius = count <= 1 ? 0D : count * spacing / (Math.PI * 2D);
@@ -263,6 +280,52 @@ public class CrowdUtils
                 return new Vec3d(Math.cos(angle) * r, 0D, Math.sin(angle) * r);
             }
         }
+    }
+
+    /**
+     * How far from the centre the outermost member of a formation lands. This is what the
+     * editor draws, so it is derived from the same numbers the placement uses.
+     */
+    public static double formationRadius(CrowdFormation formation, int count, double spacing, double hole)
+    {
+        spacing = Math.max(0.1D, spacing);
+        count = Math.max(1, count);
+        hole = Math.max(0D, hole);
+
+        if (formation == null)
+        {
+            formation = CrowdFormation.CIRCLE;
+        }
+
+        switch (formation)
+        {
+            case DONUT:
+                return Math.sqrt(hole * hole + count * spacing * spacing / Math.PI);
+            case CIRCLE_OUTLINE:
+                return count <= 1 ? 0D : count * spacing / (Math.PI * 2D);
+            case LINE:
+                return (count - 1) / 2D * spacing;
+            case SQUARE_OUTLINE:
+                return Math.max(spacing, count * spacing / 4D) * Math.sqrt(2D) / 2D;
+            case GRID:
+            case SQUARE:
+            case BOX:
+            case BOX_OUTLINE:
+            {
+                double side = Math.max(spacing, Math.ceil(Math.sqrt(count)) * spacing);
+
+                return side * Math.sqrt(2D) / 2D;
+            }
+            case CIRCLE:
+            default:
+                return Math.sqrt(count / Math.PI) * spacing;
+        }
+    }
+
+    /** The empty inner radius, which only the donut has. */
+    public static double formationHole(CrowdFormation formation, double hole)
+    {
+        return formation == CrowdFormation.DONUT ? Math.max(0D, hole) : 0D;
     }
 
     public static int entityIndex(Entity entity)

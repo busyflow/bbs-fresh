@@ -8,6 +8,7 @@ import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.actions.ActionState;
 import mchorse.bbs_mod.actions.types.crowd.CrowdBehaviorActionClip;
 import mchorse.bbs_mod.actions.types.crowd.CrowdSpawnActionClip;
+import mchorse.bbs_mod.actions.types.crowd.CrowdFormation;
 import mchorse.bbs_mod.actions.types.crowd.CrowdUtils;
 import mchorse.bbs_mod.camera.Camera;
 import mchorse.bbs_mod.camera.clips.modifiers.TranslateClip;
@@ -2191,14 +2192,15 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         }
 
         this.controller.renderFrame(context);
-        this.renderCrowdSpawnBox(context);
+        this.renderCrowdRadius(context);
     }
 
     /**
-     * Outline the area a selected crowd clip works in, with one handle per axis so the
-     * numbers in the clip panel have something to mean in the world.
+     * Ring the ground where a selected crowd clip reaches. The radius is read back from the
+     * same formation maths the spawner uses, so this is a readout and not another set of
+     * numbers to keep in sync - a donut also gets its inner ring drawn.
      */
-    private void renderCrowdSpawnBox(WorldRenderContext context)
+    private void renderCrowdRadius(WorldRenderContext context)
     {
         if (this.data == null || this.replayEditor == null || this.actionEditor == null || !this.actionEditor.isVisible())
         {
@@ -2206,21 +2208,19 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         }
 
         Clip actionClip = this.actionEditor.getClip();
-        double w;
-        double h;
-        double d;
+        double outer;
+        double inner = 0D;
 
         if (actionClip instanceof CrowdSpawnActionClip clip)
         {
-            w = Math.max(0.1D, clip.boxX.get());
-            h = Math.max(0.05D, clip.boxY.get());
-            d = Math.max(0.1D, clip.boxZ.get());
+            CrowdFormation formation = CrowdFormation.get(clip.formation.get());
+
+            outer = CrowdUtils.formationRadius(formation, clip.count.get(), clip.spacing.get(), clip.holeRadius.get());
+            inner = CrowdUtils.formationHole(formation, clip.holeRadius.get());
         }
         else if (actionClip instanceof CrowdBehaviorActionClip clip)
         {
-            w = Math.max(0.1D, clip.areaX.get());
-            h = Math.max(0.05D, clip.areaY.get());
-            d = Math.max(0.1D, clip.areaZ.get());
+            outer = clip.wanderRadius.get();
         }
         else
         {
@@ -2236,21 +2236,39 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
 
         Vec3d center = CrowdUtils.replayPosition(replay, this.getCursor());
         Vec3d camera = context.camera().getPos();
-        double x = center.x - camera.x - w / 2D;
-        double y = center.y - camera.y;
-        double z = center.z - camera.z - d / 2D;
-        double handle = Math.max(0.16D, Math.min(Math.min(w, h + 0.1D), d) * 0.08D);
 
         RenderSystem.enableDepthTest();
         RenderSystem.enableBlend();
 
-        Draw.renderBox(context.matrixStack(), x, y, z, w, h, d, 0.1F, 0.8F, 1F, 0.55F);
-        Draw.renderBox(context.matrixStack(), x + w - handle / 2D, y + h / 2D - handle / 2D, z + d / 2D - handle / 2D, handle, handle, handle, 1F, 0.2F, 0.2F, 0.85F);
-        Draw.renderBox(context.matrixStack(), x + w / 2D - handle / 2D, y + h - handle / 2D, z + d / 2D - handle / 2D, handle, handle, handle, 0.2F, 1F, 0.2F, 0.85F);
-        Draw.renderBox(context.matrixStack(), x + w / 2D - handle / 2D, y + h / 2D - handle / 2D, z + d - handle / 2D, handle, handle, handle, 0.2F, 0.4F, 1F, 0.85F);
+        this.renderCrowdRing(context, center.subtract(camera), outer, 0.1F, 0.8F, 1F);
+
+        if (inner > 0.05D)
+        {
+            this.renderCrowdRing(context, center.subtract(camera), inner, 1F, 0.65F, 0.1F);
+        }
 
         RenderSystem.disableBlend();
         RenderSystem.disableDepthTest();
+    }
+
+    private void renderCrowdRing(WorldRenderContext context, Vec3d center, double radius, float r, float g, float b)
+    {
+        if (radius <= 0.05D)
+        {
+            return;
+        }
+
+        int segments = 64;
+        double marker = Math.max(0.12D, radius * 0.02D);
+
+        for (int i = 0; i < segments; i++)
+        {
+            double angle = i / (double) segments * Math.PI * 2D;
+            double x = center.x + Math.cos(angle) * radius - marker / 2D;
+            double z = center.z + Math.sin(angle) * radius - marker / 2D;
+
+            Draw.renderBox(context.matrixStack(), x, center.y, z, marker, marker, marker, r, g, b, 0.85F);
+        }
     }
 
     /* IUICameraWorkDelegate implementation */

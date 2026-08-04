@@ -64,9 +64,7 @@ public class CrowdBehaviorActionClip extends ActionClip
     public final ValueFloat range = new ValueFloat("range", 128F, 8F, 512F);
     public final ValueInt pathRefresh = new ValueInt("path_refresh", 5, 1, 40);
     public final ValueInt seed = new ValueInt("seed", 1);
-    public final ValueFloat areaX = new ValueFloat("area_x", 12F, 0.1F, 256F);
-    public final ValueFloat areaY = new ValueFloat("area_y", 2F, 0F, 128F);
-    public final ValueFloat areaZ = new ValueFloat("area_z", 12F, 0.1F, 256F);
+    public final ValueFloat wanderRadius = new ValueFloat("wander_radius", 12F, 0.1F, 256F);
     public final ValueFloat separation = new ValueFloat("separation", 0.85F, 0F, 6F);
     public final ValueFloat maxStepHeight = new ValueFloat("max_step_height", 0.55F, 0F, 0.75F);
     public final ValueBoolean crouch = new ValueBoolean("crouch", false);
@@ -131,9 +129,7 @@ public class CrowdBehaviorActionClip extends ActionClip
         this.add(this.range);
         this.add(this.pathRefresh);
         this.add(this.seed);
-        this.add(this.areaX);
-        this.add(this.areaY);
-        this.add(this.areaZ);
+        this.add(this.wanderRadius);
         this.add(this.separation);
         this.add(this.maxStepHeight);
         this.add(this.crouch);
@@ -612,12 +608,13 @@ public class CrowdBehaviorActionClip extends ActionClip
         int relative = Math.max(0, tick - this.tick.get());
         int seed = CrowdUtils.entitySeed(entity, this.seed.get(), 0x729f);
         int step = Math.floorDiv(relative + Math.floorMod(seed, cycle), cycle);
-        double halfX = Math.max(0.1D, this.areaX.get()) * 0.5D;
-        double halfZ = Math.max(0.1D, this.areaZ.get()) * 0.5D;
-        double x = CrowdUtils.randomSigned(seed, step, 0x3f91) * halfX;
-        double z = CrowdUtils.randomSigned(seed, step, 0x71ab) * halfZ;
+        /* Sample a disc rather than a box, so wandering stays inside the same round area the
+         * editor draws. sqrt keeps the picks even instead of crowding the middle. */
+        double radius = Math.max(0.1D, this.wanderRadius.get());
+        double angle = CrowdUtils.randomUnit(seed, step, 0x3f91) * Math.PI * 2D;
+        double distance = Math.sqrt(CrowdUtils.randomUnit(seed, step, 0x71ab)) * radius;
 
-        return center.add(x, 0D, z);
+        return center.add(Math.cos(angle) * distance, 0D, Math.sin(angle) * distance);
     }
 
     private Vec3d getLookPoint(LivingEntity entity, Vec3d targetPos, CrowdBehaviorMode mode, int tick, boolean noTarget, List<LivingEntity> crowd)
