@@ -1,6 +1,6 @@
 package mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories;
 
-import mchorse.bbs_mod.actions.crowd.CrowdMotionPath;
+import mchorse.bbs_mod.actions.crowd.CrowdWalk;
 import mchorse.bbs_mod.l10n.keys.IKey;
 import mchorse.bbs_mod.settings.values.IValueListener;
 import mchorse.bbs_mod.ui.framework.elements.UIElement;
@@ -11,47 +11,39 @@ import mchorse.bbs_mod.ui.framework.elements.input.keyframes.UIKeyframes;
 import mchorse.bbs_mod.ui.utils.Gizmo;
 import mchorse.bbs_mod.ui.utils.UI;
 import mchorse.bbs_mod.ui.utils.UIConstants;
-import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.keyframes.Keyframe;
 import mchorse.bbs_mod.utils.pose.Transform;
 
-/** Editor for one timeline motion point. There are no internal checkpoints. */
-public class UICrowdMotionPathKeyframeFactory extends UIKeyframeFactory<CrowdMotionPath>
+/**
+ * Editor for one crowd walk waypoint. Drag its gizmo in the viewport to place where the crowd
+ * should be; move the keyframe on the timeline to say when it gets there.
+ */
+public class UICrowdWalkKeyframeFactory extends UIKeyframeFactory<CrowdWalk>
 {
     public final UIPropTransform transform = new UIPropTransform();
 
     private final UITrackpad x;
     private final UITrackpad y;
     private final UITrackpad z;
-    private final UITrackpad width;
-    private final UITrackpad height;
-    private final UITrackpad depth;
-    private final UITrackpad rotation;
-    private final UITrackpad scatter;
-    private final UITrackpad formationPreservation;
-    private final UIToggle gate;
-    private final UIToggle terrain;
-    private final UIToggle faceTravel;
+    private final UITrackpad ease;
+    private final UITrackpad stagger;
+    private final UITrackpad spread;
     private final UIToggle run;
-    private final UIToggle showPathLine;
+    private final UIToggle faceTravel;
+    private final UIToggle terrain;
+    private final UIToggle showPath;
     private final UIToggle showPoint;
-    private final UIElement widthRow;
-    private final UIElement heightRow;
-    private final UIElement depthRow;
-    private final UIElement rotationRow;
-    private final UIElement scatterRow;
-    private final UIElement preservationRow;
     private final UIElement content;
     private final Transform edited = new Transform();
     private boolean syncing;
 
-    public UICrowdMotionPathKeyframeFactory(Keyframe<CrowdMotionPath> keyframe, UIKeyframes editor)
+    public UICrowdWalkKeyframeFactory(Keyframe<CrowdWalk> keyframe, UIKeyframes editor)
     {
         super(keyframe, editor);
 
         if (keyframe.getValue() == null)
         {
-            keyframe.setValue(new CrowdMotionPath());
+            keyframe.setValue(new CrowdWalk());
         }
 
         keyframe.setDuration(0F);
@@ -60,29 +52,19 @@ public class UICrowdMotionPathKeyframeFactory extends UIKeyframeFactory<CrowdMot
         this.x = trackpad(-10000D, 10000D, 0.25D, v -> this.edit(p -> p.x = v.floatValue()));
         this.y = trackpad(-10000D, 10000D, 0.25D, v -> this.edit(p -> p.y = v.floatValue()));
         this.z = trackpad(-10000D, 10000D, 0.25D, v -> this.edit(p -> p.z = v.floatValue()));
-        this.width = trackpad(0.25D, 256D, 0.25D, v -> this.edit(p -> p.width = Math.max(0.25F, v.floatValue())));
-        this.height = trackpad(0.25D, 256D, 0.25D, v -> this.edit(p -> p.height = Math.max(0.25F, v.floatValue())));
-        this.depth = trackpad(0.25D, 256D, 0.25D, v -> this.edit(p -> p.depth = Math.max(0.25F, v.floatValue())));
-        this.rotation = trackpad(-180D, 180D, 5D, v -> this.edit(p -> p.yaw = v.floatValue()));
-        this.scatter = trackpad(0D, 1D, 0.05D, v -> this.edit(p -> p.scatter = v.floatValue()));
-        this.formationPreservation = trackpad(0D, 1D, 0.05D, v -> this.edit(p -> p.formationPreservation = v.floatValue()));
+        this.ease = trackpad(0D, 1D, 0.05D, v -> this.edit(p -> p.ease = v.floatValue()));
+        this.stagger = trackpad(0D, 1D, 0.05D, v -> this.edit(p -> p.stagger = v.floatValue()));
+        this.spread = trackpad(0D, 1D, 0.05D, v -> this.edit(p -> p.spread = v.floatValue()));
 
-        this.widthRow = UI.labelRow(IKey.constant("Gate width"), this.width);
-        this.heightRow = UI.labelRow(IKey.constant("Gate height"), this.height);
-        this.depthRow = UI.labelRow(IKey.constant("Gate thickness"), this.depth);
-        this.rotationRow = UI.labelRow(IKey.constant("Gate rotation"), this.rotation);
-        this.scatterRow = UI.labelRow(IKey.constant("Gate scatter"), this.scatter);
-        this.preservationRow = UI.labelRow(IKey.constant("Formation preservation"), this.formationPreservation);
-        this.gate = new UIToggle(IKey.constant("Gate"), b ->
-        {
-            this.edit(p -> p.gate = b.getValue());
-            this.display(false);
-        });
-        this.terrain = new UIToggle(IKey.constant("Follow terrain (uphill/downhill)"), b -> this.edit(p -> p.terrainFollow = b.getValue()));
-        this.faceTravel = new UIToggle(IKey.constant("Face direction of travel"), b -> this.edit(p -> p.faceTravel = b.getValue()));
         this.run = new UIToggle(IKey.constant("Run"), b -> this.edit(p -> p.run = b.getValue()));
-        this.showPathLine = new UIToggle(IKey.constant("Show motion path"), b -> this.edit(p -> p.showPathLine = b.getValue()));
+        this.faceTravel = new UIToggle(IKey.constant("Face direction of travel"), b -> this.edit(p -> p.faceTravel = b.getValue()));
+        this.terrain = new UIToggle(IKey.constant("Follow terrain (uphill/downhill)"), b -> this.edit(p -> p.terrainFollow = b.getValue()));
+        this.showPath = new UIToggle(IKey.constant("Show walk path"), b -> this.edit(p -> p.showPath = b.getValue()));
         this.showPoint = new UIToggle(IKey.constant("Show timeline points"), b -> this.edit(p -> p.showPoint = b.getValue()));
+
+        this.ease.tooltip(IKey.constant("0 walks at one speed. 1 starts and stops from a standstill."));
+        this.stagger.tooltip(IKey.constant("How far apart members set off. Everyone still arrives on this keyframe."));
+        this.spread.tooltip(IKey.constant("How much the formation loosens halfway. Exact shape at both ends."));
 
         this.transform.callbacks(
             () -> this.keyframe.preNotify(),
@@ -98,23 +80,19 @@ public class UICrowdMotionPathKeyframeFactory extends UIKeyframeFactory<CrowdMot
         Gizmo.INSTANCE.setMode(Gizmo.Mode.TRANSLATE_AXES);
 
         this.content = UI.column(
-            UI.label(IKey.constant("Crowd Motion Point")),
-            UI.label(IKey.constant("Timing is controlled by this keyframe's position on the timeline.")),
+            UI.label(IKey.constant("Crowd Walk Point")),
+            UI.label(IKey.constant("The crowd stands here on this keyframe and walks to the next one.")),
             UI.labelRow(IKey.constant("Position X"), this.x).marginTop(UIConstants.SECTION_GAP),
             UI.labelRow(IKey.constant("Position Y"), this.y),
             UI.labelRow(IKey.constant("Position Z"), this.z),
-            this.gate.marginTop(UIConstants.SECTION_GAP),
-            this.widthRow,
-            this.heightRow,
-            this.depthRow,
-            this.rotationRow,
-            this.scatterRow,
-            this.preservationRow,
-            this.showPathLine.marginTop(UIConstants.SECTION_GAP),
-            this.showPoint,
-            this.terrain.marginTop(UIConstants.SECTION_GAP),
-            this.faceTravel,
-            this.run
+            UI.labelRow(IKey.constant("Ease"), this.ease).marginTop(UIConstants.SECTION_GAP),
+            UI.labelRow(IKey.constant("Stagger"), this.stagger),
+            UI.labelRow(IKey.constant("Spread"), this.spread),
+            this.faceTravel.marginTop(UIConstants.SECTION_GAP),
+            this.terrain,
+            this.run,
+            this.showPath.marginTop(UIConstants.SECTION_GAP),
+            this.showPoint
         );
         this.scroll.add(this.content);
 
@@ -129,17 +107,17 @@ public class UICrowdMotionPathKeyframeFactory extends UIKeyframeFactory<CrowdMot
         return new UITrackpad(callback).limit(min, max).increment(increment).values(increment, increment * 0.2D, increment * 4D);
     }
 
-    public CrowdMotionPath getPath()
+    public CrowdWalk getPath()
     {
         return this.keyframe.getValue();
     }
 
-    public Keyframe<CrowdMotionPath> getMotionKeyframe()
+    public Keyframe<CrowdWalk> getMotionKeyframe()
     {
         return this.keyframe;
     }
 
-    private void edit(java.util.function.Consumer<CrowdMotionPath> consumer)
+    private void edit(java.util.function.Consumer<CrowdWalk> consumer)
     {
         if (this.syncing)
         {
@@ -154,7 +132,7 @@ public class UICrowdMotionPathKeyframeFactory extends UIKeyframeFactory<CrowdMot
 
     private void syncFromTransform()
     {
-        CrowdMotionPath point = this.getPath();
+        CrowdWalk point = this.getPath();
         Transform value = this.transform.getTransform();
 
         if (this.syncing || point == null || value == null)
@@ -165,12 +143,11 @@ public class UICrowdMotionPathKeyframeFactory extends UIKeyframeFactory<CrowdMot
         point.x = value.translate.x;
         point.y = value.translate.y;
         point.z = value.translate.z;
-        point.yaw = MathUtils.toDeg(value.rotate.y);
     }
 
     private void display(boolean transformToo)
     {
-        CrowdMotionPath point = this.getPath();
+        CrowdWalk point = this.getPath();
 
         if (point == null)
         {
@@ -184,24 +161,14 @@ public class UICrowdMotionPathKeyframeFactory extends UIKeyframeFactory<CrowdMot
             this.x.setValue(point.x);
             this.y.setValue(point.y);
             this.z.setValue(point.z);
-            this.width.setValue(point.width);
-            this.height.setValue(point.height);
-            this.depth.setValue(point.depth);
-            this.rotation.setValue(point.yaw);
-            this.scatter.setValue(point.scatter);
-            this.formationPreservation.setValue(point.formationPreservation);
-            this.gate.setValue(point.gate);
-            this.terrain.setValue(point.terrainFollow);
-            this.faceTravel.setValue(point.faceTravel);
+            this.ease.setValue(point.ease);
+            this.stagger.setValue(point.stagger);
+            this.spread.setValue(point.spread);
             this.run.setValue(point.run);
-            this.showPathLine.setValue(point.showPathLine);
+            this.faceTravel.setValue(point.faceTravel);
+            this.terrain.setValue(point.terrainFollow);
+            this.showPath.setValue(point.showPath);
             this.showPoint.setValue(point.showPoint);
-            this.widthRow.setVisible(point.gate);
-            this.heightRow.setVisible(point.gate);
-            this.depthRow.setVisible(point.gate);
-            this.rotationRow.setVisible(point.gate);
-            this.scatterRow.setVisible(point.gate);
-            this.preservationRow.setVisible(point.gate);
             this.content.resize();
             this.scroll.resize();
 
@@ -209,7 +176,6 @@ public class UICrowdMotionPathKeyframeFactory extends UIKeyframeFactory<CrowdMot
             {
                 this.edited.identity();
                 this.edited.translate.set(point.x, point.y, point.z);
-                this.edited.rotate.y = MathUtils.toRad(point.yaw);
                 this.transform.setTransform(this.edited);
             }
         }

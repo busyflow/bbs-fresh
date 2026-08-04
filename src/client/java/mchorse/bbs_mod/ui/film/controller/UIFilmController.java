@@ -66,7 +66,7 @@ import mchorse.bbs_mod.ui.framework.elements.buttons.UIIcon;
 import mchorse.bbs_mod.ui.framework.elements.context.UISimpleContextMenu;
 import mchorse.bbs_mod.ui.framework.elements.input.UIPropTransform;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.UIKeyframeEditor;
-import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UICrowdMotionPathKeyframeFactory;
+import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UICrowdWalkKeyframeFactory;
 import mchorse.bbs_mod.ui.framework.elements.overlay.UIOverlay;
 import mchorse.bbs_mod.ui.framework.elements.utils.FontRenderer;
 import mchorse.bbs_mod.ui.framework.elements.utils.StencilMap;
@@ -1633,6 +1633,14 @@ public class UIFilmController extends UIElement implements GizmoViewport
 
         this.renderOrbitCenterMarker(context);
 
+        if (!this.isRecording())
+        {
+            Replay crowdReplay = this.getReplay();
+
+            CrowdRadiusGizmo.render(context, crowdReplay,
+                crowdReplay == null ? 0F : crowdReplay.getTick(this.getTick()));
+        }
+
         ValueMotionPath motionPath = this.getMotionPath();
 
         if (motionPath.enabled.get() && !this.isRecording())
@@ -1759,7 +1767,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
         return keyframeEditor != null && keyframeEditor.getAnchorLocal();
     }
 
-    public UICrowdMotionPathKeyframeFactory getCrowdMotionEditor()
+    public UICrowdWalkKeyframeFactory getCrowdMotionEditor()
     {
         if (this.isReplayShiftGizmo())
         {
@@ -1768,7 +1776,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
 
         UIKeyframeEditor keyframeEditor = this.panel.replayEditor.keyframeEditor;
 
-        return keyframeEditor != null && keyframeEditor.isCrowdMotionPathTrack()
+        return keyframeEditor != null && keyframeEditor.isCrowdWalkTrack()
             ? keyframeEditor.getCrowdMotionEditor()
             : null;
     }
@@ -1897,7 +1905,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
             List<Replay> replays = this.panel.getData().replays.getList();
             int selectedReplayIndex = this.getCurrentReplayIndex();
             Pair<String, Boolean> bone = this.getBone();
-            UICrowdMotionPathKeyframeFactory crowdMotion = this.getCrowdMotionEditor();
+            UICrowdWalkKeyframeFactory crowdMotion = this.getCrowdMotionEditor();
 
             for (Map.Entry<Integer, IEntity> entry : this.getEntities().entrySet())
             {
@@ -1941,7 +1949,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
         {
             Replay replay = this.panel.replayEditor.getReplay();
             Pair<String, Boolean> bone = this.getBone();
-            UICrowdMotionPathKeyframeFactory crowdMotion = this.getCrowdMotionEditor();
+            UICrowdWalkKeyframeFactory crowdMotion = this.getCrowdMotionEditor();
 
             this.stencilMap.setIncrement(true);
 

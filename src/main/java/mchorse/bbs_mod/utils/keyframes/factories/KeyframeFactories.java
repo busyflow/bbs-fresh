@@ -34,7 +34,7 @@ public class KeyframeFactories
     public static final ParticleSettingsKeyframeFactory PARTICLE_SETTINGS = new ParticleSettingsKeyframeFactory();
     public static final CrowdLookTargetKeyframeFactory CROWD_LOOK_TARGET = new CrowdLookTargetKeyframeFactory();
     public static final CrowdJumpKeyframeFactory CROWD_JUMP = new CrowdJumpKeyframeFactory();
-    public static final CrowdMotionPathKeyframeFactory CROWD_MOTION_PATH = new CrowdMotionPathKeyframeFactory();
+    public static final CrowdWalkKeyframeFactory CROWD_WALK = new CrowdWalkKeyframeFactory();
     public static final CrowdTextureKeyframeFactory CROWD_TEXTURE = new CrowdTextureKeyframeFactory();
 
     public static boolean isNumeric(IKeyframeFactory factory)
@@ -73,7 +73,7 @@ public class KeyframeFactories
         FACTORIES.put("particle_settings", PARTICLE_SETTINGS);
         FACTORIES.put("crowd_look_target", CROWD_LOOK_TARGET);
         FACTORIES.put("crowd_jump", CROWD_JUMP);
-        FACTORIES.put("crowd_motion_path", CROWD_MOTION_PATH);
+        FACTORIES.put("crowd_motion_path", CROWD_WALK);
         FACTORIES.put("crowd_texture", CROWD_TEXTURE);
     }
 }

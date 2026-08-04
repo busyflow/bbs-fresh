@@ -29,6 +29,7 @@ public class UICrowdFormPanel extends UIFormPanel<CrowdForm>
     private final UITrackpad minimumScale;
     private final UITrackpad maximumScale;
     private final UITrackpad count;
+    private final UITrackpad density;
     private final UITrackpad spacing;
     private final UITrackpad radius;
     private final UITrackpad hollow;
@@ -70,11 +71,24 @@ public class UICrowdFormPanel extends UIFormPanel<CrowdForm>
         {
             int count = v.intValue();
 
+            /* Typing a Count by hand hands authorship back to the user. */
+            this.form.density.set(0F);
             this.form.count.set(count);
             this.form.renderBudget.set(Math.max(this.form.renderBudget.get(), count));
         }).limit(1, CrowdSpawnActionClip.MAX_MEMBERS, true);
+        this.density = new UITrackpad((v) ->
+        {
+            this.form.density.set(v.floatValue());
+            this.form.applyDensity();
+            this.syncDerived();
+        }).limit(0, CrowdForm.MAX_DENSITY).increment(1);
         this.spacing = new UITrackpad((v) -> this.form.spacing.set(v.floatValue())).limit(0.1, 32);
-        this.radius = new UITrackpad((v) -> this.form.radius.set(v.floatValue())).limit(0.1, CrowdForm.MAX_RADIUS);
+        this.radius = new UITrackpad((v) ->
+        {
+            this.form.radius.set(v.floatValue());
+            this.form.applyDensity();
+            this.syncDerived();
+        }).limit(0.1, CrowdForm.MAX_RADIUS);
         this.hollow = new UITrackpad((v) -> this.form.hollow.set(v.floatValue()))
             .limit(0, 0.95).increment(0.05).values(0.05, 0.01, 0.1);
         this.hollowRow = UI.labelRow(IKey.constant("Center hole"), this.hollow);
@@ -96,6 +110,7 @@ public class UICrowdFormPanel extends UIFormPanel<CrowdForm>
             UI.labelRow(IKey.constant("Maximum scale"), this.maximumScale),
             UI.labelRow(IKey.constant("Formation"), this.formation),
             this.perBlock,
+            UI.labelRow(IKey.constant("Density"), this.density),
             UI.labelRow(IKey.constant("Count"), this.count),
             UI.labelRow(IKey.constant("Spacing"), this.spacing),
             UI.labelRow(IKey.constant("Radius"), this.radius),
@@ -105,6 +120,14 @@ public class UICrowdFormPanel extends UIFormPanel<CrowdForm>
             UI.labelRow(IKey.constant("Render budget"), this.renderBudget),
             this.instancing
         );
+    }
+
+    /** Push values density just recomputed back into their controls. */
+    private void syncDerived()
+    {
+        this.count.setValue(this.form.count.get());
+        this.spacing.setValue(this.form.spacing.get());
+        this.renderBudget.setValue(this.form.renderBudget.get());
     }
 
     private void pickSource(boolean add)
@@ -179,6 +202,7 @@ public class UICrowdFormPanel extends UIFormPanel<CrowdForm>
 
         this.selectedSource = Math.max(0, Math.min(this.selectedSource, form.sources.getAllTyped().size() - 1));
         this.count.setValue(form.count.get());
+        this.density.setValue(form.density.get());
         this.spacing.setValue(form.spacing.get());
         this.radius.setValue(form.radius.get());
         this.hollow.setValue(form.hollow.get());

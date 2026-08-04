@@ -6,7 +6,7 @@ import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.actions.crowd.CrowdJumpEvaluator;
 import mchorse.bbs_mod.actions.crowd.CrowdLookEvaluator;
 import mchorse.bbs_mod.actions.crowd.CrowdLookTarget;
-import mchorse.bbs_mod.actions.crowd.CrowdMotionEvaluator;
+import mchorse.bbs_mod.actions.crowd.CrowdWalkEvaluator;
 import mchorse.bbs_mod.actions.types.crowd.CrowdFormation;
 import mchorse.bbs_mod.actions.types.crowd.CrowdRagdollActionClip;
 import mchorse.bbs_mod.actions.types.crowd.CrowdSpawnActionClip;
@@ -57,6 +57,8 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
     private static final int UNINSTANCED_UI_TARGET = 5_000;
     private static final int UNINSTANCED_NEAR_TARGET = 8_000;
     private static final int UNINSTANCED_FAR_TARGET = 4_000;
+    /** Members that may draw at full detail before geometry per member starts shrinking. */
+    private static final int VERTEX_BUDGET_MEMBERS = 40_000;
     private static final int MAX_TERRAIN_CACHE_COLUMNS = 262_144;
     private static final int MISSING_TERRAIN_HEIGHT = Integer.MIN_VALUE;
 
@@ -122,7 +124,7 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
         StubEntity stub = context.entity instanceof StubEntity value ? value : null;
         Replay replay = stub == null ? null : stub.getReplay();
         float replayTick = stub == null ? 0F : stub.getReplayTick();
-        CrowdMotionEvaluator.Frame motion = CrowdMotionEvaluator.frame(replay, replayTick);
+        CrowdWalkEvaluator.Frame motion = CrowdWalkEvaluator.frame(replay, replayTick);
         double ambientJumpRate = this.form.behaviorEnabled.get() && this.form.behaviorRandomJump.get()
             ? this.form.behaviorJumpRate.get()
             : 0D;
@@ -144,9 +146,9 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
          * and cannot be captured once. Picking needs real per-member stencil draws. */
         boolean instanced = provider != null && this.form.instancing.get() && look == null
             && context.stencilMap == null && this.captureParentMatrix(context);
-        float detail = instanced ? this.getDetailFraction(context, parentWorld) : 1F;
         int lodStride = this.getLodStride(context, parentWorld, instanced);
         int[] visibleSlots = this.getVisibleSlots(lodStride);
+        float detail = instanced ? this.getDetailFraction(context, parentWorld, visibleSlots.length) : 1F;
         boolean suppressStencilUpdates = context.suppressStencilUpdates;
         StubPose stubPose = stub == null ? null : StubPose.capture(stub);
         boolean sprinting = motion != null && motion.moving() && motion.path().run;
@@ -183,7 +185,7 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
 
                 if (motion != null)
                 {
-                    CrowdMotionEvaluator.memberPosition(motion, x, 0D, z, this.motionPosition);
+                    CrowdWalkEvaluator.memberPosition(motion, logicalIndex, x, 0D, z, this.motionPosition);
                     x = (float) this.motionPosition[0];
                     y = (float) this.motionPosition[1];
                     z = (float) this.motionPosition[2];
@@ -474,36 +476,36 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
      * their silhouette while shedding most of their geometry, which is where the headroom
      * for very large counts comes from.
      */
-    private float getDetailFraction(FormRenderingContext context, MatrixStack world)
+    private float getDetailFraction(FormRenderingContext context, MatrixStack world, int drawn)
     {
-        if (BBSModClient.getVideoRecorder() != null && BBSModClient.getVideoRecorder().isRecording())
+        float distanceDetail = 1F;
+
+        if (world != null)
         {
+            double distanceSquared = this.distanceSquaredToCamera(context, world);
+
+            if (distanceSquared > 160D * 160D) distanceDetail = 0.2F;
+            else if (distanceSquared > 64D * 64D) distanceDetail = 0.35F;
+            else if (distanceSquared > 24D * 24D) distanceDetail = 0.6F;
+        }
+
+        boolean recording = BBSModClient.getVideoRecorder() != null
+            && BBSModClient.getVideoRecorder().isRecording();
+
+        if (recording)
+        {
+            /* Offline rendering trades time for quality: keep every face. */
             return 1F;
         }
 
-        if (world == null)
-        {
-            return 1F;
-        }
+        /* Hold total emitted geometry roughly constant as population grows. At extreme
+         * densities this bottoms out at one quad per member — the crowd becomes a field of
+         * camera-agnostic cards, which is what keeps the ground covered without stalling. */
+        float budgetDetail = drawn <= VERTEX_BUDGET_MEMBERS
+            ? 1F
+            : (float) VERTEX_BUDGET_MEMBERS / drawn;
 
-        double distanceSquared = this.distanceSquaredToCamera(context, world);
-
-        if (distanceSquared <= 24D * 24D)
-        {
-            return 1F;
-        }
-
-        if (distanceSquared <= 64D * 64D)
-        {
-            return 0.6F;
-        }
-
-        if (distanceSquared <= 160D * 160D)
-        {
-            return 0.35F;
-        }
-
-        return 0.2F;
+        return Math.max(0F, distanceDetail * budgetDetail);
     }
 
     private double distanceSquaredToCamera(FormRenderingContext context, MatrixStack world)

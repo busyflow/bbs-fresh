@@ -3,7 +3,7 @@ package mchorse.bbs_mod.ui.film.controller;
 import com.mojang.blaze3d.systems.RenderSystem;
 import io.netty.util.collection.IntObjectMap;
 import mchorse.bbs_mod.BBSSettings;
-import mchorse.bbs_mod.actions.crowd.CrowdMotionEvaluator;
+import mchorse.bbs_mod.actions.crowd.CrowdWalkEvaluator;
 import mchorse.bbs_mod.cubic.animation.ActionConfig;
 import mchorse.bbs_mod.cubic.animation.ActionsConfig;
 import mchorse.bbs_mod.film.BaseFilmController;
@@ -357,7 +357,7 @@ public class MotionPath
 
     private static Trajectory crowdTrajectory(Replay replay)
     {
-        KeyframeChannel<?> channel = replay.keyframes.crowdMotionPath;
+        KeyframeChannel<?> channel = replay.keyframes.crowdWalk;
         float[] range = range(channel);
 
         if (range == null)
@@ -377,8 +377,8 @@ public class MotionPath
         @Override
         public void worldAt(float tick, Vector3d out)
         {
-            CrowdMotionEvaluator.Frame frame = CrowdMotionEvaluator.frame(this.replay, tick);
-            var origin = CrowdMotionEvaluator.replayOrigin(this.replay, tick);
+            CrowdWalkEvaluator.Frame frame = CrowdWalkEvaluator.frame(this.replay, tick);
+            var origin = CrowdWalkEvaluator.replayOrigin(this.replay, tick);
 
             if (frame == null)
             {

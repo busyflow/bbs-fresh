@@ -12,7 +12,7 @@ import mchorse.bbs_mod.forms.forms.Form;
 import mchorse.bbs_mod.forms.forms.CrowdForm;
 import mchorse.bbs_mod.settings.values.base.BaseValue;
 import mchorse.bbs_mod.settings.values.ui.ValueOnionSkin;
-import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UICrowdMotionPathKeyframeFactory;
+import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UICrowdWalkKeyframeFactory;
 import mchorse.bbs_mod.utils.CollectionUtils;
 import mchorse.bbs_mod.utils.Pair;
 import mchorse.bbs_mod.utils.colors.Colors;
@@ -285,7 +285,7 @@ public class FilmEditorController extends BaseFilmController
         boolean anchorGizmo = this.isCurrent(entity)
             && !this.controller.panel.recorder.isRecording()
             && this.controller.isAnchorGizmo();
-        UICrowdMotionPathKeyframeFactory crowdMotion = this.isCurrent(entity)
+        UICrowdWalkKeyframeFactory crowdMotion = this.isCurrent(entity)
             && !this.controller.panel.recorder.isRecording()
             ? this.controller.getCrowdMotionEditor()
             : null;

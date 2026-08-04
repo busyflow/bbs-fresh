@@ -66,6 +66,7 @@ public class UIReplayPropertiesPanel extends UIElement
     public UIToggle crowdRecursiveTextures;
     public UIToggle crowdPerBlock;
     public UITrackpad crowdCount;
+    public UITrackpad crowdDensity;
     public UITrackpad crowdSpacing;
     public UITrackpad crowdRadius;
     public UITrackpad crowdHollow;
@@ -213,13 +214,31 @@ public class UIReplayPropertiesPanel extends UIElement
         {
             int count = v.intValue();
 
+            /* Typing a Count by hand hands authorship back to the user. */
+            crowd.density.set(0F);
             crowd.count.set(count);
             crowd.renderBudget.set(Math.max(crowd.renderBudget.get(), count));
         })).limit(1, CrowdSpawnActionClip.MAX_MEMBERS, true);
+        this.crowdDensity = new UITrackpad((v) ->
+        {
+            this.editCrowd((crowd) ->
+            {
+                crowd.density.set(v.floatValue());
+                crowd.applyDensity();
+            });
+            this.syncCrowdDerived();
+        }).limit(0, CrowdForm.MAX_DENSITY).increment(1);
         this.crowdSpacing = new UITrackpad((v) -> this.editCrowd((crowd) -> crowd.spacing.set(v.floatValue())))
             .limit(0.1, 32);
-        this.crowdRadius = new UITrackpad((v) -> this.editCrowd((crowd) -> crowd.radius.set(v.floatValue())))
-            .limit(0.1, CrowdForm.MAX_RADIUS);
+        this.crowdRadius = new UITrackpad((v) ->
+        {
+            this.editCrowd((crowd) ->
+            {
+                crowd.radius.set(v.floatValue());
+                crowd.applyDensity();
+            });
+            this.syncCrowdDerived();
+        }).limit(0.1, CrowdForm.MAX_RADIUS);
         this.crowdHollow = new UITrackpad((v) -> this.editCrowd((crowd) -> crowd.hollow.set(v.floatValue())))
             .limit(0, 0.95).increment(0.05).values(0.05, 0.01, 0.1);
         this.crowdHollowField = this.compactCrowdField("Hole", this.crowdHollow);
@@ -282,6 +301,7 @@ public class UIReplayPropertiesPanel extends UIElement
             ),
             UI.row(4,
                 this.compactCrowdField("Shape", this.crowdFormation),
+                this.compactCrowdField("Density", this.crowdDensity),
                 this.compactCrowdField("Count", this.crowdCount),
                 this.compactCrowdField("Spacing", this.crowdSpacing),
                 this.crowdPerBlock
@@ -383,6 +403,19 @@ public class UIReplayPropertiesPanel extends UIElement
         Form form = replay == null ? null : replay.form.get();
 
         return form instanceof CrowdForm crowd ? crowd : null;
+    }
+
+    /** Push values density just recomputed back into their controls. */
+    private void syncCrowdDerived()
+    {
+        Replay replay = this.list == null ? null : this.list.getSelectedReplayFirst();
+
+        if (replay != null && replay.form.get() instanceof CrowdForm crowd)
+        {
+            this.crowdCount.setValue(crowd.count.get());
+            this.crowdSpacing.setValue(crowd.spacing.get());
+            this.crowdRenderBudget.setValue(crowd.renderBudget.get());
+        }
     }
 
     private void editCrowd(Consumer<CrowdForm> consumer)
@@ -562,6 +595,7 @@ public class UIReplayPropertiesPanel extends UIElement
         this.crowdFormation.label = IKey.constant(CrowdFormation.get(crowd.formation.get()).title);
         this.crowdPerBlock.setValue(crowd.perBlock.get());
         this.crowdCount.setValue(crowd.count.get());
+        this.crowdDensity.setValue(crowd.density.get());
         this.crowdSpacing.setValue(crowd.spacing.get());
         this.crowdRadius.setValue(crowd.radius.get());
         this.crowdHollow.setValue(crowd.hollow.get());

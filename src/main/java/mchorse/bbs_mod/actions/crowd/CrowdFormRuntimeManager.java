@@ -248,7 +248,7 @@ public class CrowdFormRuntimeManager
 
             this.spawnPositions = new ArrayList<>(positions);
             this.basePositions = new ArrayList<>(positions);
-            this.spawnOrigin = CrowdMotionEvaluator.replayOrigin(this.replay, tick);
+            this.spawnOrigin = CrowdWalkEvaluator.replayOrigin(this.replay, tick);
             this.blockedTicks = new int[this.entities.size()];
             this.bypassSides = new int[this.entities.size()];
             this.bypassTicks = new int[this.entities.size()];
@@ -477,7 +477,7 @@ public class CrowdFormRuntimeManager
         private void stabilizeFormation(int tick)
         {
             if (!this.spawned || this.crowd.behaviorEnabled.get()
-                || !this.replay.keyframes.crowdMotionPath.isEmpty()
+                || !this.replay.keyframes.crowdWalk.isEmpty()
                 || Math.floorMod(tick + this.replay.getId().hashCode(), 10) != 0)
             {
                 return;
@@ -510,7 +510,7 @@ public class CrowdFormRuntimeManager
                 return;
             }
 
-            CrowdMotionEvaluator.Frame frame = CrowdMotionEvaluator.frame(this.replay, tick);
+            CrowdWalkEvaluator.Frame frame = CrowdWalkEvaluator.frame(this.replay, tick);
 
             if (frame == null)
             {
@@ -523,7 +523,7 @@ public class CrowdFormRuntimeManager
                 return;
             }
 
-            Vec3d origin = CrowdMotionEvaluator.replayOrigin(this.replay, tick);
+            Vec3d origin = CrowdWalkEvaluator.replayOrigin(this.replay, tick);
 			/* Reuse this per-runtime cache instead of allocating a thousand-entry map every
 			 * tick for terrain-following crowds. Each frame needs fresh heights, but not a
 			 * fresh backing table. */
@@ -564,8 +564,7 @@ public class CrowdFormRuntimeManager
                 {
                     startLocal = new Vec3d(startLocal.x, 0D, startLocal.z);
                 }
-                CrowdMotionEvaluator.MemberSample member = CrowdMotionEvaluator.member(frame, i, size, startLocal);
-                Vec3d local = member.position();
+                Vec3d local = CrowdWalkEvaluator.member(frame, i, startLocal);
                 double x = origin.x + local.x;
                 double y = origin.y + local.y;
                 double z = origin.z + local.z;
@@ -823,7 +822,7 @@ public class CrowdFormRuntimeManager
         private void applyBehavior(int tick, SuperFakePlayer player)
         {
             if (!this.spawned || !this.crowd.behaviorEnabled.get()
-                || !this.replay.keyframes.crowdMotionPath.isEmpty())
+                || !this.replay.keyframes.crowdWalk.isEmpty())
             {
                 return;
             }

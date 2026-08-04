@@ -31,6 +31,19 @@ public class CrowdForm extends Form
     public final ValueInt count = new ValueInt("count", 20, 1, CrowdSpawnActionClip.MAX_MEMBERS);
     public final ValueInt formation = new ValueInt("formation", CrowdFormation.GRID.ordinal(), 0, CrowdFormation.values().length - 1);
     public final ValueBoolean perBlock = new ValueBoolean("per_block", false);
+    /**
+     * Members per square block at density 100. A villager occupies roughly 0.6x0.6 blocks,
+     * so three per block overlaps enough to hide the ground completely.
+     */
+    public static final float PACKED_MEMBERS_PER_BLOCK = 3F;
+    public static final float MAX_DENSITY = 100F;
+
+    /**
+     * How tightly the authored footprint is filled, 0 to 100. Above zero the crowd's Count
+     * (and, for spacing-driven shapes, its Spacing) is derived from the radius instead of
+     * typed in. Zero means Count is authored by hand.
+     */
+    public final ValueFloat density = new ValueFloat("density", 0F, 0F, MAX_DENSITY);
     public final ValueFloat spacing = new ValueFloat("spacing", 1.5F, 0.1F, 64F);
     public final ValueFloat radius = new ValueFloat("radius", 4F, 0.1F, MAX_RADIUS);
     public final ValueInt seed = new ValueInt("seed", 0);
@@ -83,6 +96,7 @@ public class CrowdForm extends Form
         this.count.invisible();
         this.formation.invisible();
         this.perBlock.invisible();
+        this.density.invisible();
         this.spacing.invisible();
         this.radius.invisible();
         this.seed.invisible();
@@ -131,6 +145,7 @@ public class CrowdForm extends Form
         this.add(this.count);
         this.add(this.formation);
         this.add(this.perBlock);
+        this.add(this.density);
         this.add(this.spacing);
         this.add(this.radius);
         this.add(this.seed);
@@ -194,6 +209,56 @@ public class CrowdForm extends Form
         return form == null ? "Crowd" : "Crowd: " + form.getDisplayName();
     }
 
+    /**
+     * Ground area the authored shape covers, in square blocks. Density multiplies this to
+     * get a member count, so the radius stays exactly as authored while population changes.
+     */
+    public double getFootprintArea()
+    {
+        double radius = Math.max(0.1F, this.radius.get());
+        double hole = Math.max(0F, Math.min(0.95F, this.hollow.get()));
+        double side = Math.max(radius, Math.max(0.1F, this.spacing.get()));
+
+        return switch (CrowdFormation.get(this.formation.get()))
+        {
+            case CIRCLE -> Math.PI * radius * radius * Math.max(0.01D, 1D - hole * hole);
+            case CIRCLE_OUTLINE, HOLLOW_CIRCLE -> Math.PI * 2D * radius;
+            case LINE -> radius * 2D;
+            case SQUARE_OUTLINE, BOX_OUTLINE -> side * 8D;
+            case SQUARE, BOX -> side * side * 4D;
+            default -> Math.PI * radius * radius;
+        };
+    }
+
+    /**
+     * Recompute Count (and, for shapes laid out by spacing rather than radius, Spacing) from
+     * the density slider. A no-op at density 0, where Count is authored by hand.
+     */
+    public void applyDensity()
+    {
+        float density = this.density.get();
+
+        if (density <= 0F)
+        {
+            return;
+        }
+
+        double perBlock = density / MAX_DENSITY * PACKED_MEMBERS_PER_BLOCK;
+        CrowdFormation formation = CrowdFormation.get(this.formation.get());
+
+        if (formation == CrowdFormation.GRID || formation == CrowdFormation.LINE)
+        {
+            /* These place members by spacing, so density has to tighten the step or the
+             * shape would grow past the authored radius instead of packing inside it. */
+            this.spacing.set((float) Math.max(0.1D, 1D / Math.sqrt(Math.max(1.0E-4D, perBlock))));
+        }
+
+        int count = (int) Math.round(this.getFootprintArea() * perBlock);
+
+        this.count.set(Math.max(1, Math.min(CrowdSpawnActionClip.MAX_MEMBERS, count)));
+        this.renderBudget.set(Math.max(this.renderBudget.get(), this.count.get()));
+    }
+
     public long getStableMemberId(int index)
     {
         long value = ((long) this.seed.get() << 32) ^ Integer.toUnsignedLong(index);
@@ -238,6 +303,8 @@ public class CrowdForm extends Form
         this.renderBudget.set(Math.max(1, Math.min(MAX_RENDER_BUDGET, this.renderBudget.get())));
         this.health.set(Math.max(0F, Math.min(1024F, this.health.get())));
         this.hollow.set(Math.max(0F, Math.min(0.95F, this.hollow.get())));
+        this.density.set(Math.max(0F, Math.min(MAX_DENSITY, this.density.get())));
+        this.applyDensity();
         this.sources.validate();
 
         if (this.memberForm.get() == null)

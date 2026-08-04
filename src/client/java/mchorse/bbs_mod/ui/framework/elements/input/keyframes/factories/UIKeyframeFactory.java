@@ -71,7 +71,7 @@ public abstract class UIKeyframeFactory <T> extends UIElement
         register(KeyframeFactories.PARTICLE_SETTINGS, UIParticleSettingsKeyframeFactory::new);
         register(KeyframeFactories.CROWD_LOOK_TARGET, UICrowdLookTargetKeyframeFactory::new);
         register(KeyframeFactories.CROWD_JUMP, UICrowdJumpKeyframeFactory::new);
-        register(KeyframeFactories.CROWD_MOTION_PATH, UICrowdMotionPathKeyframeFactory::new);
+        register(KeyframeFactories.CROWD_WALK, UICrowdWalkKeyframeFactory::new);
         register(KeyframeFactories.CROWD_TEXTURE, UICrowdTextureKeyframeFactory::new);
     }
 

@@ -1,7 +1,7 @@
 package mchorse.bbs_mod.film.replays;
 
 import mchorse.bbs_mod.forms.entities.IEntity;
-import mchorse.bbs_mod.actions.crowd.CrowdMotionPath;
+import mchorse.bbs_mod.actions.crowd.CrowdWalk;
 import mchorse.bbs_mod.actions.crowd.CrowdTexture;
 import mchorse.bbs_mod.settings.values.base.BaseValue;
 import mchorse.bbs_mod.settings.values.core.ValueGroup;
@@ -95,7 +95,7 @@ public class ReplayKeyframes extends ValueGroup
     public final KeyframeChannel<Integer> selectedSlot = new KeyframeChannel<>("selected_slot", KeyframeFactories.INTEGER);
     public final KeyframeChannel<String> crowdLookTarget = new KeyframeChannel<>("crowd_look_target", KeyframeFactories.CROWD_LOOK_TARGET);
     public final KeyframeChannel<Double> crowdJump = new KeyframeChannel<>("crowd_jump", KeyframeFactories.CROWD_JUMP);
-    public final KeyframeChannel<CrowdMotionPath> crowdMotionPath = new KeyframeChannel<>("crowd_motion_path", KeyframeFactories.CROWD_MOTION_PATH);
+    public final KeyframeChannel<CrowdWalk> crowdWalk = new KeyframeChannel<>("crowd_motion_path", KeyframeFactories.CROWD_WALK);
     public final KeyframeChannel<CrowdTexture> crowdTexture = new KeyframeChannel<>("crowd_texture", KeyframeFactories.CROWD_TEXTURE);
 
     public ReplayKeyframes(String id)
@@ -139,7 +139,7 @@ public class ReplayKeyframes extends ValueGroup
         this.add(this.selectedSlot);
         this.add(this.crowdLookTarget);
         this.add(this.crowdJump);
-        this.add(this.crowdMotionPath);
+        this.add(this.crowdWalk);
         this.add(this.crowdTexture);
     }
 

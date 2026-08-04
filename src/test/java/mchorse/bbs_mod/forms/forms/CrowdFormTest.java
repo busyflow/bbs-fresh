@@ -1,7 +1,7 @@
 package mchorse.bbs_mod.forms.forms;
 
 import mchorse.bbs_mod.BBSSettings;
-import mchorse.bbs_mod.actions.crowd.CrowdMotionPath;
+import mchorse.bbs_mod.actions.crowd.CrowdWalk;
 import mchorse.bbs_mod.actions.crowd.CrowdTexture;
 import mchorse.bbs_mod.actions.types.crowd.CrowdFormation;
 import mchorse.bbs_mod.actions.types.crowd.CrowdSpawnActionClip;
@@ -238,27 +238,31 @@ public class CrowdFormTest
     }
 
     @Test
-    public void motionPointsRoundTripWithoutLosingBehaviorFlags()
+    public void walkPointsRoundTripWithoutLosingBehaviorFlags()
     {
-        CrowdMotionPath point = new CrowdMotionPath();
+        CrowdWalk point = new CrowdWalk();
 
         point.x = 12.5F;
         point.y = 4F;
         point.z = -3F;
-        point.gate = true;
         point.run = false;
+        point.faceTravel = false;
         point.terrainFollow = false;
-        point.scatter = 0.35F;
+        point.ease = 0.4F;
+        point.stagger = 0.65F;
+        point.spread = 0.35F;
 
-        CrowdMotionPath loaded = CrowdMotionPath.fromData(point.toData());
+        CrowdWalk loaded = CrowdWalk.fromData(point.toData());
 
         assertEquals(point.x, loaded.x);
         assertEquals(point.y, loaded.y);
         assertEquals(point.z, loaded.z);
-        assertTrue(loaded.gate);
         assertFalse(loaded.run);
+        assertFalse(loaded.faceTravel);
         assertFalse(loaded.terrainFollow);
-        assertEquals(point.scatter, loaded.scatter);
+        assertEquals(point.ease, loaded.ease);
+        assertEquals(point.stagger, loaded.stagger);
+        assertEquals(point.spread, loaded.spread);
     }
 
     @Test

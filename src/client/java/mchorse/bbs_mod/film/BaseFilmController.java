@@ -5,7 +5,7 @@ import io.netty.util.collection.IntObjectHashMap;
 import io.netty.util.collection.IntObjectMap;
 import mchorse.bbs_mod.ui.framework.elements.input.drag.TransformSpace;
 import mchorse.bbs_mod.BBSSettings;
-import mchorse.bbs_mod.actions.crowd.CrowdMotionPath;
+import mchorse.bbs_mod.actions.crowd.CrowdWalk;
 import mchorse.bbs_mod.client.BBSRendering;
 import mchorse.bbs_mod.camera.data.Point;
 import mchorse.bbs_mod.client.renderer.ModelBlockEntityRenderer;
@@ -323,7 +323,7 @@ public abstract class BaseFilmController
 
     private static void renderCrowdMotionGizmo(FilmControllerContext context, MatrixStack stack)
     {
-        CrowdMotionPath point = context.crowdMotionPoint;
+        CrowdWalk point = context.crowdMotionPoint;
         float tick = context.crowdMotionTick;
         double x = context.replay.keyframes.x.interpolate(tick) + point.x;
         double y = context.replay.keyframes.y.interpolate(tick) + point.y;

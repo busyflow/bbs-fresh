@@ -1,54 +1,54 @@
 package mchorse.bbs_mod.utils.keyframes.factories;
 
-import mchorse.bbs_mod.actions.crowd.CrowdMotionPath;
+import mchorse.bbs_mod.actions.crowd.CrowdWalk;
 import mchorse.bbs_mod.data.types.BaseType;
 import mchorse.bbs_mod.utils.interps.IInterp;
 import mchorse.bbs_mod.utils.interps.AutoBezier;
 import mchorse.bbs_mod.utils.interps.Interpolations;
 import mchorse.bbs_mod.utils.keyframes.Keyframe;
 
-/** A timeline-authored crowd position with optional per-key gate metadata. */
-public class CrowdMotionPathKeyframeFactory implements IKeyframeFactory<CrowdMotionPath>
+/** A timeline-authored crowd waypoint. Only its position interpolates; walk settings are stepped. */
+public class CrowdWalkKeyframeFactory implements IKeyframeFactory<CrowdWalk>
 {
     @Override
-    public CrowdMotionPath fromData(BaseType data)
+    public CrowdWalk fromData(BaseType data)
     {
-        return CrowdMotionPath.fromData(data);
+        return CrowdWalk.fromData(data);
     }
 
     @Override
-    public BaseType toData(CrowdMotionPath value)
+    public BaseType toData(CrowdWalk value)
     {
-        return (value == null ? new CrowdMotionPath() : value).toData();
+        return (value == null ? new CrowdWalk() : value).toData();
     }
 
     @Override
-    public CrowdMotionPath createEmpty()
+    public CrowdWalk createEmpty()
     {
-        return new CrowdMotionPath();
+        return new CrowdWalk();
     }
 
     @Override
-    public CrowdMotionPath copy(CrowdMotionPath value)
+    public CrowdWalk copy(CrowdWalk value)
     {
-        return value == null ? new CrowdMotionPath() : value.copy();
+        return value == null ? new CrowdWalk() : value.copy();
     }
 
     @Override
-    public CrowdMotionPath interpolate(Keyframe<CrowdMotionPath> preA, Keyframe<CrowdMotionPath> a,
-        Keyframe<CrowdMotionPath> b, Keyframe<CrowdMotionPath> postB, IInterp interpolation, float x)
+    public CrowdWalk interpolate(Keyframe<CrowdWalk> preA, Keyframe<CrowdWalk> a,
+        Keyframe<CrowdWalk> b, Keyframe<CrowdWalk> postB, IInterp interpolation, float x)
     {
-        CrowdMotionPath av = a.getValue();
-        CrowdMotionPath bv = b.getValue();
+        CrowdWalk av = a.getValue();
+        CrowdWalk bv = b.getValue();
 
         if (av == null || bv == null || av.position().squaredDistanceTo(bv.position()) <= 1.0E-10D)
         {
-            return av == null ? new CrowdMotionPath() : av.copy();
+            return av == null ? new CrowdWalk() : av.copy();
         }
 
-        CrowdMotionPath value = av.copy();
-        CrowdMotionPath pre = preA.getValue() == null ? av : preA.getValue();
-        CrowdMotionPath post = postB.getValue() == null ? bv : postB.getValue();
+        CrowdWalk value = av.copy();
+        CrowdWalk pre = preA.getValue() == null ? av : preA.getValue();
+        CrowdWalk post = postB.getValue() == null ? bv : postB.getValue();
 
         if (interpolation.has(Interpolations.BEZIER))
         {
@@ -82,12 +82,12 @@ public class CrowdMotionPathKeyframeFactory implements IKeyframeFactory<CrowdMot
     }
 
     @Override
-    public CrowdMotionPath interpolate(CrowdMotionPath preA, CrowdMotionPath a, CrowdMotionPath b, CrowdMotionPath postB, IInterp interpolation, float x)
+    public CrowdWalk interpolate(CrowdWalk preA, CrowdWalk a, CrowdWalk b, CrowdWalk postB, IInterp interpolation, float x)
     {
-        if (a == null) return b == null ? new CrowdMotionPath() : b.copy();
+        if (a == null) return b == null ? new CrowdWalk() : b.copy();
         if (b == null) return a.copy();
 
-        CrowdMotionPath value = a.copy();
+        CrowdWalk value = a.copy();
 
         if (a.position().squaredDistanceTo(b.position()) > 1.0E-10D)
         {
