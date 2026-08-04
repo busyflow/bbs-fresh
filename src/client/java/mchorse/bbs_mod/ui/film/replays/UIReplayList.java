@@ -1092,9 +1092,7 @@ public class UIReplayList extends UIList<ReplayListEntry>
     {
         ArrayList<String> out = new ArrayList<>();
         HashSet<String> added = new HashSet<>();
-        List<String> curated = replay.form.get() instanceof mchorse.bbs_mod.forms.forms.CrowdForm
-            ? ReplayKeyframes.CROWD_CHANNELS
-            : ReplayKeyframes.CURATED_CHANNELS;
+        List<String> curated = ReplayKeyframes.CURATED_CHANNELS;
 
         for (String id : curated)
         {
@@ -1105,11 +1103,6 @@ public class UIReplayList extends UIList<ReplayListEntry>
                 out.add(id);
                 added.add(id);
             }
-        }
-
-        if (curated == ReplayKeyframes.CROWD_CHANNELS)
-        {
-            return out;
         }
 
         for (KeyframeChannel<?> channel : replay.keyframes.getChannels())

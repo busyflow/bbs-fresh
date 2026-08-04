@@ -5,7 +5,6 @@ import io.netty.util.collection.IntObjectHashMap;
 import io.netty.util.collection.IntObjectMap;
 import mchorse.bbs_mod.ui.framework.elements.input.drag.TransformSpace;
 import mchorse.bbs_mod.BBSSettings;
-import mchorse.bbs_mod.actions.crowd.CrowdWalk;
 import mchorse.bbs_mod.client.BBSRendering;
 import mchorse.bbs_mod.camera.data.Point;
 import mchorse.bbs_mod.client.renderer.ModelBlockEntityRenderer;
@@ -255,11 +254,6 @@ public abstract class BaseFilmController
             renderAnchorGizmo(entities, entity, target, defaultMatrix, cx, cy, cz, transition, context.anchorLocal, context.space, context.gizmoView, context.map, stack, gizmoFrame);
         }
 
-        if (UIBaseMenu.shouldRenderAxes() && context.crowdMotionPoint != null && context.replay != null)
-        {
-            renderCrowdMotionGizmo(context, stack);
-        }
-
         if (!relative && context.map == null && opacity > 0F && context.shadowRadius > 0F && form.visible.get())
         {
             /* Skip the shadow when the form is hidden (form.visible, animatable via keyframes): the form
@@ -318,34 +312,6 @@ public abstract class BaseFilmController
             stack.pop();
         }
 
-        RenderSystem.enableDepthTest();
-    }
-
-    private static void renderCrowdMotionGizmo(FilmControllerContext context, MatrixStack stack)
-    {
-        CrowdWalk point = context.crowdMotionPoint;
-        float tick = context.crowdMotionTick;
-        double x = context.replay.keyframes.x.interpolate(tick) + point.x;
-        double y = context.replay.keyframes.y.interpolate(tick) + point.y;
-        double z = context.replay.keyframes.z.interpolate(tick) + point.z;
-
-        stack.push();
-        stack.translate(
-            x - context.camera.getPos().x,
-            y - context.camera.getPos().y,
-            z - context.camera.getPos().z
-        );
-
-        if (context.map == null)
-        {
-            Gizmo.INSTANCE.captureVisual(stack);
-        }
-        else
-        {
-            Gizmo.INSTANCE.renderStencil(stack, context.map);
-        }
-
-        stack.pop();
         RenderSystem.enableDepthTest();
     }
 

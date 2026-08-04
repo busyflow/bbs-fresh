@@ -8,21 +8,8 @@ public enum CrowdFormation
     GRID("Grid"),
     SQUARE("Square"),
     SQUARE_OUTLINE("Square outline"),
-    BOX("AABB"),
-    BOX_OUTLINE("AABB outline"),
-    /** Legacy saved ordinal. The UI and runtime normalize this to CIRCLE. */
-    HOLLOW_CIRCLE("Hollow Circle");
-
-    private static final CrowdFormation[] SELECTABLE = {
-        CIRCLE,
-        CIRCLE_OUTLINE,
-        LINE,
-        GRID,
-        SQUARE,
-        SQUARE_OUTLINE,
-        BOX,
-        BOX_OUTLINE
-    };
+    BOX("Box"),
+    BOX_OUTLINE("Box outline");
 
     public final String title;
 
@@ -40,13 +27,6 @@ public enum CrowdFormation
             return CIRCLE;
         }
 
-        CrowdFormation formation = values[index];
-
-        return formation == HOLLOW_CIRCLE ? CIRCLE : formation;
-    }
-
-    public static CrowdFormation[] selectableValues()
-    {
-        return SELECTABLE.clone();
+        return values[index];
     }
 }

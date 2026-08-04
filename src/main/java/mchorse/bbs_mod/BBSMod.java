@@ -10,7 +10,8 @@ import mchorse.bbs_mod.actions.types.blocks.InteractBlockActionClip;
 import mchorse.bbs_mod.actions.types.blocks.PlaceBlockActionClip;
 import mchorse.bbs_mod.actions.types.chat.ChatActionClip;
 import mchorse.bbs_mod.actions.types.chat.CommandActionClip;
-import mchorse.bbs_mod.actions.types.crowd.CrowdRagdollActionClip;
+import mchorse.bbs_mod.actions.types.crowd.CrowdBehaviorActionClip;
+import mchorse.bbs_mod.actions.types.crowd.CrowdSpawnActionClip;
 import mchorse.bbs_mod.actions.types.item.ItemDropActionClip;
 import mchorse.bbs_mod.actions.types.item.UseBlockItemActionClip;
 import mchorse.bbs_mod.actions.types.item.UseItemActionClip;
@@ -53,7 +54,6 @@ import mchorse.bbs_mod.film.FilmManager;
 import mchorse.bbs_mod.forms.FormArchitect;
 import mchorse.bbs_mod.forms.forms.AnchorForm;
 import mchorse.bbs_mod.forms.forms.BillboardForm;
-import mchorse.bbs_mod.forms.forms.CrowdForm;
 import mchorse.bbs_mod.forms.forms.BlockForm;
 import mchorse.bbs_mod.forms.forms.ExtrudedForm;
 import mchorse.bbs_mod.forms.forms.FramebufferForm;
@@ -403,7 +403,6 @@ public class BBSMod implements ModInitializer
         forms = new FormArchitect();
         forms
             .register(Link.bbs("billboard"), BillboardForm.class, null)
-            .register(Link.bbs("crowd"), CrowdForm.class, null)
             .register(Link.bbs("label"), LabelForm.class, null)
             .register(Link.bbs("model"), ModelForm.class, null)
             .register(Link.bbs("particle"), ParticleForm.class, null)
@@ -460,8 +459,9 @@ public class BBSMod implements ModInitializer
             .register(Link.bbs("drop_item"), ItemDropActionClip.class, new ClipFactoryData(Icons.ARROW_DOWN, Colors.DEEP_PINK))
             .register(Link.bbs("attack"), AttackActionClip.class, new ClipFactoryData(Icons.DROP, Colors.RED))
             .register(Link.bbs("damage"), DamageActionClip.class, new ClipFactoryData(Icons.SKULL, Colors.CURSOR))
-            .register(Link.bbs("crowd_ragdoll"), CrowdRagdollActionClip.class, new ClipFactoryData(Icons.LIMB, Colors.DEEP_PINK))
-            .register(Link.bbs("swipe"), SwipeActionClip.class, new ClipFactoryData(Icons.LIMB, Colors.ORANGE));
+            .register(Link.bbs("swipe"), SwipeActionClip.class, new ClipFactoryData(Icons.LIMB, Colors.ORANGE))
+            .register(Link.bbs("crowd_spawn"), CrowdSpawnActionClip.class, new ClipFactoryData(Icons.CHICKEN, Colors.GREEN))
+            .register(Link.bbs("crowd_behavior"), CrowdBehaviorActionClip.class, new ClipFactoryData(Icons.ALL_DIRECTIONS, Colors.CYAN));
 
         setupConfig(Icons.SETTINGS, "bbs", new File(settingsFolder, "bbs.json"), BBSSettings::register);
 

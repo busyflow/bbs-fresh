@@ -362,6 +362,8 @@
 	"bbs.ui.camera.clips.bbs:chat": "Chat message",
 	"bbs.ui.camera.clips.bbs:command": "Command",
 	"bbs.ui.camera.clips.bbs:curve": "Curve",
+	"bbs.ui.camera.clips.bbs:crowd_behavior": "NPC crowd behavior",
+	"bbs.ui.camera.clips.bbs:crowd_spawn": "Spawn NPC crowd",
 	"bbs.ui.camera.clips.bbs:damage": "Damage",
 	"bbs.ui.camera.clips.bbs:dolly": "Dolly",
 	"bbs.ui.camera.clips.bbs:dolly_zoom": "Dolly zoom",

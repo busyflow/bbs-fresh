@@ -11,7 +11,6 @@ import mchorse.bbs_mod.data.types.ListType;
 import mchorse.bbs_mod.data.types.MapType;
 import mchorse.bbs_mod.ui.framework.elements.UIElement;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UIAnchorKeyframeFactory;
-import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UICrowdWalkKeyframeFactory;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UIKeyframeFactory;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UIPoseKeyframeFactory;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UIPoseTransformKeyframeFactory;
@@ -307,19 +306,6 @@ public class UIKeyframeEditor extends UIElement
         UIKeyframeSheet sheet = this.getSheet(this.editor.getKeyframe());
 
         return sheet != null && sheet.property != null && "anchor".equals(sheet.id);
-    }
-
-    public UICrowdWalkKeyframeFactory getCrowdMotionEditor()
-    {
-        return this.editor instanceof UICrowdWalkKeyframeFactory factory ? factory : null;
-    }
-
-    public boolean isCrowdWalkTrack()
-    {
-        UICrowdWalkKeyframeFactory factory = this.getCrowdMotionEditor();
-        UIKeyframeSheet sheet = factory == null ? null : this.getSheet(factory.getMotionKeyframe());
-
-        return sheet != null && "crowd_motion_path".equals(sheet.id);
     }
 
     /** Whether the anchor gizmo should be oriented in the bone's local space (mirrors {@link #getBone()}'s flag). */

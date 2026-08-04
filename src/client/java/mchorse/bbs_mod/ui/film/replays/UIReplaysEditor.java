@@ -22,7 +22,6 @@ import mchorse.bbs_mod.film.replays.ReplayKeyframes;
 import mchorse.bbs_mod.forms.FormUtils;
 import mchorse.bbs_mod.forms.entities.IEntity;
 import mchorse.bbs_mod.forms.forms.BodyPart;
-import mchorse.bbs_mod.forms.forms.CrowdForm;
 import mchorse.bbs_mod.forms.forms.Form;
 import mchorse.bbs_mod.forms.forms.ModelForm;
 import mchorse.bbs_mod.forms.renderers.ModelFormRenderer;
@@ -166,10 +165,6 @@ public class UIReplaysEditor extends UIElement
         COLORS.put("transform_overlay", 0xaaff00);
         COLORS.put("color", Colors.INACTIVE);
         COLORS.put("shape_keys", Colors.PINK);
-        COLORS.put("crowd_look_target", Colors.CYAN);
-        COLORS.put("crowd_jump", Colors.YELLOW);
-        COLORS.put("crowd_motion_path", Colors.MAGENTA);
-        COLORS.put("crowd_texture", Colors.ORANGE);
         COLORS.put(ReplayKeyframes.RIGHT_HAND_POSE, 0x36d9d0);
         COLORS.put(ReplayKeyframes.LEFT_HAND_POSE, 0xff6699);
     }
@@ -207,10 +202,6 @@ public class UIReplaysEditor extends UIElement
         ICONS.put("count", Icons.BUCKET);
         ICONS.put("settings", Icons.GEAR);
         ICONS.put("physics_targets", Icons.TIME);
-        ICONS.put("crowd_look_target", Icons.VISIBLE);
-        ICONS.put("crowd_jump", Icons.VERTICAL);
-        ICONS.put("crowd_motion_path", Icons.ALL_DIRECTIONS);
-        ICONS.put("crowd_texture", Icons.MATERIAL);
         ICONS.put(ReplayKeyframes.RIGHT_HAND_POSE, Icons.LIMB);
         ICONS.put(ReplayKeyframes.LEFT_HAND_POSE, Icons.LIMB);
     }
@@ -632,20 +623,11 @@ public class UIReplaysEditor extends UIElement
         List<UIKeyframeSheet> sheets = new ArrayList<>();
         Map<UIKeyframeSheet, List<UIKeyframeSheet>> poseTabs = new HashMap<>();
         Map<UIKeyframeSheet, Integer> poseTabDepths = new HashMap<>();
-        boolean crowdOnly = this.replay.form.get() instanceof CrowdForm;
-
-        if (crowdOnly)
-        {
-            this.collectSheets(sheets, ReplayKeyframes.CROWD_CHANNELS);
-        }
-        else
-        {
-            this.collectCuratedSheets(sheets);
-            this.collectFormPropertySheets(sheets, poseTabs, poseTabDepths);
-            this.collectIKSheets(sheets);
-            this.collectPhysicsSheets(sheets);
-            this.placeHandPoseTracks(sheets);
-        }
+        this.collectCuratedSheets(sheets);
+        this.collectFormPropertySheets(sheets, poseTabs, poseTabDepths);
+        this.collectIKSheets(sheets);
+        this.collectPhysicsSheets(sheets);
+        this.placeHandPoseTracks(sheets);
 
         this.keys.clear();
 
@@ -658,7 +640,7 @@ public class UIReplaysEditor extends UIElement
 
         sheets.removeIf((v) ->
         {
-            if (!crowdOnly && !this.isShowingAllReplayTracks() && !this.allMode && categoryOf(v) != this.category)
+            if (!this.isShowingAllReplayTracks() && !this.allMode && categoryOf(v) != this.category)
             {
                 return true;
             }
@@ -885,21 +867,11 @@ public class UIReplaysEditor extends UIElement
     {
         for (String key : channels)
         {
-            if (isCrowdChannel(key) && !(this.replay.form.get() instanceof CrowdForm))
-            {
-                continue;
-            }
-
             BaseValue value = this.replay.keyframes.get(key);
             KeyframeChannel channel = (KeyframeChannel) value;
 
             sheets.add(new UIKeyframeSheet(getColor(key), false, channel, null).icon(ICONS.get(key)));
         }
-    }
-
-    private static boolean isCrowdChannel(String key)
-    {
-        return ReplayKeyframes.CROWD_CHANNELS.contains(key);
     }
 
     private void collectFormPropertySheets(List<UIKeyframeSheet> sheets, Map<UIKeyframeSheet, List<UIKeyframeSheet>> poseTabs, Map<UIKeyframeSheet, Integer> poseTabDepths)

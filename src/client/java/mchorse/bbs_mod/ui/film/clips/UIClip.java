@@ -12,6 +12,8 @@ import mchorse.bbs_mod.actions.types.blocks.InteractBlockActionClip;
 import mchorse.bbs_mod.actions.types.blocks.PlaceBlockActionClip;
 import mchorse.bbs_mod.actions.types.chat.ChatActionClip;
 import mchorse.bbs_mod.actions.types.chat.CommandActionClip;
+import mchorse.bbs_mod.actions.types.crowd.CrowdBehaviorActionClip;
+import mchorse.bbs_mod.actions.types.crowd.CrowdSpawnActionClip;
 import mchorse.bbs_mod.actions.types.item.ItemDropActionClip;
 import mchorse.bbs_mod.actions.types.item.UseBlockItemActionClip;
 import mchorse.bbs_mod.actions.types.item.UseItemActionClip;
@@ -43,6 +45,8 @@ import mchorse.bbs_mod.ui.film.clips.actions.UIAttackActionClip;
 import mchorse.bbs_mod.ui.film.clips.actions.UIBreakBlockActionClip;
 import mchorse.bbs_mod.ui.film.clips.actions.UIChatActionClip;
 import mchorse.bbs_mod.ui.film.clips.actions.UICommandActionClip;
+import mchorse.bbs_mod.ui.film.clips.actions.UICrowdBehaviorActionClip;
+import mchorse.bbs_mod.ui.film.clips.actions.UICrowdSpawnActionClip;
 import mchorse.bbs_mod.ui.film.clips.actions.UIDamageActionClip;
 import mchorse.bbs_mod.ui.film.clips.actions.UIInteractBlockActionClip;
 import mchorse.bbs_mod.ui.film.clips.actions.UIItemDropActionClip;
@@ -113,6 +117,8 @@ public abstract class UIClip <T extends Clip> extends UIElement
         register(DamageActionClip.class, UIDamageActionClip::new);
         register(ItemDropActionClip.class, UIItemDropActionClip::new);
         register(SwipeActionClip.class, UISwipeActionClip::new);
+        register(CrowdSpawnActionClip.class, UICrowdSpawnActionClip::new);
+        register(CrowdBehaviorActionClip.class, UICrowdBehaviorActionClip::new);
     }
 
     public static <T extends Clip> void register(Class<T> clazz, IUIClipFactory<T> factory)

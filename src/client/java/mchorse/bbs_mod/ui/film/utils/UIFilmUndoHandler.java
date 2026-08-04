@@ -2,7 +2,6 @@ package mchorse.bbs_mod.ui.film.utils;
 
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.data.types.BaseType;
-import mchorse.bbs_mod.forms.forms.CrowdForm;
 import mchorse.bbs_mod.network.ClientNetwork;
 import mchorse.bbs_mod.settings.values.IValueListener;
 import mchorse.bbs_mod.settings.values.base.BaseValue;
@@ -209,11 +208,6 @@ public class UIFilmUndoHandler extends UIFormUndoHandler
 
         while (value != null)
         {
-            if (value instanceof CrowdForm)
-            {
-                return true;
-            }
-
             if (value instanceof Clips clips && clips.getFactory() == BBSMod.getFactoryActionClips())
             {
                 return true;

@@ -78,17 +78,6 @@ public class ActorEntityRenderer extends EntityRenderer<ActorEntity>
             matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-bodyYaw));
         }
 
-        float ragdollTilt = entity.getCrowdRagdollTilt();
-
-        if (ragdollTilt > 0.001F)
-        {
-            float direction = entity.getCrowdRagdollDirection();
-
-            matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(direction));
-            matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(ragdollTilt));
-            matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-direction));
-        }
-
         if (entity.deathTime > 0)
         {
             float deathAngle = (entity.deathTime + tickDelta - 1F) / 20F * 1.6F;

@@ -6,6 +6,9 @@ import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.actions.ActionState;
+import mchorse.bbs_mod.actions.types.crowd.CrowdBehaviorActionClip;
+import mchorse.bbs_mod.actions.types.crowd.CrowdSpawnActionClip;
+import mchorse.bbs_mod.actions.types.crowd.CrowdUtils;
 import mchorse.bbs_mod.camera.Camera;
 import mchorse.bbs_mod.camera.clips.modifiers.TranslateClip;
 import mchorse.bbs_mod.camera.clips.overwrite.IdleClip;
@@ -22,6 +25,7 @@ import mchorse.bbs_mod.film.Recorder;
 import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.forms.FormUtils;
 import mchorse.bbs_mod.forms.forms.Form;
+import mchorse.bbs_mod.graphics.Draw;
 import mchorse.bbs_mod.graphics.texture.Texture;
 import mchorse.bbs_mod.graphics.window.Window;
 import mchorse.bbs_mod.l10n.L10n;
@@ -2187,6 +2191,66 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         }
 
         this.controller.renderFrame(context);
+        this.renderCrowdSpawnBox(context);
+    }
+
+    /**
+     * Outline the area a selected crowd clip works in, with one handle per axis so the
+     * numbers in the clip panel have something to mean in the world.
+     */
+    private void renderCrowdSpawnBox(WorldRenderContext context)
+    {
+        if (this.data == null || this.replayEditor == null || this.actionEditor == null || !this.actionEditor.isVisible())
+        {
+            return;
+        }
+
+        Clip actionClip = this.actionEditor.getClip();
+        double w;
+        double h;
+        double d;
+
+        if (actionClip instanceof CrowdSpawnActionClip clip)
+        {
+            w = Math.max(0.1D, clip.boxX.get());
+            h = Math.max(0.05D, clip.boxY.get());
+            d = Math.max(0.1D, clip.boxZ.get());
+        }
+        else if (actionClip instanceof CrowdBehaviorActionClip clip)
+        {
+            w = Math.max(0.1D, clip.areaX.get());
+            h = Math.max(0.05D, clip.areaY.get());
+            d = Math.max(0.1D, clip.areaZ.get());
+        }
+        else
+        {
+            return;
+        }
+
+        Replay replay = this.replayEditor.getReplay();
+
+        if (replay == null)
+        {
+            return;
+        }
+
+        Vec3d center = CrowdUtils.replayPosition(replay, this.getCursor());
+        Vec3d camera = context.camera().getPos();
+        double x = center.x - camera.x - w / 2D;
+        double y = center.y - camera.y;
+        double z = center.z - camera.z - d / 2D;
+        double handle = Math.max(0.16D, Math.min(Math.min(w, h + 0.1D), d) * 0.08D);
+
+        RenderSystem.enableDepthTest();
+        RenderSystem.enableBlend();
+
+        Draw.renderBox(context.matrixStack(), x, y, z, w, h, d, 0.1F, 0.8F, 1F, 0.55F);
+        Draw.renderBox(context.matrixStack(), x + w - handle / 2D, y + h / 2D - handle / 2D, z + d / 2D - handle / 2D, handle, handle, handle, 1F, 0.2F, 0.2F, 0.85F);
+        Draw.renderBox(context.matrixStack(), x + w / 2D - handle / 2D, y + h - handle / 2D, z + d / 2D - handle / 2D, handle, handle, handle, 0.2F, 1F, 0.2F, 0.85F);
+        Draw.renderBox(context.matrixStack(), x + w / 2D - handle / 2D, y + h / 2D - handle / 2D, z + d - handle / 2D, handle, handle, handle, 0.2F, 0.4F, 1F, 0.85F);
+
+        RenderSystem.disableBlend();
+        RenderSystem.disableDepthTest();
     }
 
     /* IUICameraWorkDelegate implementation */

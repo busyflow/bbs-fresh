@@ -3,6 +3,7 @@ package mchorse.bbs_mod.actions.types.crowd;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.actions.SuperFakePlayer;
 import mchorse.bbs_mod.actions.types.ActionClip;
+import mchorse.bbs_mod.actions.types.DamageActionClip;
 import mchorse.bbs_mod.entity.GunProjectileEntity;
 import mchorse.bbs_mod.film.Film;
 import mchorse.bbs_mod.film.replays.Replay;
@@ -28,7 +29,6 @@ import net.minecraft.item.Items;
 import net.minecraft.particle.BlockStateParticleEffect;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
@@ -72,7 +72,7 @@ public class CrowdBehaviorActionClip extends ActionClip
     public final ValueBoolean crouch = new ValueBoolean("crouch", false);
     public final ValueBoolean zigZag = new ValueBoolean("zig_zag", false);
     public final ValueBoolean randomJump = new ValueBoolean("random_jump", false);
-    public final ValueFloat jumpRate = new ValueFloat("jump_rate", 0.25F, 0F, 10F);
+    public final ValueFloat jumpRate = new ValueFloat("jump_rate", 0.25F, 0F, 5F);
     public final ValueBoolean armSwing = new ValueBoolean("arm_swing", false);
     public final ValueFloat armSwingRate = new ValueFloat("arm_swing_rate", 1F, 0F, 20F);
     public final ValueBoolean headMotion = new ValueBoolean("head_motion", true);
@@ -114,8 +114,8 @@ public class CrowdBehaviorActionClip extends ActionClip
     {
         super();
 
-        /* Left empty on purpose: touching Items here drags the whole item registry into
-         * construction, and createProjectileForm already falls back to a snowball. */
+        this.shootItem.set(new ItemStack(Items.SNOWBALL));
+
         this.add(this.crowdTag);
         this.add(this.target);
         this.add(this.mode);
@@ -183,7 +183,7 @@ public class CrowdBehaviorActionClip extends ActionClip
     @Override
     public void applyAction(LivingEntity actor, SuperFakePlayer player, Film film, Replay replay, int tick)
     {
-        if (player == null || !CrowdUtils.isServerLevel(player.getWorld()) || film == null)
+        if (player == null || !CrowdUtils.isServerWorld(player.getWorld()) || film == null)
         {
             return;
         }
@@ -231,6 +231,9 @@ public class CrowdBehaviorActionClip extends ActionClip
         }
 
         List<LivingEntity> enemies = this.getEnemyCrowd(world, film, gatherPos, mode);
+        LivingEntity replayEnemy = mode == CrowdBehaviorMode.FIGHT
+            ? this.resolveReplayTargetEntity(film, noTarget ? null : targetReplay)
+            : null;
         double stopDistance = Math.max(0D, this.stopDistance.get());
         double stopDistanceSq = stopDistance * stopDistance;
         double speed = Math.max(0D, this.speed.get()) * this.getMoveBlend(tick);
@@ -250,7 +253,7 @@ public class CrowdBehaviorActionClip extends ActionClip
 
             this.prepareCrowdEntity(entity);
 
-            FightTarget fightTarget = mode == CrowdBehaviorMode.FIGHT ? this.chooseFightTarget(entity, enemies, gatherPos, tick) : null;
+            FightTarget fightTarget = mode == CrowdBehaviorMode.FIGHT ? this.chooseFightTarget(entity, enemies, replayEnemy, gatherPos, tick) : null;
             boolean lookingAround = this.isLookAroundPause(entity, mode, tick);
             Vec3d destination = fightTarget == null
                 ? this.getDestination(entity, gatherPos, mode, tick, noTarget)
@@ -346,12 +349,32 @@ public class CrowdBehaviorActionClip extends ActionClip
     }
 
     /**
-     * Fight targets come from the enemy crowd tag. Targeting a replay's own actor is not
-     * supported here: this build has no playback actor registry to resolve a replay id to
-     * the entity performing it, so an empty enemy group simply converges on the target
-     * position instead of silently doing nothing.
+     * Turns the chosen target replay into the living entity currently performing it, so a
+     * crowd can fight a specific actor and not just an enemy group. The player publishes the
+     * cast every applied tick; before playback starts there is nobody to resolve.
      */
-    private FightTarget chooseFightTarget(LivingEntity entity, List<LivingEntity> enemies, Vec3d fallback, int tick)
+    private LivingEntity resolveReplayTargetEntity(Film film, Replay targetReplay)
+    {
+        if (this.target.get() == TARGET_NONE || targetReplay == null)
+        {
+            return null;
+        }
+
+        if (this.target.get() == DamageActionClip.recordingReplay)
+        {
+            return DamageActionClip.recordingPlayer;
+        }
+
+        if (DamageActionClip.actorContext == null)
+        {
+            return null;
+        }
+
+        return DamageActionClip.actorContext.get(targetReplay.getId());
+    }
+
+    private FightTarget chooseFightTarget(LivingEntity entity, List<LivingEntity> enemies, LivingEntity replayEnemy,
+        Vec3d fallback, int tick)
     {
         List<LivingEntity> candidates = new ArrayList<>();
 
@@ -361,6 +384,11 @@ public class CrowdBehaviorActionClip extends ActionClip
             {
                 candidates.add(enemy);
             }
+        }
+
+        if (this.isValidEnemy(entity, replayEnemy))
+        {
+            candidates.add(replayEnemy);
         }
 
         if (candidates.isEmpty())
@@ -1106,15 +1134,15 @@ public class CrowdBehaviorActionClip extends ActionClip
         projectile.setProperties(properties);
         projectile.setForm(FormUtils.copy(properties.projectileForm));
         projectile.setPos(mob.getX(), mob.getY() + mob.getEyeHeight(mob.getPose()), mob.getZ());
-        projectile.setVelocity(new Vec3d(x, y + horizontal * 0.2D, z).normalize().multiply(properties.speed));
+        projectile.setVelocity(x, y + horizontal * 0.2D, z, properties.speed, 12F);
         projectile.calculateDimensions();
 
         world.spawnEntity(projectile);
-        world.playSound(null, mob.getX(), mob.getY(), mob.getZ(), SoundEvents.ENTITY_SNOW_GOLEM_SHOOT, SoundCategory.NEUTRAL, 1F, 1F / (world.getRandom().nextFloat() * 0.4F + 0.8F));
+        world.playSound(null, mob.getX(), mob.getY(), mob.getZ(), SoundEvents.ENTITY_SNOW_GOLEM_SHOOT, mob.getSoundCategory(), 1F, 1F / (world.random.nextFloat() * 0.4F + 0.8F));
 
-        if (!properties.cmdFiring.isEmpty() && world.getServer() != null)
+        if (!properties.cmdFiring.isEmpty() && mob.getServer() != null)
         {
-            world.getServer().getCommandManager().executeWithPrefix(mob.getCommandSource(), properties.cmdFiring);
+            mob.getServer().getCommandManager().executeWithPrefix(mob.getCommandSource(), properties.cmdFiring);
         }
     }
 
