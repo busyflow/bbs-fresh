@@ -4,6 +4,7 @@ import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.actions.crowd.CrowdMotionPath;
 import mchorse.bbs_mod.actions.crowd.CrowdTexture;
 import mchorse.bbs_mod.actions.types.crowd.CrowdFormation;
+import mchorse.bbs_mod.actions.types.crowd.CrowdSpawnActionClip;
 import mchorse.bbs_mod.data.types.BaseType;
 import mchorse.bbs_mod.data.types.MapType;
 import mchorse.bbs_mod.forms.forms.crowd.CrowdMemberSource;
@@ -59,7 +60,7 @@ public class CrowdFormTest
     {
         CrowdForm crowd = new CrowdForm();
 
-        assertEquals(4, CrowdForm.CURRENT_SCHEMA);
+        assertEquals(5, CrowdForm.CURRENT_SCHEMA);
         assertFalse(crowd.sources.isVisible());
         assertFalse(crowd.count.isVisible());
         assertFalse(crowd.formation.isVisible());
@@ -130,7 +131,7 @@ public class CrowdFormTest
         CrowdMemberSource source = crowd.sources.addSource(new LabelForm());
 
         crowd.count.set(-100);
-        crowd.renderBudget.set(999_999);
+        crowd.renderBudget.set(9_999_999);
         source.weight.set(0);
         source.minimumScale.set(-2F);
 
@@ -140,6 +141,41 @@ public class CrowdFormTest
         assertEquals(CrowdForm.MAX_RENDER_BUDGET, crowd.renderBudget.get());
         assertEquals(1, source.weight.get());
         assertEquals(0.01F, source.minimumScale.get());
+    }
+
+    @Test
+    public void millionMemberCrowdsKeepTheirFullLayoutAndWorldScaleRadius()
+    {
+        CrowdForm crowd = new CrowdForm();
+
+        crowd.count.set(CrowdSpawnActionClip.MAX_MEMBERS);
+        crowd.radius.set(CrowdForm.MAX_RADIUS);
+        crowd.validateCrowd();
+
+        assertEquals(CrowdSpawnActionClip.MAX_MEMBERS, crowd.count.get());
+        assertEquals(CrowdSpawnActionClip.MAX_MEMBERS, crowd.renderBudget.get());
+        assertEquals(CrowdForm.MAX_RADIUS, crowd.radius.get());
+
+        CrowdSpawnActionClip spawn = new CrowdSpawnActionClip();
+
+        spawn.radius.set(CrowdForm.MAX_RADIUS);
+        assertEquals(CrowdForm.MAX_RADIUS, spawn.radius.get());
+    }
+
+    @Test
+    public void schemaFourCrowdsMigrateAwayFromTheOldVisualCap()
+    {
+        MapType old = new MapType();
+
+        old.putInt("crowd_schema", 4);
+        old.putInt("count", 250_000);
+        old.putInt("render_budget", 4096);
+
+        CrowdForm crowd = new CrowdForm();
+        crowd.fromData(old);
+
+        assertEquals(250_000, crowd.count.get());
+        assertEquals(CrowdForm.MAX_RENDER_BUDGET, crowd.renderBudget.get());
     }
 
     @Test

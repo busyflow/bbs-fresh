@@ -21,8 +21,9 @@ import mchorse.bbs_mod.utils.pose.Transform;
  */
 public class CrowdForm extends Form
 {
-    public static final int CURRENT_SCHEMA = 4;
-    public static final int MAX_RENDER_BUDGET = 100_000;
+    public static final int CURRENT_SCHEMA = 5;
+    public static final float MAX_RADIUS = CrowdSpawnActionClip.MAX_RADIUS;
+    public static final int MAX_RENDER_BUDGET = CrowdSpawnActionClip.MAX_MEMBERS;
 
     public final ValueInt crowdSchema = new ValueInt("crowd_schema", CURRENT_SCHEMA);
     public final ValueForm memberForm = new ValueForm("member_form");
@@ -31,10 +32,10 @@ public class CrowdForm extends Form
     public final ValueInt formation = new ValueInt("formation", CrowdFormation.GRID.ordinal(), 0, CrowdFormation.values().length - 1);
     public final ValueBoolean perBlock = new ValueBoolean("per_block", false);
     public final ValueFloat spacing = new ValueFloat("spacing", 1.5F, 0.1F, 64F);
-    public final ValueFloat radius = new ValueFloat("radius", 4F, 0.1F, 512F);
+    public final ValueFloat radius = new ValueFloat("radius", 4F, 0.1F, MAX_RADIUS);
     public final ValueInt seed = new ValueInt("seed", 0);
     public final ValueFloat variation = new ValueFloat("variation", 0F, 0F, 180F);
-    public final ValueInt renderBudget = new ValueInt("render_budget", 4096, 1, MAX_RENDER_BUDGET);
+    public final ValueInt renderBudget = new ValueInt("render_budget", MAX_RENDER_BUDGET, 1, MAX_RENDER_BUDGET);
     public final ValueLink textureFolder = new ValueLink("texture_folder", null);
     public final ValueBoolean recursiveTextures = new ValueBoolean("recursive_textures", false);
     public final ValueInt textureRevision = new ValueInt("texture_revision", 0);
@@ -229,7 +230,7 @@ public class CrowdForm extends Form
         }
 
         this.spacing.set(Math.max(0.1F, this.spacing.get()));
-        this.radius.set(Math.max(0.1F, this.radius.get()));
+        this.radius.set(Math.max(0.1F, Math.min(MAX_RADIUS, this.radius.get())));
         this.renderBudget.set(Math.max(1, Math.min(MAX_RENDER_BUDGET, this.renderBudget.get())));
         this.health.set(Math.max(0F, Math.min(1024F, this.health.get())));
         this.hollow.set(Math.max(0F, Math.min(0.95F, this.hollow.get())));
@@ -285,6 +286,12 @@ public class CrowdForm extends Form
                 /* Circle did not expose the hole control before schema 4. */
                 this.hollow.set(0F);
             }
+        }
+
+        if (schema < 5)
+        {
+            /* Earlier versions defaulted to 4,096, silently hiding most mega crowds. */
+            this.renderBudget.set(MAX_RENDER_BUDGET);
         }
 
         this.validateCrowd();

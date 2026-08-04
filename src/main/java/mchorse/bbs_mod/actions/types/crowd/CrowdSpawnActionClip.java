@@ -50,6 +50,8 @@ public class CrowdSpawnActionClip extends ActionClip
 {
 	/** Logical cinematic crowd size. Mega crowds are visualized with client-side LOD. */
 	public static final int MAX_MEMBERS = 1_000_000;
+	/** Minecraft's practical world boundary, rather than an arbitrary editor cap. */
+	public static final float MAX_RADIUS = 30_000_000F;
 	/**
 	 * Full living entities are the interactive damage/combat tier. The remaining
 	 * logical members are rendered by the client-side crowd tier.
@@ -94,7 +96,7 @@ public class CrowdSpawnActionClip extends ActionClip
     public final ValueInt randomArmorFeetMaterials = new ValueInt("random_armor_feet_materials", ARMOR_ALL, 0, ARMOR_ALL);
     public final ValueInt formation = new ValueInt("formation", CrowdFormation.CIRCLE.ordinal(), 0, CrowdFormation.values().length - 1);
     public final ValueFloat hollow = new ValueFloat("hollow", 0F, 0F, 0.95F);
-    public final ValueFloat radius = new ValueFloat("radius", 0F, 0F, 512F);
+    public final ValueFloat radius = new ValueFloat("radius", 0F, 0F, MAX_RADIUS);
     public final ValueInt seed = new ValueInt("seed", 0);
     public final ValueFloat yawVariation = new ValueFloat("yaw_variation", 0F, 0F, 180F);
     public final ValueFloat boxX = new ValueFloat("box_x", 8F, 0.1F, 256F);

@@ -41,6 +41,12 @@ import java.util.HashSet;
 public class CrowdFormRenderer extends FormRenderer<CrowdForm>
 {
     private static final int MAX_TEXTURES = 256;
+    private static final int UI_DENSITY_TARGET = 20_000;
+    private static final int RECORDING_DENSITY_TARGET = 100_000;
+    private static final int NEAR_DENSITY_TARGET = 50_000;
+    private static final int MID_DENSITY_TARGET = 30_000;
+    private static final int FAR_DENSITY_TARGET = 20_000;
+    private static final int DISTANT_DENSITY_TARGET = 10_000;
 
     private int cachedCount = -1;
     private int cachedBudget = -1;
@@ -64,6 +70,8 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
     private final float[] lookRotation = new float[2];
     private final Vector3f worldPosition = new Vector3f();
     private MemberLayout members = MemberLayout.EMPTY;
+    private int cachedVisibleStride = -1;
+    private int[] visibleSlots = new int[0];
 
     public CrowdFormRenderer(CrowdForm form)
     {
@@ -111,6 +119,7 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
         float ragdollProgress = ragdoll == null ? 0F : ragdoll.progress(MathHelper.floor(replayTick));
         MatrixStack parentWorld = context.world;
         int lodStride = this.getLodStride(context, parentWorld);
+        int[] visibleSlots = this.getVisibleSlots(lodStride);
         boolean suppressStencilUpdates = context.suppressStencilUpdates;
         StubPose stubPose = stub == null ? null : StubPose.capture(stub);
         Form batchedForm = null;
@@ -126,16 +135,9 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
 
         try
         {
-            for (int slot = 0; slot < this.members.size; slot++)
+            for (int slot : visibleSlots)
             {
                 int logicalIndex = this.members.logicalIndices[slot];
-
-                /* Reject a visual proxy before motion, jump, look, texture and matrix work.
-                 * The logical index makes the subset stable while seeking or recording. */
-                if (this.members.lodRanks[slot] % lodStride != 0)
-                {
-                    continue;
-                }
 
                 float x = this.members.x[slot];
                 float y = 0F;
@@ -309,25 +311,26 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
     private int getLodStride(FormRenderingContext context, MatrixStack world)
     {
         int size = this.members.size;
+        int renderLimit = Math.max(1, Math.min(size, this.form.renderBudget.get()));
 
-        if (size <= 2048)
+        if (size <= Math.min(UI_DENSITY_TARGET, renderLimit))
         {
             return 1;
         }
 
         if (context.ui)
         {
-            return strideForTarget(size, 1024);
+            return strideForTarget(size, Math.min(UI_DENSITY_TARGET, renderLimit));
         }
 
         if (BBSModClient.getVideoRecorder() != null && BBSModClient.getVideoRecorder().isRecording())
         {
-            return 1;
+            return strideForTarget(size, Math.min(RECORDING_DENSITY_TARGET, renderLimit));
         }
 
         if (world == null)
         {
-            return strideForTarget(size, 4_096);
+            return strideForTarget(size, Math.min(MID_DENSITY_TARGET, renderLimit));
         }
 
         world.peek().getPositionMatrix().transformPosition(this.worldPosition.set(0F, 0F, 0F));
@@ -339,25 +342,51 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
 
         if (distanceSquared <= 24D * 24D)
         {
-            return strideForTarget(size, 12_000);
+            return strideForTarget(size, Math.min(NEAR_DENSITY_TARGET, renderLimit));
         }
 
         if (distanceSquared <= 48D * 48D)
         {
-            return strideForTarget(size, 8_000);
+            return strideForTarget(size, Math.min(MID_DENSITY_TARGET, renderLimit));
         }
 
         if (distanceSquared <= 96D * 96D)
         {
-            return strideForTarget(size, 4_096);
+            return strideForTarget(size, Math.min(FAR_DENSITY_TARGET, renderLimit));
         }
 
-        return strideForTarget(size, 2_048);
+        return strideForTarget(size, Math.min(DISTANT_DENSITY_TARGET, renderLimit));
     }
 
     private static int strideForTarget(int size, int target)
     {
         return Math.max(1, (size + Math.max(1, target) - 1) / Math.max(1, target));
+    }
+
+    private int[] getVisibleSlots(int stride)
+    {
+        stride = Math.max(1, stride);
+
+        if (stride == this.cachedVisibleStride)
+        {
+            return this.visibleSlots;
+        }
+
+        int[] slots = new int[(this.members.size + stride - 1) / stride];
+        int cursor = 0;
+
+        for (int slot = 0; slot < this.members.size; slot++)
+        {
+            if (this.members.lodRanks[slot] % stride == 0)
+            {
+                slots[cursor++] = slot;
+            }
+        }
+
+        this.cachedVisibleStride = stride;
+        this.visibleSlots = cursor == slots.length ? slots : Arrays.copyOf(slots, cursor);
+
+        return this.visibleSlots;
     }
 
     private void applyMemberTransform(MatrixStack stack, float x, float y, float z, float yaw, float scale,
@@ -386,7 +415,7 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
         this.updateTextures();
 
         int count = this.form.count.get();
-        int budget = Math.min(count, this.form.renderBudget.get());
+        int budget = count;
         long sourceSignature = this.form.sources.getAllTyped().isEmpty()
             ? System.identityHashCode(this.form.getMemberForm())
             : this.form.sources.signature();
@@ -452,6 +481,8 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
         }
 
         this.members = members.sortedByAppearance();
+        this.cachedVisibleStride = -1;
+        this.visibleSlots = new int[0];
     }
 
     private void updateTextures()

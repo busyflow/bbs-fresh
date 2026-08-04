@@ -1,6 +1,7 @@
 package mchorse.bbs_mod.ui.forms.editors.panels;
 
 import mchorse.bbs_mod.actions.types.crowd.CrowdFormation;
+import mchorse.bbs_mod.actions.types.crowd.CrowdSpawnActionClip;
 import mchorse.bbs_mod.forms.FormUtils;
 import mchorse.bbs_mod.forms.forms.CrowdForm;
 import mchorse.bbs_mod.forms.forms.Form;
@@ -64,9 +65,15 @@ public class UICrowdFormPanel extends UIFormPanel<CrowdForm>
             CrowdMemberSource source = this.getSelectedSource();
             if (source != null) source.maximumScale.set(v.floatValue());
         }).limit(0.01, 10);
-        this.count = new UITrackpad((v) -> this.form.count.set(v.intValue())).limit(1, 1_000_000, true);
+        this.count = new UITrackpad((v) ->
+        {
+            int count = v.intValue();
+
+            this.form.count.set(count);
+            this.form.renderBudget.set(Math.max(this.form.renderBudget.get(), count));
+        }).limit(1, CrowdSpawnActionClip.MAX_MEMBERS, true);
         this.spacing = new UITrackpad((v) -> this.form.spacing.set(v.floatValue())).limit(0.1, 32);
-        this.radius = new UITrackpad((v) -> this.form.radius.set(v.floatValue())).limit(0.1, 64);
+        this.radius = new UITrackpad((v) -> this.form.radius.set(v.floatValue())).limit(0.1, CrowdForm.MAX_RADIUS);
         this.hollow = new UITrackpad((v) -> this.form.hollow.set(v.floatValue()))
             .limit(0, 0.95).increment(0.05).values(0.05, 0.01, 0.1);
         this.hollowRow = UI.labelRow(IKey.constant("Center hole"), this.hollow);

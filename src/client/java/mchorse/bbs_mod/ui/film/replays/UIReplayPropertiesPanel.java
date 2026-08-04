@@ -2,6 +2,7 @@ package mchorse.bbs_mod.ui.film.replays;
 
 import mchorse.bbs_mod.actions.types.crowd.CrowdBehaviorMode;
 import mchorse.bbs_mod.actions.types.crowd.CrowdFormation;
+import mchorse.bbs_mod.actions.types.crowd.CrowdSpawnActionClip;
 import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.forms.FormUtils;
 import mchorse.bbs_mod.forms.forms.CrowdForm;
@@ -206,12 +207,17 @@ public class UIReplayPropertiesPanel extends UIElement
         });
         this.crowdPerBlock = new UIToggle(IKey.constant("Spawn one member per block"), (b) ->
             this.editCrowd((crowd) -> crowd.perBlock.set(b.getValue())));
-        this.crowdCount = new UITrackpad((v) -> this.editCrowd((crowd) -> crowd.count.set(v.intValue())))
-            .limit(1, 1_000_000, true);
+        this.crowdCount = new UITrackpad((v) -> this.editCrowd((crowd) ->
+        {
+            int count = v.intValue();
+
+            crowd.count.set(count);
+            crowd.renderBudget.set(Math.max(crowd.renderBudget.get(), count));
+        })).limit(1, CrowdSpawnActionClip.MAX_MEMBERS, true);
         this.crowdSpacing = new UITrackpad((v) -> this.editCrowd((crowd) -> crowd.spacing.set(v.floatValue())))
             .limit(0.1, 32);
         this.crowdRadius = new UITrackpad((v) -> this.editCrowd((crowd) -> crowd.radius.set(v.floatValue())))
-            .limit(0.1, 64);
+            .limit(0.1, CrowdForm.MAX_RADIUS);
         this.crowdHollow = new UITrackpad((v) -> this.editCrowd((crowd) -> crowd.hollow.set(v.floatValue())))
             .limit(0, 0.95).increment(0.05).values(0.05, 0.01, 0.1);
         this.crowdHollowField = this.compactCrowdField("Hole", this.crowdHollow);
@@ -219,7 +225,7 @@ public class UIReplayPropertiesPanel extends UIElement
         this.crowdVariation = new UITrackpad((v) -> this.editCrowd((crowd) -> crowd.variation.set(v.floatValue())))
             .limit(0, 180);
         this.crowdRenderBudget = new UITrackpad((v) -> this.editCrowd((crowd) -> crowd.renderBudget.set(v.intValue())))
-            .limit(1, 20_000, true);
+            .limit(1, CrowdForm.MAX_RENDER_BUDGET, true);
         this.crowdHealth = new UITrackpad((v) -> this.editCrowd((crowd) -> crowd.health.set(v.floatValue())))
             .limit(0, 1024);
         this.crowdRandomArmor = new UIToggle(IKey.constant("Randomize armor"), (b) ->
