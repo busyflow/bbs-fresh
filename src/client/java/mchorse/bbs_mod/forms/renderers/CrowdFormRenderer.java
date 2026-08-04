@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.forms.renderers;
 
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.actions.crowd.CrowdJumpEvaluator;
@@ -23,9 +24,13 @@ import mchorse.bbs_mod.settings.values.core.ValueLink;
 import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.utils.clips.Clip;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RotationAxis;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.Heightmap;
+import net.minecraft.world.World;
+import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
@@ -47,6 +52,8 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
     private static final int MID_DENSITY_TARGET = 30_000;
     private static final int FAR_DENSITY_TARGET = 20_000;
     private static final int DISTANT_DENSITY_TARGET = 10_000;
+    private static final int MAX_TERRAIN_CACHE_COLUMNS = 262_144;
+    private static final int MISSING_TERRAIN_HEIGHT = Integer.MIN_VALUE;
 
     private int cachedCount = -1;
     private int cachedBudget = -1;
@@ -69,6 +76,9 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
     private final double[] motionPosition = new double[3];
     private final float[] lookRotation = new float[2];
     private final Vector3f worldPosition = new Vector3f();
+    private final BlockPos.Mutable terrainProbe = new BlockPos.Mutable();
+    private final Long2IntOpenHashMap terrainHeights = new Long2IntOpenHashMap();
+    private World cachedTerrainWorld;
     private MemberLayout members = MemberLayout.EMPTY;
     private int cachedVisibleStride = -1;
     private int[] visibleSlots = new int[0];
@@ -76,6 +86,8 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
     public CrowdFormRenderer(CrowdForm form)
     {
         super(form);
+
+        this.terrainHeights.defaultReturnValue(MISSING_TERRAIN_HEIGHT);
     }
 
     @Override
@@ -122,13 +134,23 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
         int[] visibleSlots = this.getVisibleSlots(lodStride);
         boolean suppressStencilUpdates = context.suppressStencilUpdates;
         StubPose stubPose = stub == null ? null : StubPose.capture(stub);
+        boolean sprinting = motion != null && motion.moving() && motion.path().run;
+        World crowdWorld = stub == null ? null : stub.getWorld();
+        boolean terrainFollow = crowdWorld != null && parentWorld != null && !context.ui
+            && (motion == null || motion.path().terrainFollow);
+        Matrix4f worldMatrix = parentWorld == null ? null : parentWorld.peek().getPositionMatrix();
         Form batchedForm = null;
         FormRenderer batchedRenderer = null;
         boolean batchOpen = false;
 
-        if (stub != null && motion != null)
+        if (stub != null)
         {
-            stub.setSprinting(motion.moving() && motion.path().run);
+            stub.setSprinting(sprinting);
+
+            if (jumps == null)
+            {
+                stub.setOnGround(true);
+            }
         }
 
         context.suppressStencilUpdates = true;
@@ -157,41 +179,71 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
                     }
                 }
 
+                if (terrainFollow)
+                {
+                    worldMatrix.transformPosition(this.worldPosition.set(x, 0F, z));
+
+                    int groundY = this.getSurfaceY(crowdWorld,
+                        MathHelper.floor(this.worldPosition.x), MathHelper.floor(this.worldPosition.z),
+                        MathHelper.floor(this.worldPosition.y));
+                    float verticalScale = worldMatrix.m11();
+
+                    if (groundY != MISSING_TERRAIN_HEIGHT && Math.abs(verticalScale) > 0.000001F)
+                    {
+                        y += (groundY - this.worldPosition.y) / verticalScale;
+                    }
+                }
+
                 double jumpHeight = jumps == null ? 0D : jumps.height(logicalIndex);
 
                 y += (float) jumpHeight;
 
                 if (stubPose != null)
                 {
-                    stubPose.restore(stub);
-                    if (motion != null)
+                    if (look != null)
                     {
-                        stub.setSprinting(motion.moving() && motion.path().run);
-                    }
+                        /* Look overrides mutate the shared stub, so only those members need
+                         * a full restore. Ordinary members keep the one frame-level pose. */
+                        stubPose.restore(stub);
+                        stub.setSprinting(sprinting);
 
-                    if (look != null && CrowdLookEvaluator.rotation(
-                        stub.getX() + x, stub.getY() + y + stub.getEyeHeight(), stub.getZ() + z,
-                        look, this.lookRotation))
-                    {
-                        CrowdLookTarget control = look.control();
-                        float bodyYaw = stubPose.bodyYaw;
-                        float delta = MathHelper.wrapDegrees(this.lookRotation[0] - bodyYaw);
-                        float limit = Math.max(0F, this.form.behaviorHeadYawLimit.get());
-
-                        if (Math.abs(delta) > limit)
+                        if (worldMatrix != null)
                         {
-                            bodyYaw += delta - Math.copySign(limit, delta);
+                            worldMatrix.transformPosition(this.worldPosition.set(x, y, z));
+                        }
+                        else
+                        {
+                            this.worldPosition.set((float) (stub.getX() + x), (float) (stub.getY() + y),
+                                (float) (stub.getZ() + z));
                         }
 
-                        stubPose.applyLook(stub, bodyYaw, this.lookRotation[0], this.lookRotation[1], control);
-
-                        if (control.yaw() || control.bodyYaw())
+                        if (CrowdLookEvaluator.rotation(
+                            this.worldPosition.x, this.worldPosition.y + stub.getEyeHeight(), this.worldPosition.z,
+                            look, this.lookRotation))
                         {
-                            yaw += MathHelper.wrapDegrees(bodyYaw - stubPose.bodyYaw);
+                            CrowdLookTarget control = look.control();
+                            float bodyYaw = stubPose.bodyYaw;
+                            float delta = MathHelper.wrapDegrees(this.lookRotation[0] - bodyYaw);
+                            float limit = Math.max(0F, this.form.behaviorHeadYawLimit.get());
+
+                            if (Math.abs(delta) > limit)
+                            {
+                                bodyYaw += delta - Math.copySign(limit, delta);
+                            }
+
+                            stubPose.applyLook(stub, bodyYaw, this.lookRotation[0], this.lookRotation[1], control);
+
+                            if (control.yaw() || control.bodyYaw())
+                            {
+                                yaw += MathHelper.wrapDegrees(bodyYaw - stubPose.bodyYaw);
+                            }
                         }
                     }
 
-                    stub.setOnGround(jumpHeight <= 0.000001D);
+                    if (look != null || jumps != null)
+                    {
+                        stub.setOnGround(jumpHeight <= 0.000001D);
+                    }
                 }
 
                 int sourceIndex = this.members.sourceIndices[slot];
@@ -282,6 +334,42 @@ public class CrowdFormRenderer extends FormRenderer<CrowdForm>
                 stubPose.restore(stub);
             }
         }
+    }
+
+    /** Cache loaded heightmap columns so dense members sharing a block never repeat the query. */
+    private int getSurfaceY(World world, int x, int z, int fallbackY)
+    {
+        if (world != this.cachedTerrainWorld)
+        {
+            this.cachedTerrainWorld = world;
+            this.terrainHeights.clear();
+        }
+
+        long key = (long) x << 32 ^ z & 0xffffffffL;
+        int cached = this.terrainHeights.get(key);
+
+        if (cached != MISSING_TERRAIN_HEIGHT)
+        {
+            return cached;
+        }
+
+        this.terrainProbe.set(x, fallbackY, z);
+
+        if (!world.isChunkLoaded(this.terrainProbe))
+        {
+            return MISSING_TERRAIN_HEIGHT;
+        }
+
+        int height = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, x, z);
+
+        if (this.terrainHeights.size() >= MAX_TERRAIN_CACHE_COLUMNS)
+        {
+            this.terrainHeights.clear();
+        }
+
+        this.terrainHeights.put(key, height);
+
+        return height;
     }
 
     private CrowdRagdollActionClip getRagdoll(Replay replay, int tick)
