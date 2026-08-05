@@ -1449,8 +1449,9 @@ public abstract class BaseFilmController
     private void applyRagdoll(Replay replay, Form root, float tick)
     {
         RagdollActionClip ragdoll = null;
+        int playbackTick = replay.getTick((int) tick);
 
-        for (Clip clip : replay.actions.getClips(replay.getTick((int) tick)))
+        for (Clip clip : replay.actions.getClips(playbackTick))
         {
             if (clip instanceof RagdollActionClip candidate && candidate.enabled.get())
             {
@@ -1458,10 +1459,10 @@ public abstract class BaseFilmController
             }
         }
 
-        this.applyRagdoll(root, ragdoll);
+        this.applyRagdoll(root, ragdoll, playbackTick);
     }
 
-    private void applyRagdoll(Form form, RagdollActionClip ragdoll)
+    private void applyRagdoll(Form form, RagdollActionClip ragdoll, int playbackTick)
     {
         if (form instanceof ModelForm modelForm)
         {
@@ -1477,6 +1478,7 @@ public abstract class BaseFilmController
                 }
 
                 ragdoll.fill(modelForm.ragdollOverride);
+                modelForm.ragdollOverride.playbackTick = playbackTick;
             }
         }
 
@@ -1486,7 +1488,7 @@ public abstract class BaseFilmController
 
             if (child != null)
             {
-                this.applyRagdoll(child, ragdoll);
+                this.applyRagdoll(child, ragdoll, playbackTick);
             }
         }
     }

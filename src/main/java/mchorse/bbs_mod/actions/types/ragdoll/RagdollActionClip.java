@@ -38,6 +38,9 @@ public class RagdollActionClip extends ActionClip
     /** How thick the limbs are for collision, in blocks. */
     public final ValueFloat radius = new ValueFloat("radius", 0.12F, 0.01F, 1F);
 
+    /** Uneven spin and per-limb velocity layered over the directed impact. */
+    public final ValueFloat flail = new ValueFloat("flail", 0.75F, 0F, 5F);
+
     public final ValueBoolean collisions = new ValueBoolean("collisions", true);
 
     /** Whether the body itself goes over, or only the limbs go slack while it stands. */
@@ -54,6 +57,7 @@ public class RagdollActionClip extends ActionClip
         this.add(this.damping);
         this.add(this.stiffness);
         this.add(this.radius);
+        this.add(this.flail);
         this.add(this.collisions);
         this.add(this.topple);
     }
@@ -73,6 +77,7 @@ public class RagdollActionClip extends ActionClip
         control.damping = this.damping.get();
         control.stiffness = this.stiffness.get();
         control.radius = this.radius.get();
+        control.flail = this.flail.get();
         control.collisions = this.collisions.get();
         control.topple = this.topple.get();
         /* The blow is this clip starting, so the tick it starts on names it. Scrub back over the

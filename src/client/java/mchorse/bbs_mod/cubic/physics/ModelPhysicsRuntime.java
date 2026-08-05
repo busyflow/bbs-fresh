@@ -59,6 +59,8 @@ public final class ModelPhysicsRuntime
     {
         public final Map<String, ChainState> chains = new HashMap<>();
         public final BodyState body = new BodyState();
+        public int ragdollLastTick = Integer.MIN_VALUE;
+        public int ragdollLastAge = Integer.MIN_VALUE;
 
         /**
          * The model the chains were last simulated against. States are keyed by form, not by model, so a
@@ -145,7 +147,36 @@ public final class ModelPhysicsRuntime
         {
             state.chains.clear();
             state.body.reset();
+            state.ragdollLastTick = Integer.MIN_VALUE;
+            state.ragdollLastAge = Integer.MIN_VALUE;
             state.modelId = instance.id;
+        }
+
+        if (ragdoll != null)
+        {
+            /* The clip object can start at the same timeline tick on every playback, so its
+             * impulse id alone cannot distinguish a fresh entry from a previous completed fall.
+             * The override itself is recreated when the clip is entered. Consume that edge once,
+             * and also treat a backwards playhead as a restart when a clip covers the loop point. */
+            boolean tracked = state.ragdollLastTick != Integer.MIN_VALUE;
+            int playbackDelta = tracked ? ragdoll.playbackTick - state.ragdollLastTick : 0;
+            int ageDelta = tracked ? entity.getAge() - state.ragdollLastAge : 0;
+            boolean discontinuity = tracked && (playbackDelta < 0 || Math.abs(playbackDelta - ageDelta) > 3);
+
+            if (ragdoll.fresh || discontinuity)
+            {
+                state.chains.clear();
+                state.body.reset();
+            }
+
+            ragdoll.fresh = false;
+            state.ragdollLastTick = ragdoll.playbackTick;
+            state.ragdollLastAge = entity.getAge();
+        }
+        else
+        {
+            state.ragdollLastTick = Integer.MIN_VALUE;
+            state.ragdollLastAge = Integer.MIN_VALUE;
         }
 
         /* The wind track (if keyframed) replaces the configured wind wholesale at playback, mirroring how the
@@ -267,11 +298,21 @@ public final class ModelPhysicsRuntime
         state.length = state.pos[0].distance(state.pos[1]);
 
         Vector3f push = new Vector3f(ragdoll.x, ragdoll.y, ragdoll.z).mul(ragdoll.strength);
+        Vector3f sideways = new Vector3f(-ragdoll.z, 0F, ragdoll.x);
+
+        if (sideways.lengthSquared() < ChainSolver.EPS * ChainSolver.EPS)
+        {
+            sideways.set(1F, 0F, 0F);
+        }
+
+        sideways.normalize().mul(ragdoll.strength * ragdoll.flail * 0.22F);
 
         /* Giving the chest more of the blow makes an immediate, visible lean; gravity and block
          * contact take over from the following sub-step instead of a permanently applied force. */
         state.prev[0].sub(new Vector3f(push).mul(0.3F));
         state.prev[1].sub(push);
+        state.prev[0].add(sideways);
+        state.prev[1].sub(sideways);
         state.pos[0].add(new Vector3f(push).mul(0.015F));
         state.pos[1].add(new Vector3f(push).mul(0.05F));
         copyBody(state.pos, state.settled);
@@ -385,8 +426,10 @@ public final class ModelPhysicsRuntime
             return;
         }
 
-        for (ChainState chain : state.chains.values())
+        for (Map.Entry<String, ChainState> entry : state.chains.entrySet())
         {
+            ChainState chain = entry.getValue();
+
             if (chain.seenImpulse == ragdoll.impulse || chain.pos == null || chain.prev == null)
             {
                 continue;
@@ -395,18 +438,35 @@ public final class ModelPhysicsRuntime
             chain.seenImpulse = ragdoll.impulse;
 
             int count = chain.prev.length;
+            int hash = 31 * entry.getKey().hashCode() + ragdoll.impulse;
+            float jitterX = signedHash(hash ^ 0x68bc21eb);
+            float jitterY = signedHash(hash ^ 0x02e5be93);
+            float jitterZ = signedHash(hash ^ 0x7f4a7c15);
 
             for (int i = 0; i < count; i++)
             {
                 float along = count <= 1 ? 1F : i / (float) (count - 1);
+                float scatter = ragdoll.strength * ragdoll.flail * along * 0.18F;
 
                 chain.prev[i].sub(
-                    ragdoll.x * ragdoll.strength * along,
-                    ragdoll.y * ragdoll.strength * along,
-                    ragdoll.z * ragdoll.strength * along
+                    ragdoll.x * ragdoll.strength * along + jitterX * scatter,
+                    ragdoll.y * ragdoll.strength * along + jitterY * scatter,
+                    ragdoll.z * ragdoll.strength * along + jitterZ * scatter
                 );
             }
         }
+    }
+
+    /** Stable noise keeps playback and export identical while stopping every limb moving as one slab. */
+    private static float signedHash(int value)
+    {
+        value ^= value >>> 16;
+        value *= 0x7feb352d;
+        value ^= value >>> 15;
+        value *= 0x846ca68b;
+        value ^= value >>> 16;
+
+        return ((value & 0xffff) / 32767.5F) - 1F;
     }
 
     /**

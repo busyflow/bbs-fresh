@@ -17,6 +17,7 @@ public class UIRagdollActionClip extends UIActionClip<RagdollActionClip>
     private UITrackpad damping;
     private UITrackpad stiffness;
     private UITrackpad radius;
+    private UITrackpad flail;
     private UIToggle collisions;
     private UIToggle topple;
 
@@ -48,6 +49,9 @@ public class UIRagdollActionClip extends UIActionClip<RagdollActionClip>
         this.radius = new UITrackpad((value) -> this.editor.editMultiple(this.clip.radius, (v) -> v.set(value.floatValue())));
         this.radius.limit(this.clip.radius).values(0.01D, 0.005D, 0.05D);
         this.radius.tooltip(IKey.constant("Limb thickness for hitting the world."));
+        this.flail = new UITrackpad((value) -> this.editor.editMultiple(this.clip.flail, (v) -> v.set(value.floatValue())));
+        this.flail.limit(this.clip.flail).values(0.05D, 0.01D, 0.25D);
+        this.flail.tooltip(IKey.constant("How much uneven spin and independent limb motion the impact creates. 0 keeps the hit completely directed."));
 
         this.collisions = new UIToggle(IKey.constant("Collide with world"), (b) -> this.editor.editMultiple(this.clip.collisions, (value) -> value.set(b.getValue())));
         this.topple = new UIToggle(IKey.constant("Body falls over"), (b) -> this.editor.editMultiple(this.clip.topple, (value) -> value.set(b.getValue())));
@@ -70,6 +74,7 @@ public class UIRagdollActionClip extends UIActionClip<RagdollActionClip>
                 this.row("Damping", this.damping),
                 this.row("Stiffness", this.stiffness),
                 this.row("Limb radius", this.radius),
+                this.row("Flail", this.flail),
                 this.collisions,
                 this.topple
             )
@@ -88,6 +93,7 @@ public class UIRagdollActionClip extends UIActionClip<RagdollActionClip>
         this.damping.setValue(this.clip.damping.get());
         this.stiffness.setValue(this.clip.stiffness.get());
         this.radius.setValue(this.clip.radius.get());
+        this.flail.setValue(this.clip.flail.get());
         this.collisions.setValue(this.clip.collisions.get());
         this.topple.setValue(this.clip.topple.get());
     }

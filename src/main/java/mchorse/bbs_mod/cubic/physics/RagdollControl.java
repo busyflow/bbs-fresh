@@ -23,6 +23,7 @@ public class RagdollControl
     public float damping = 0.4F;
     public float stiffness = 0.02F;
     public float radius = 0.12F;
+    public float flail = 0.75F;
     public boolean collisions = true;
 
     /** Whether the body itself goes over, or only the limbs go slack. */
@@ -35,6 +36,12 @@ public class RagdollControl
      */
     public int impulse;
 
+    /** Replay-local tick used to spot loops and scrubs independently of entity age. */
+    public int playbackTick = Integer.MIN_VALUE;
+
+    /** True only until the runtime consumes a newly entered clip. */
+    public boolean fresh = true;
+
     public void copy(RagdollControl other)
     {
         this.x = other.x;
@@ -45,8 +52,11 @@ public class RagdollControl
         this.damping = other.damping;
         this.stiffness = other.stiffness;
         this.radius = other.radius;
+        this.flail = other.flail;
         this.collisions = other.collisions;
         this.topple = other.topple;
         this.impulse = other.impulse;
+        this.playbackTick = other.playbackTick;
+        this.fresh = other.fresh;
     }
 }
