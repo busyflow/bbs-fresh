@@ -40,6 +40,19 @@ public class RagdollActionClip extends ActionClip
 
     public final ValueBoolean collisions = new ValueBoolean("collisions", true);
 
+    /** Whether the body itself goes over, or only the limbs go slack while it stands. */
+    public final ValueBoolean topple = new ValueBoolean("topple", true);
+
+    /**
+     * How far the body sinks as it goes over, in model units.
+     *
+     * <p>It turns about its root bone's pivot, and where that pivot sits is the model's business -
+     * at the feet on one rig, at the waist on another. A rig pivoted at the waist swings its feet
+     * through the floor unless the body also comes down as it falls, and only the person looking
+     * at the model knows by how much.</p>
+     */
+    public final ValueFloat toppleDrop = new ValueFloat("topple_drop", 0F, -32F, 32F);
+
     public RagdollActionClip()
     {
         super();
@@ -52,6 +65,8 @@ public class RagdollActionClip extends ActionClip
         this.add(this.stiffness);
         this.add(this.radius);
         this.add(this.collisions);
+        this.add(this.topple);
+        this.add(this.toppleDrop);
     }
 
     /** Fills in the settings the physics runtime reads, including the impulse this clip stands for. */
@@ -70,6 +85,8 @@ public class RagdollActionClip extends ActionClip
         control.stiffness = this.stiffness.get();
         control.radius = this.radius.get();
         control.collisions = this.collisions.get();
+        control.topple = this.topple.get();
+        control.toppleDrop = this.toppleDrop.get();
 
         /* The blow is this clip starting, so the tick it starts on names it. Scrub back over the
          * start and it lands again; sit inside the clip and it does not land twice. */

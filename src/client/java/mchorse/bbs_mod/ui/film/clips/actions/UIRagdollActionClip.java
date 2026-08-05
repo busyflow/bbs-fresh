@@ -18,6 +18,8 @@ public class UIRagdollActionClip extends UIActionClip<RagdollActionClip>
     private UITrackpad stiffness;
     private UITrackpad radius;
     private UIToggle collisions;
+    private UIToggle topple;
+    private UITrackpad toppleDrop;
 
     public UIRagdollActionClip(RagdollActionClip clip, IUIClipsDelegate editor)
     {
@@ -49,6 +51,11 @@ public class UIRagdollActionClip extends UIActionClip<RagdollActionClip>
         this.radius.tooltip(IKey.constant("Limb thickness for hitting the world."));
 
         this.collisions = new UIToggle(IKey.constant("Collide with world"), (b) -> this.editor.editMultiple(this.clip.collisions, (value) -> value.set(b.getValue())));
+        this.topple = new UIToggle(IKey.constant("Body falls over"), (b) -> this.editor.editMultiple(this.clip.topple, (value) -> value.set(b.getValue())));
+        this.topple.tooltip(IKey.constant("Off leaves the body standing while only the limbs go slack."));
+        this.toppleDrop = new UITrackpad((value) -> this.editor.editMultiple(this.clip.toppleDrop, (v) -> v.set(value.floatValue())));
+        this.toppleDrop.limit(this.clip.toppleDrop).values(0.25D, 0.05D, 1D);
+        this.toppleDrop.tooltip(IKey.constant("How far the body sinks as it falls, in model units. Raise it if the feet swing through the floor."));
     }
 
     @Override
@@ -67,7 +74,9 @@ public class UIRagdollActionClip extends UIActionClip<RagdollActionClip>
                 this.row("Damping", this.damping),
                 this.row("Stiffness", this.stiffness),
                 this.row("Limb radius", this.radius),
-                this.collisions
+                this.collisions,
+                this.topple,
+                this.row("Fall drop", this.toppleDrop)
             )
         );
     }
@@ -85,6 +94,8 @@ public class UIRagdollActionClip extends UIActionClip<RagdollActionClip>
         this.stiffness.setValue(this.clip.stiffness.get());
         this.radius.setValue(this.clip.radius.get());
         this.collisions.setValue(this.clip.collisions.get());
+        this.topple.setValue(this.clip.topple.get());
+        this.toppleDrop.setValue(this.clip.toppleDrop.get());
     }
 
     private UIElement row(String label, UIElement element)

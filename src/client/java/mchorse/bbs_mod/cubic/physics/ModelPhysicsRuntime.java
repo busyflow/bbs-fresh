@@ -13,6 +13,11 @@ import mchorse.bbs_mod.forms.entities.IEntity;
 import mchorse.bbs_mod.forms.forms.ModelForm;
 import net.minecraft.world.World;
 import org.joml.Matrix4f;
+import mchorse.bbs_mod.utils.MathUtils;
+import mchorse.bbs_mod.utils.interps.Lerps;
+import mchorse.bbs_mod.utils.pose.Pose;
+import mchorse.bbs_mod.utils.pose.PoseTransform;
+import mchorse.bbs_mod.utils.pose.Transform;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
@@ -33,9 +38,32 @@ import java.util.WeakHashMap;
  */
 public final class ModelPhysicsRuntime
 {
+    /**
+     * The body falling over, which the limb chains cannot express.
+     *
+     * <p>A chain hangs from an anchor the animation owns, so limbs alone give a figure that flails
+     * while standing perfectly upright. What is missing is the one thing that makes it read as a
+     * body: it stops holding itself up. That is a topple - the whole model turning about the
+     * ground at its feet - so it is a single angle rather than a second physics engine.</p>
+     */
+    static final class ToppleState
+    {
+        public int seenImpulse;
+        public int lastAge = Integer.MIN_VALUE;
+
+        /** Radians from upright, and the angle of the previous tick for the render to sit between. */
+        public float angle;
+        public float prevAngle;
+        public float velocity;
+
+        /** The horizontal axis it turns about, in the model's own frame. */
+        public final Vector3f axis = new Vector3f(1F, 0F, 0F);
+    }
+
     static final class InstanceState
     {
         public final Map<String, ChainState> chains = new HashMap<>();
+        public final ToppleState topple = new ToppleState();
 
         /**
          * The model the chains were last simulated against. States are keyed by form, not by model, so a
@@ -52,6 +80,9 @@ public final class ModelPhysicsRuntime
      * the first one rendered simulated and the rest silently rendered its chains.
      */
     private static final WeakHashMap<IEntity, Map<String, InstanceState>> STATES = new WeakHashMap<>();
+
+    /** A body lying flat, the angle a topple stops at. */
+    private static final float HALF_PI = (float) (Math.PI * 0.5D);
 
     private ModelPhysicsRuntime()
     {
@@ -132,9 +163,115 @@ public final class ModelPhysicsRuntime
 
         wind = resolveWindDirection(wind, baseTransform);
 
+        /* Before the chains, not after: they anchor on the bone frames, so the body has to have
+         * fallen already or the limbs would hang from a figure still standing upright. */
+        applyTopple(ragdoll, model, entity.getAge(), transition, state.topple, baseTransform);
+
         applyCompiled(entity.getWorld(), entity.getAge(), transition, model, instance, compiled.chains(), wind, constraints, state, baseTransform);
 
         applyImpulse(ragdoll, state);
+    }
+
+    /**
+     * Tip the whole model over onto the ground and hold it there.
+     *
+     * <p>Modelled as a falling stick rather than as another chain, because that is the shape of
+     * the motion: a body that stops holding itself up turns about its feet, slowly at first and
+     * fastest as it lands, and then stays down. A chain cannot do it - a chain hangs from
+     * something the animation is still holding upright.</p>
+     *
+     * <p>The blow starts it and gravity finishes it. Landing takes the speed rather than
+     * returning it, so the body settles instead of rocking, and the small bias in the torque
+     * means a body that was pushed almost straight down still eventually goes over rather than
+     * balancing forever on the spot.</p>
+     */
+    private static void applyTopple(RagdollControl ragdoll, IModel model, int age, float transition, ToppleState state, Matrix4f baseTransform)
+    {
+        if (ragdoll == null || !ragdoll.topple)
+        {
+            state.seenImpulse = 0;
+            state.angle = 0F;
+            state.prevAngle = 0F;
+            state.velocity = 0F;
+
+            return;
+        }
+
+        if (state.seenImpulse != ragdoll.impulse)
+        {
+            state.seenImpulse = ragdoll.impulse;
+            state.angle = 0F;
+            state.prevAngle = 0F;
+            state.lastAge = age;
+
+            /* It falls the way it was hit: about the horizontal axis across the blow. A blow
+             * straight up or down picks an arbitrary one rather than none, so it still goes over. */
+            Vector3f fall = new Vector3f(ragdoll.x, 0F, ragdoll.z);
+
+            if (fall.lengthSquared() < 1.0E-6F)
+            {
+                fall.set(0F, 0F, 1F);
+            }
+
+            fall.normalize();
+
+            Vector3f axis = new Vector3f(0F, 1F, 0F).cross(fall).normalize();
+
+            /* The bones turn in the model's frame, not the world's. */
+            new Matrix4f(baseTransform).invert().transformDirection(axis);
+
+            if (axis.lengthSquared() < 1.0E-6F)
+            {
+                axis.set(1F, 0F, 0F);
+            }
+
+            state.axis.set(axis.normalize());
+            state.velocity = ragdoll.strength * 0.25F;
+        }
+
+        if (age != state.lastAge)
+        {
+            state.lastAge = age;
+            state.prevAngle = state.angle;
+
+            if (state.angle < HALF_PI)
+            {
+                state.velocity += (float) (Math.sin(state.angle + 0.12D) * ragdoll.gravity * 0.045D);
+                state.velocity *= 1F - MathUtils.clamp(ragdoll.damping, 0F, 1F) * 0.25F;
+                state.angle += state.velocity;
+
+                if (state.angle >= HALF_PI)
+                {
+                    state.angle = HALF_PI;
+                    state.velocity = 0F;
+                }
+            }
+        }
+
+        float angle = Lerps.lerp(state.prevAngle, state.angle, MathUtils.clamp(transition, 0F, 1F));
+
+        if (angle <= 0.0001F)
+        {
+            return;
+        }
+
+        Pose pose = new Pose();
+
+        for (String root : model.getRootGroupKeys())
+        {
+            PoseTransform transform = new PoseTransform();
+
+            transform.rotationMode = Transform.RotationMode.QUATERNION;
+            transform.quat.setAngleAxis(angle, state.axis.x, state.axis.y, state.axis.z);
+
+            /* Follows the fall rather than being applied at once, so the body sinks as it goes
+             * over instead of dropping through the floor while still standing. */
+            transform.translate.y -= ragdoll.toppleDrop * (float) Math.sin(angle);
+
+            pose.transforms.put(root, transform);
+        }
+
+        model.applyPose(pose);
     }
 
     /**

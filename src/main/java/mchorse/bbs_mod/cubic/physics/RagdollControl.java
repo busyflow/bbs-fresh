@@ -25,6 +25,12 @@ public class RagdollControl
     public float radius = 0.12F;
     public boolean collisions = true;
 
+    /** Whether the body itself goes over, or only the limbs go slack. */
+    public boolean topple = true;
+
+    /** How far the body sinks as it goes over, in model units, to keep its feet on the ground. */
+    public float toppleDrop;
+
     /**
      * Identifies the blow. The runtime pushes the limbs once per value it has not seen, so the
      * hit lands on the first frame of the clip and the rest of it is the body falling - not a
@@ -43,6 +49,8 @@ public class RagdollControl
         this.stiffness = other.stiffness;
         this.radius = other.radius;
         this.collisions = other.collisions;
+        this.topple = other.topple;
+        this.toppleDrop = other.toppleDrop;
         this.impulse = other.impulse;
     }
 }
