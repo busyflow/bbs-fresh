@@ -1,6 +1,7 @@
 package mchorse.bbs_mod.actions;
 
 import mchorse.bbs_mod.actions.types.ActionClip;
+import mchorse.bbs_mod.actions.types.crowd.CrowdUtils;
 import mchorse.bbs_mod.data.types.BaseType;
 import mchorse.bbs_mod.film.Film;
 import mchorse.bbs_mod.utils.DataPath;
@@ -13,9 +14,11 @@ import net.minecraft.util.math.BlockPos;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 public class ActionManager
@@ -100,6 +103,7 @@ public class ActionManager
 
             this.players.add(player);
             this.trackDamage(world);
+            this.sweepOrphanedCrowds(world);
 
             return player;
         }
@@ -110,6 +114,7 @@ public class ActionManager
     public void stop(String filmId)
     {
         Iterator<ActionPlayer> it = this.players.iterator();
+        ServerWorld world = null;
 
         while (it.hasNext())
         {
@@ -117,11 +122,37 @@ public class ActionManager
 
             if (next.film.getId().equals(filmId))
             {
-                this.stopDamage(next.getWorld());
+                world = next.getWorld();
+
+                this.stopDamage(world);
                 next.stop();
                 it.remove();
             }
         }
+
+        if (world != null)
+        {
+            this.sweepOrphanedCrowds(world);
+        }
+    }
+
+    /**
+     * Clear out crowd members left behind by runs that are no longer playing.
+     *
+     * <p>Run on both start and stop, so a crowd cannot outlive the playback that spawned it -
+     * whether that playback ended cleanly, was abandoned when the film was reloaded, or never
+     * ended at all because the world was closed mid-scene.</p>
+     */
+    private void sweepOrphanedCrowds(ServerWorld world)
+    {
+        Set<String> active = new HashSet<>();
+
+        for (ActionPlayer player : this.players)
+        {
+            active.add(CrowdUtils.getRunTag(player.film));
+        }
+
+        CrowdUtils.sweepOrphans(world, active);
     }
 
     /* Actions recording */

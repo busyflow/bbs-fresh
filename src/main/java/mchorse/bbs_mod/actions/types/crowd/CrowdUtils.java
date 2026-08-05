@@ -12,10 +12,12 @@ import net.minecraft.world.World;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -156,6 +158,46 @@ public class CrowdUtils
 
         for (LivingEntity mob : collectTagged(world, (entity) ->
             entity.getCommandTags().contains(INTERNAL_TAG) && entity.getCommandTags().contains(runTag)))
+        {
+            mob.discard();
+        }
+    }
+
+    /**
+     * Discard every crowd member that no running playback owns.
+     *
+     * <p>Stopping a playback only removes the members carrying its own run tag, which leaves
+     * behind every crowd whose run ended some other way: a film reloaded in the editor gets a
+     * fresh tag and abandons the previous one, and a playback that never reached its stop -
+     * closing the world, a crash, an error mid-scene - never removes anything at all. Those
+     * members are ordinary mobs once abandoned, so they stay, and they accumulate a crowd at a
+     * time until the world holds tens of thousands of villagers.</p>
+     *
+     * <p>A crowd member only ever belongs to a playback, so one that no live run claims cannot
+     * become claimed later and is safe to remove. Sweeping on both start and stop means the
+     * leftovers of a previous session are gone the first time anything plays.</p>
+     */
+    public static void sweepOrphans(ServerWorld world, Collection<String> activeRunTags)
+    {
+        for (LivingEntity mob : collectTagged(world, (entity) ->
+        {
+            Set<String> tags = entity.getCommandTags();
+
+            if (!tags.contains(INTERNAL_TAG))
+            {
+                return false;
+            }
+
+            for (String tag : tags)
+            {
+                if (tag.startsWith(RUN_TAG_PREFIX) && activeRunTags.contains(tag))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }))
         {
             mob.discard();
         }
