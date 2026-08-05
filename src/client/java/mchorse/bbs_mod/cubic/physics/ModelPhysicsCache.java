@@ -8,7 +8,9 @@ import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.WeakHashMap;
 
 final class ModelPhysicsCache
@@ -136,6 +138,7 @@ final class ModelPhysicsCache
     }
 
     private static final WeakHashMap<MapType, EmbeddedCompiled> EMBEDDED = new WeakHashMap<>();
+    private static final Map<RagdollKey, List<CompiledChain>> RAGDOLLS = new HashMap<>();
 
     private record EmbeddedCompiled(IModel model, List<CompiledChain> chains, ModelPhysicsConfig.Wind wind)
     {
@@ -148,6 +151,7 @@ final class ModelPhysicsCache
     public static void clear()
     {
         EMBEDDED.clear();
+        RAGDOLLS.clear();
     }
 
     public static Compiled getFromData(IModel model, MapType data)
@@ -173,6 +177,102 @@ final class ModelPhysicsCache
 
         return new Compiled(compiled, wind);
     }
+
+    /**
+     * A whole-skeleton rig, derived from the model rather than configured.
+     *
+     * <p>A ragdoll is not something an author sets up per model - it has to work on whatever
+     * skeleton the shot happens to use - so the limbs are read off the hierarchy: every bone with
+     * no children is the end of a limb, and the limb starts at the nearest ancestor that forks
+     * (the chest for the arms, the hips for the legs) or at the model's root. That fork stays
+     * where the animation puts it and everything below it goes limp, which is what a body does
+     * when it stops holding itself up.</p>
+     *
+     * <p>Cached on the model and the settings, because the shape of the rig only changes when
+     * either does, and rebuilding it per frame would cost more than simulating it.</p>
+     */
+    public static Compiled getRagdoll(IModel model, RagdollControl control)
+    {
+        if (model == null || control == null)
+        {
+            return null;
+        }
+
+        RagdollKey key = new RagdollKey(model, control.gravity, control.damping, control.stiffness, control.radius, control.collisions);
+        List<CompiledChain> cached = RAGDOLLS.get(key);
+
+        if (cached != null)
+        {
+            return new Compiled(cached, ModelPhysicsConfig.Wind.NONE);
+        }
+
+        List<CompiledChain> out = new ArrayList<>();
+        List<String> groups = new ArrayList<>(model.getAllGroupKeys());
+
+        Collections.sort(groups);
+
+        ModelPhysicsConfig.Bone settings = new ModelPhysicsConfig.Bone(
+            "", "", control.gravity, control.damping, control.stiffness, 4,
+            false, 0F, 0F, 0F, control.collisions, control.radius, 1F
+        );
+
+        for (String leaf : groups)
+        {
+            if (!model.getDirectChildrenKeys(leaf).isEmpty())
+            {
+                continue;
+            }
+
+            String root = leaf;
+
+            /* Walk up while the bone is an only child: the first fork above the limb is where the
+             * body still holds together, so that is where the limb hangs from. */
+            while (true)
+            {
+                String parent = model.getParentGroupKey(root);
+
+                if (parent == null || parent.isEmpty() || parent.equals(root) || model.getDirectChildrenKeys(parent).size() != 1)
+                {
+                    break;
+                }
+
+                root = parent;
+            }
+
+            /* The fork itself anchors the limb - it is the last bone the animation still owns,
+             * and everything from there down is what goes slack. */
+            String attach = model.getParentGroupKey(root);
+
+            if (attach == null || attach.isEmpty() || attach.equals(root))
+            {
+                /* A limb that reaches the model's own root has nothing to hang from. */
+                continue;
+            }
+
+            List<String> ids = buildChainIds(model, leaf, attach);
+
+            if (ids.size() < 2)
+            {
+                continue;
+            }
+
+            float[] lengths = computeRestLengths(model, ids);
+
+            if (lengths == null)
+            {
+                continue;
+            }
+
+            out.add(new CompiledChain(attach + ":" + leaf, attach, "", ids, lengths, settings));
+        }
+
+        RAGDOLLS.put(key, out);
+
+        return new Compiled(out, ModelPhysicsConfig.Wind.NONE);
+    }
+
+    private record RagdollKey(IModel model, float gravity, float damping, float stiffness, float radius, boolean collisions)
+    {}
 
     private static List<CompiledChain> compile(IModel model, ModelPhysicsConfig config)
     {

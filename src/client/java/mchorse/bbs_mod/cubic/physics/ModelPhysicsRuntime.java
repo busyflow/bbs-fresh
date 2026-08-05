@@ -89,7 +89,16 @@ public final class ModelPhysicsRuntime
         }
 
         ModelPhysicsCache.Compiled compiled = null;
-        if (form.physics.get() instanceof MapType map)
+        RagdollControl ragdoll = form.ragdollOverride;
+
+        if (ragdoll != null)
+        {
+            /* A ragdoll replaces the model's own chains rather than joining them: the same bone
+             * cannot be both a strand of hair with its own settings and part of a limb that has
+             * gone slack, and the ragdoll is the one the shot is about. */
+            compiled = ModelPhysicsCache.getRagdoll(model, ragdoll);
+        }
+        else if (form.physics.get() instanceof MapType map)
         {
             compiled = ModelPhysicsCache.getFromData(model, map);
         }
@@ -124,6 +133,62 @@ public final class ModelPhysicsRuntime
         wind = resolveWindDirection(wind, baseTransform);
 
         applyCompiled(entity.getWorld(), entity.getAge(), transition, model, instance, compiled.chains(), wind, constraints, state, baseTransform);
+
+        applyImpulse(ragdoll, state);
+    }
+
+    /**
+     * Shove the limbs once, on the tick the blow lands.
+     *
+     * <p>Verlet keeps speed as the gap between where a point is and where it was, so a blow is
+     * dealt by moving the history backwards rather than by adding a force: the point is already
+     * where it was, and now it was somewhere further behind, so it leaves with that speed and
+     * nothing keeps pushing it. Applying it every frame instead would be a jet, not an impact,
+     * and the body would sail off rather than fall.</p>
+     *
+     * <p>Further down a limb gets more of it, so an arm whips rather than sliding across sideways
+     * - the shoulder barely moves and the hand carries.</p>
+     */
+    private static void applyImpulse(RagdollControl ragdoll, InstanceState state)
+    {
+        if (ragdoll == null)
+        {
+            for (ChainState chain : state.chains.values())
+            {
+                /* Forget the blow once the ragdoll ends, so scrubbing back into it lands again. */
+                chain.seenImpulse = 0;
+            }
+
+            return;
+        }
+
+        if (ragdoll.strength <= 0F)
+        {
+            return;
+        }
+
+        for (ChainState chain : state.chains.values())
+        {
+            if (chain.seenImpulse == ragdoll.impulse || chain.pos == null || chain.prev == null)
+            {
+                continue;
+            }
+
+            chain.seenImpulse = ragdoll.impulse;
+
+            int count = chain.prev.length;
+
+            for (int i = 0; i < count; i++)
+            {
+                float along = count <= 1 ? 1F : i / (float) (count - 1);
+
+                chain.prev[i].sub(
+                    ragdoll.x * ragdoll.strength * along,
+                    ragdoll.y * ragdoll.strength * along,
+                    ragdoll.z * ragdoll.strength * along
+                );
+            }
+        }
     }
 
     /**

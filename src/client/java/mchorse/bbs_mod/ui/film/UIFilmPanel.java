@@ -9,6 +9,8 @@ import it.unimi.dsi.fastutil.longs.Long2IntMap;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import mchorse.bbs_mod.actions.ActionState;
 import mchorse.bbs_mod.actions.types.area.ValueAreaCells;
+import mchorse.bbs_mod.actions.types.ragdoll.RagdollActionClip;
+import mchorse.bbs_mod.cubic.physics.RagdollControl;
 import mchorse.bbs_mod.ui.film.clips.area.AreaBrush;
 import net.minecraft.util.math.BlockPos;
 import mchorse.bbs_mod.actions.types.crowd.CrowdBehaviorActionClip;
@@ -2206,6 +2208,99 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         this.controller.renderFrame(context);
         this.renderCrowdRadius(context);
         this.renderArea(context);
+        this.renderRagdollImpact(context);
+    }
+
+    /**
+     * Show a ragdoll clip's blow as a ball at the actor with a rod pointing the way it throws.
+     *
+     * <p>Two numbers in a panel do not tell you which way something is about to be thrown - the
+     * shot's camera can be facing anywhere - so the direction is drawn where the hit happens. The
+     * rod's length is the strength, so the two things the clip is really about are one shape.</p>
+     */
+    private void renderRagdollImpact(WorldRenderContext context)
+    {
+        if (this.replayEditor == null || this.actionEditor == null || !this.actionEditor.isVisible() || !(this.actionEditor.getClip() instanceof RagdollActionClip clip))
+        {
+            return;
+        }
+
+        Replay replay = this.replayEditor.getReplay();
+
+        if (replay == null)
+        {
+            return;
+        }
+
+        Vec3d actor = CrowdUtils.replayPosition(replay, this.getCursor());
+        Vec3d camera = context.camera().getPos();
+        MatrixStack stack = context.matrixStack();
+        BufferBuilder builder = Tessellator.getInstance().getBuffer();
+
+        float cx = (float) (actor.x - camera.x);
+        float cy = (float) (actor.y + 1D - camera.y);
+        float cz = (float) (actor.z - camera.z);
+
+        RagdollControl control = new RagdollControl();
+
+        clip.fill(control);
+
+        float length = 0.6F + control.strength * 1.5F;
+        float ball = 0.35F;
+
+        RenderSystem.disableDepthTest();
+        RenderSystem.enableBlend();
+        RenderSystem.disableCull();
+        RenderSystem.setShader(GameRenderer::getPositionColorProgram);
+        builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+
+        /* The ball is three rings rather than a sphere: it reads as a trackball you could grab,
+         * and it does not hide the model inside it. */
+        this.ragdollRing(builder, stack, cx, cy, cz, ball, 0, 0.35F, 0.55F, 1F);
+        this.ragdollRing(builder, stack, cx, cy, cz, ball, 1, 0.35F, 0.55F, 1F);
+        this.ragdollRing(builder, stack, cx, cy, cz, ball, 2, 0.35F, 0.55F, 1F);
+
+        float tx = cx + control.x * length;
+        float ty = cy + control.y * length;
+        float tz = cz + control.z * length;
+
+        Draw.fillBoxTo(builder, stack, cx, cy, cz, tx, ty, tz, 0.05F, 1F, 0.55F, 0.1F, 1F);
+        Draw.fillBox(builder, stack, tx - 0.08F, ty - 0.08F, tz - 0.08F, tx + 0.08F, ty + 0.08F, tz + 0.08F, 1F, 0.8F, 0.2F, 1F);
+
+        BufferRenderer.drawWithGlobalProgram(builder.end());
+
+        RenderSystem.enableCull();
+        RenderSystem.disableBlend();
+        RenderSystem.disableDepthTest();
+    }
+
+    /** One great circle of the impact trackball, around axis 0 = X, 1 = Y, 2 = Z. */
+    private void ragdollRing(BufferBuilder builder, MatrixStack stack, float x, float y, float z, float radius, int axis, float r, float g, float b)
+    {
+        int segments = 40;
+
+        for (int i = 0; i < segments; i++)
+        {
+            double a1 = i / (double) segments * Math.PI * 2D;
+            double a2 = (i + 1) / (double) segments * Math.PI * 2D;
+            float c1 = (float) Math.cos(a1) * radius;
+            float s1 = (float) Math.sin(a1) * radius;
+            float c2 = (float) Math.cos(a2) * radius;
+            float s2 = (float) Math.sin(a2) * radius;
+
+            if (axis == 0)
+            {
+                Draw.fillBoxTo(builder, stack, x, y + c1, z + s1, x, y + c2, z + s2, 0.02F, r, g, b, 0.7F);
+            }
+            else if (axis == 1)
+            {
+                Draw.fillBoxTo(builder, stack, x + c1, y, z + s1, x + c2, y, z + s2, 0.02F, r, g, b, 0.7F);
+            }
+            else
+            {
+                Draw.fillBoxTo(builder, stack, x + c1, y + s1, z, x + c2, y + s2, z, 0.02F, r, g, b, 0.7F);
+            }
+        }
     }
 
     /**

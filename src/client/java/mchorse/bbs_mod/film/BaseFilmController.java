@@ -21,6 +21,9 @@ import mchorse.bbs_mod.forms.entities.IEntity;
 import mchorse.bbs_mod.forms.entities.MCEntity;
 import mchorse.bbs_mod.forms.entities.StubEntity;
 import mchorse.bbs_mod.forms.forms.Form;
+import mchorse.bbs_mod.actions.types.ragdoll.RagdollActionClip;
+import mchorse.bbs_mod.cubic.physics.RagdollControl;
+import mchorse.bbs_mod.utils.clips.Clip;
 import mchorse.bbs_mod.forms.forms.BodyPart;
 import mchorse.bbs_mod.cubic.ik.IKControl;
 import mchorse.bbs_mod.cubic.ik.IKControls;
@@ -1155,6 +1158,7 @@ public abstract class BaseFilmController
         }
 
         this.clearTargetOverrides(root);
+        this.applyRagdoll(replay, root, tick);
 
         if (replay.properties == null || replay.properties.properties == null || replay.properties.properties.isEmpty())
         {
@@ -1431,6 +1435,60 @@ public abstract class BaseFilmController
 
         modelForm.physicsTargetOverrides.computeIfAbsent(rootBone, (k) -> new Vector3f()).set(position);
         modelForm.physicsTargetWeights.put(rootBone, weight);
+    }
+
+    /**
+     * Hand the ragdoll clip covering this tick, if there is one, to every model under the form.
+     *
+     * <p>Read here rather than from the client action event, because this pass runs on every
+     * rendered frame while actions only fire on ticks - and this pass is also what clears the
+     * overrides, so a ragdoll set from anywhere else would be wiped between ticks. Reading the
+     * track directly also means scrubbing shows the ragdoll wherever the clip covers, rather than
+     * only after playing through its first frame.</p>
+     */
+    private void applyRagdoll(Replay replay, Form root, float tick)
+    {
+        RagdollActionClip ragdoll = null;
+
+        for (Clip clip : replay.actions.getClips(replay.getTick((int) tick)))
+        {
+            if (clip instanceof RagdollActionClip candidate && candidate.enabled.get())
+            {
+                ragdoll = candidate;
+            }
+        }
+
+        this.applyRagdoll(root, ragdoll);
+    }
+
+    private void applyRagdoll(Form form, RagdollActionClip ragdoll)
+    {
+        if (form instanceof ModelForm modelForm)
+        {
+            if (ragdoll == null)
+            {
+                modelForm.ragdollOverride = null;
+            }
+            else
+            {
+                if (modelForm.ragdollOverride == null)
+                {
+                    modelForm.ragdollOverride = new RagdollControl();
+                }
+
+                ragdoll.fill(modelForm.ragdollOverride);
+            }
+        }
+
+        for (BodyPart part : form.parts.getAllTyped())
+        {
+            Form child = part.getForm();
+
+            if (child != null)
+            {
+                this.applyRagdoll(child, ragdoll);
+            }
+        }
     }
 
     private void clearTargetOverrides(Form form)

@@ -3,6 +3,7 @@ package mchorse.bbs_mod.forms.forms;
 import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.cubic.animation.ActionsConfig;
 import mchorse.bbs_mod.cubic.ik.IKControl;
+import mchorse.bbs_mod.cubic.physics.RagdollControl;
 import mchorse.bbs_mod.cubic.physics.PhysicsControl;
 import mchorse.bbs_mod.cubic.physics.WindControl;
 import mchorse.bbs_mod.forms.values.ValueActionsConfig;
@@ -60,6 +61,10 @@ public class ModelForm extends Form
     public final transient Map<String, PhysicsControl> physicsControlOverrides = new HashMap<>();
     /* The global wind override layered by the wind track at playback; null when the track has no keyframe. */
     public transient WindControl windControlOverride;
+    /* Set while a ragdoll clip is running over this form; null the rest of the time. Replaces the
+     * configured chains outright rather than layering, because a ragdoll is the whole skeleton
+     * going slack, not another piece of cloth on top of it. */
+    public transient RagdollControl ragdollOverride;
 
     public ModelForm()
     {

@@ -24,4 +24,7 @@ class ChainState
 
     /** The animated pose the chain springs toward, stored relative to the live anchor frame. */
     public Vector3f[] poseLocal;
+
+    /** Which ragdoll blow this chain has already been shoved by; 0 when none. */
+    public int seenImpulse;
 }
