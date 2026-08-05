@@ -27,6 +27,13 @@ import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.forms.FormUtils;
 import mchorse.bbs_mod.forms.forms.Form;
 import mchorse.bbs_mod.graphics.Draw;
+import net.minecraft.client.render.BufferBuilder;
+import net.minecraft.client.render.BufferRenderer;
+import net.minecraft.client.render.GameRenderer;
+import net.minecraft.client.render.Tessellator;
+import net.minecraft.client.render.VertexFormat;
+import net.minecraft.client.render.VertexFormats;
+import net.minecraft.client.util.math.MatrixStack;
 import mchorse.bbs_mod.graphics.texture.Texture;
 import mchorse.bbs_mod.graphics.window.Window;
 import mchorse.bbs_mod.l10n.L10n;
@@ -2237,7 +2244,9 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         Vec3d center = CrowdUtils.replayPosition(replay, this.getCursor());
         Vec3d camera = context.camera().getPos();
 
-        RenderSystem.enableDepthTest();
+        /* Drawn without depth so the ring stays visible through terrain - at a hundred blocks
+         * out it is usually behind a hill, and the whole point is to see where the crowd lands. */
+        RenderSystem.disableDepthTest();
         RenderSystem.enableBlend();
 
         this.renderCrowdRing(context, center.subtract(camera), outer, 0.1F, 0.8F, 1F);
@@ -2258,17 +2267,28 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
             return;
         }
 
-        int segments = 64;
-        double marker = Math.max(0.12D, radius * 0.02D);
+        /* Segment count follows the radius so a hundred-block ring still reads as a circle
+         * rather than a polygon, but a small one does not pay for detail nobody can see. */
+        int segments = (int) MathUtils.clamp(radius * 4D, 64D, 512D);
+        float thickness = (float) Math.max(0.08D, radius * 0.004D);
+        MatrixStack stack = context.matrixStack();
+        BufferBuilder builder = Tessellator.getInstance().getBuffer();
+
+        RenderSystem.setShader(GameRenderer::getPositionColorProgram);
+        builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
 
         for (int i = 0; i < segments; i++)
         {
-            double angle = i / (double) segments * Math.PI * 2D;
-            double x = center.x + Math.cos(angle) * radius - marker / 2D;
-            double z = center.z + Math.sin(angle) * radius - marker / 2D;
+            double a1 = i / (double) segments * Math.PI * 2D;
+            double a2 = (i + 1) / (double) segments * Math.PI * 2D;
 
-            Draw.renderBox(context.matrixStack(), x, center.y, z, marker, marker, marker, r, g, b, 0.85F);
+            Draw.fillBoxTo(builder, stack,
+                (float) (center.x + Math.cos(a1) * radius), (float) center.y, (float) (center.z + Math.sin(a1) * radius),
+                (float) (center.x + Math.cos(a2) * radius), (float) center.y, (float) (center.z + Math.sin(a2) * radius),
+                thickness, r, g, b, 0.85F);
         }
+
+        BufferRenderer.drawWithGlobalProgram(builder.end());
     }
 
     /* IUICameraWorkDelegate implementation */

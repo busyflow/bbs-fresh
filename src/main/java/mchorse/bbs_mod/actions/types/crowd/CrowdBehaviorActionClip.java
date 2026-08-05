@@ -17,6 +17,7 @@ import mchorse.bbs_mod.settings.values.mc.ValueItemStack;
 import mchorse.bbs_mod.settings.values.numeric.ValueBoolean;
 import mchorse.bbs_mod.settings.values.numeric.ValueFloat;
 import mchorse.bbs_mod.settings.values.numeric.ValueInt;
+import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.clips.Clip;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
@@ -54,7 +55,8 @@ public class CrowdBehaviorActionClip extends ActionClip
     public final ValueInt mode = new ValueInt("mode", CrowdBehaviorMode.FOLLOW.ordinal(), 0, CrowdBehaviorMode.values().length - 1);
     public final ValueBoolean pause = new ValueBoolean("pause", false);
     public final ValueBoolean sprint = new ValueBoolean("sprint", false);
-    public final ValueFloat speed = new ValueFloat("speed", 1F, 0F, 8F);
+    /** Movement speed in blocks per second. Vanilla walking is ~4.3, sprinting ~5.6. */
+    public final ValueFloat speed = new ValueFloat("speed", 4.3F, 0F, 20F);
     public final ValueInt moveEase = new ValueInt("move_ease", 10, 0, 200);
     public final ValueFloat stopDistance = new ValueFloat("stop_distance", 1.5F, 0F, 32F);
     public final ValueFloat targetSpread = new ValueFloat("target_spread", 2F, 0F, 64F);
@@ -68,6 +70,11 @@ public class CrowdBehaviorActionClip extends ActionClip
 
     /** Neighbour index for the tick being applied; null outside of it. Not saved. */
     private CrowdGrid grid;
+
+    /** Scratch for {@link #getSeparationMotion}, see the note there. */
+    private double pushX;
+    private double pushZ;
+    private int pushSamples;
     public final ValueFloat separation = new ValueFloat("separation", 0.85F, 0F, 6F);
     public final ValueFloat maxStepHeight = new ValueFloat("max_step_height", 0.55F, 0F, 0.75F);
     public final ValueBoolean crouch = new ValueBoolean("crouch", false);
@@ -218,11 +225,25 @@ public class CrowdBehaviorActionClip extends ActionClip
             }
 
             gatherPos = CrowdUtils.replayPosition(targetReplay, tick);
+
+            /* The keyframe track only knows where the target was authored to be. A replay with
+             * no position keyframes reads as the world origin, which puts the gather point
+             * thousands of blocks away and leaves the crowd standing still. The actor playing
+             * that replay knows where it really is, so prefer it whenever it exists. */
+            LivingEntity targetActor = this.resolveReplayTargetEntity(film, targetReplay);
+
+            if (targetActor != null && targetActor.isAlive())
+            {
+                gatherPos = targetActor.getPos();
+            }
         }
 
         ServerWorld world = (ServerWorld) player.getWorld();
         CrowdBehaviorMode mode = CrowdBehaviorMode.get(this.mode.get());
-        List<LivingEntity> crowd = CrowdUtils.getCrowd(world, film, this.crowdTag.get(), gatherPos, this.range.get());
+        /* The whole tagged crowd, not just the part standing near the target - a target far from
+         * the formation would otherwise only ever pull in the members closest to it, leaving the
+         * rest of the crowd standing where they spawned. */
+        List<LivingEntity> crowd = CrowdUtils.getCrowd(world, film, this.crowdTag.get(), gatherPos, 0D);
 
         if (crowd.isEmpty())
         {
@@ -245,9 +266,15 @@ public class CrowdBehaviorActionClip extends ActionClip
 
         /* Neighbour lookups below run once per member, so they get an index instead of a scan
          * over the whole crowd. Held in a field rather than threaded through five signatures;
-         * this only ever runs on the server tick, one clip at a time. Cell is sized for the
-         * widest neighbour query (the 8-block glance), so both users can share one index. */
-        this.grid = new CrowdGrid(crowd, Math.max(8D, this.separation.get()));
+         * this only ever runs on the server tick, one clip at a time.
+         *
+         * Cell size is what makes the index worth having. Sizing it for the widest query (the
+         * 8-block glance) makes the nine cells a 24-block square, which in a packed crowd holds
+         * hundreds of members - so separation, which only cares about a metre or so, walked
+         * hundreds of candidates per member and put the server thread right back into quadratic
+         * work. Size it for the tight query instead; the glance simply settles for a nearer
+         * neighbour, which is not something the shot can show. */
+        this.grid = new CrowdGrid(crowd, Math.max(1D, this.separation.get()));
 
         for (LivingEntity entity : crowd)
         {
@@ -811,8 +838,13 @@ public class CrowdBehaviorActionClip extends ActionClip
         }
 
         double distance = Math.sqrt(delta.x * delta.x + delta.z * delta.z);
-        double maxStep = Math.min(0.48D, Math.max(0.015D, speed * 0.08D));
-        double step = Math.min(maxStep, Math.max(0.015D, distance * 0.18D));
+        /* Speed is blocks per second: the velocity set here is what the entity actually travels
+         * this tick (vanilla applies friction after the move, and we overwrite it next tick), so
+         * one tick of travel is simply speed / 20. Vanilla walking is ~4.3 for reference. */
+        double maxStep = MathUtils.clamp(speed / 20D, 0.005D, 1D);
+        /* Ease off over the last stretch so they settle onto the spot instead of overshooting,
+         * but never below a quarter speed or the final approach turns into a crawl. */
+        double step = Math.min(maxStep, Math.max(maxStep * 0.25D, distance * 0.18D));
         Vec3d desired = horizontal.normalize().multiply(step);
         Vec3d motion = this.steerAroundObstacles(world, entity, desired, tick);
         Vec3d velocity = entity.getVelocity();
@@ -824,8 +856,14 @@ public class CrowdBehaviorActionClip extends ActionClip
         );
         Vec3d safe = this.trimToSafeMotion(world, entity, smooth);
 
+        /* Deliberately not flagging velocityModified. That flag exists to push a velocity packet
+         * to clients, and a client that is told a velocity simulates the entity forward with it
+         * and then gets snapped back by the next position update - which is seen as the crowd
+         * lurching and stalling rather than walking. Steering runs every tick anyway, so the
+         * position stream alone describes the motion, and the client interpolates it smoothly.
+         * It also spares one packet per member per tick, which at crowd scale is the difference
+         * between keeping up and not. */
         entity.setVelocity(safe.x, velocity.y, safe.z);
-        entity.velocityModified = true;
 
         if (safe.lengthSquared() > 1.0E-6D)
         {
@@ -870,7 +908,12 @@ public class CrowdBehaviorActionClip extends ActionClip
     {
         Box box = entity.getBoundingBox().offset(motion.x, 0D, motion.z);
 
-        if (world.isSpaceEmpty(entity, box))
+        /* Passing null asks about blocks only. Handing the entity over would also collect the
+         * entity collisions in that box, and in a packed crowd that walks hundreds of members
+         * per query, several queries per member, every tick - the square term all over again.
+         * Crowd members do not hard-collide with each other anyway; the separation steering is
+         * what keeps them apart. */
+        if (world.isSpaceEmpty(null, box))
         {
             return true;
         }
@@ -893,7 +936,7 @@ public class CrowdBehaviorActionClip extends ActionClip
 
             Box lifted = box.offset(0D, lift, 0D);
 
-            if (world.isSpaceEmpty(entity, lifted))
+            if (world.isSpaceEmpty(null, lifted))
             {
                 return true;
             }
@@ -957,38 +1000,56 @@ public class CrowdBehaviorActionClip extends ActionClip
         }
 
         double radiusSq = radius * radius;
-        Vec3d push = Vec3d.ZERO;
-        int samples = 0;
+        /* Summed in place rather than through Vec3d: this is the innermost loop of the whole
+         * clip, run once per member per tick, and every add would otherwise allocate. */
+        this.pushX = 0D;
+        this.pushZ = 0D;
+        this.pushSamples = 0;
 
-        for (LivingEntity other : this.grid == null ? crowd : this.grid.neighbours(entity.getX(), entity.getZ()))
+        if (this.grid == null)
         {
-            if (other == entity || !other.isAlive() || other.isRemoved())
+            for (int i = 0; i < crowd.size(); i++)
             {
-                continue;
+                this.accumulateSeparation(entity, crowd.get(i), radius, radiusSq);
             }
-
-            double dx = entity.getX() - other.getX();
-            double dz = entity.getZ() - other.getZ();
-            double distanceSq = dx * dx + dz * dz;
-
-            if (distanceSq < 1.0E-6D || distanceSq > radiusSq)
-            {
-                continue;
-            }
-
-            double distance = Math.sqrt(distanceSq);
-            double strength = (radius - distance) / radius;
-
-            push = push.add(dx / distance * strength, 0D, dz / distance * strength);
-            samples += 1;
+        }
+        else
+        {
+            this.grid.forEachNeighbour(entity.getX(), entity.getZ(), (other) -> this.accumulateSeparation(entity, other, radius, radiusSq));
         }
 
-        if (samples <= 0 || push.lengthSquared() < 1.0E-6D)
+        Vec3d push = new Vec3d(this.pushX, 0D, this.pushZ);
+
+        if (this.pushSamples <= 0 || push.lengthSquared() < 1.0E-6D)
         {
             return Vec3d.ZERO;
         }
 
         return push.normalize().multiply(Math.min(2D, radius) * 0.65D);
+    }
+
+    private void accumulateSeparation(LivingEntity entity, LivingEntity other, double radius, double radiusSq)
+    {
+        if (other == entity || !other.isAlive() || other.isRemoved())
+        {
+            return;
+        }
+
+        double dx = entity.getX() - other.getX();
+        double dz = entity.getZ() - other.getZ();
+        double distanceSq = dx * dx + dz * dz;
+
+        if (distanceSq < 1.0E-6D || distanceSq > radiusSq)
+        {
+            return;
+        }
+
+        double distance = Math.sqrt(distanceSq);
+        double strength = (radius - distance) / radius;
+
+        this.pushX += dx / distance * strength;
+        this.pushZ += dz / distance * strength;
+        this.pushSamples += 1;
     }
 
     private static Vec3d rotateXZ(Vec3d vector, double degrees)
@@ -1005,7 +1066,6 @@ public class CrowdBehaviorActionClip extends ActionClip
         Vec3d velocity = entity.getVelocity();
 
         entity.setVelocity(0D, velocity.y, 0D);
-        entity.velocityModified = true;
     }
 
     private void jump(LivingEntity entity)
@@ -1196,7 +1256,9 @@ public class CrowdBehaviorActionClip extends ActionClip
             pitch = 28F;
         }
 
-        if (mob instanceof MobEntity entity && !this.lookBodyYaw.get() && this.lookHeadYaw.get() && this.lookHeadPitch.get() && mode != CrowdBehaviorMode.SAD_WALK)
+        /* LookControl only ticks as part of the mob's AI, so a crowd spawned with AI off has
+         * to take the direct-yaw path below instead. */
+        if (mob instanceof MobEntity entity && !entity.isAiDisabled() && !this.lookBodyYaw.get() && this.lookHeadYaw.get() && this.lookHeadPitch.get() && mode != CrowdBehaviorMode.SAD_WALK)
         {
             entity.getLookControl().lookAt(targetPos.x, targetPos.y, targetPos.z, maxYawStep, maxPitchStep);
 

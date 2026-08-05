@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * A flat XZ bucket index over one crowd, rebuilt each applied tick.
@@ -37,9 +38,24 @@ public class CrowdGrid
     /** Members in the nine cells around this point - a superset of everything within one cell. */
     public List<LivingEntity> neighbours(double x, double z)
     {
+        List<LivingEntity> found = new ArrayList<>();
+
+        this.forEachNeighbour(x, z, found::add);
+
+        return found;
+    }
+
+    /**
+     * The same nine cells, handed over one at a time.
+     *
+     * <p>Steering runs this once per member per tick, so the list {@link #neighbours} builds is
+     * pure garbage at crowd scale - a five-figure crowd throws away tens of thousands of lists a
+     * tick. Callers that only walk the result should take it this way.</p>
+     */
+    public void forEachNeighbour(double x, double z, Consumer<LivingEntity> consumer)
+    {
         int cx = (int) Math.floor(x / this.cell);
         int cz = (int) Math.floor(z / this.cell);
-        List<LivingEntity> found = new ArrayList<>();
 
         for (int dx = -1; dx <= 1; dx++)
         {
@@ -49,12 +65,13 @@ public class CrowdGrid
 
                 if (bucket != null)
                 {
-                    found.addAll(bucket);
+                    for (int i = 0; i < bucket.size(); i++)
+                    {
+                        consumer.accept(bucket.get(i));
+                    }
                 }
             }
         }
-
-        return found;
     }
 
     private long key(double x, double z)

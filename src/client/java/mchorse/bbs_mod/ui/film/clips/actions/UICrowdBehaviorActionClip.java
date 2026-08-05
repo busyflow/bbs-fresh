@@ -377,7 +377,7 @@ public class UICrowdBehaviorActionClip extends UIActionClip<CrowdBehaviorActionC
     {
         this.getContext().replaceContextMenu((menu) ->
         {
-            for (CrowdBehaviorMode mode : CrowdBehaviorMode.values())
+            for (CrowdBehaviorMode mode : CrowdBehaviorMode.PRESETS)
             {
                 menu.action(Icons.ALL_DIRECTIONS, IKey.constant(mode.title), () ->
                 {

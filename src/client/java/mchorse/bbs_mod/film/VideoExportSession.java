@@ -276,6 +276,7 @@ public abstract class VideoExportSession
         }
 
         this.state = State.IDLE;
+
         this.teardown(cancelled);
         this.reset();
 

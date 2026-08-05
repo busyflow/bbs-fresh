@@ -42,6 +42,7 @@ public class UICrowdSpawnActionClip extends UIActionClip<CrowdSpawnActionClip>
     private UITrackpad spacing;
     private UIButton formation;
     private UITrackpad holeRadius;
+    private UIToggle disableAi;
     private UIToggle randomYaw;
     private UIToggle spawnOnBlock;
     private UIToggle skipUnsafe;
@@ -82,6 +83,7 @@ public class UICrowdSpawnActionClip extends UIActionClip<CrowdSpawnActionClip>
         this.formation = new UIButton(IKey.EMPTY, (b) -> this.openFormationMenu());
         this.holeRadius = new UITrackpad((value) -> this.editor.editMultiple(this.clip.holeRadius, (v) -> v.set(value.floatValue())));
         this.holeRadius.limit(this.clip.holeRadius).values(0.1D, 0.01D, 0.5D);
+        this.disableAi = new UIToggle(IKey.constant("No mob AI"), (b) -> this.editor.editMultiple(this.clip.disableAi, (value) -> value.set(b.getValue())));
         this.randomYaw = new UIToggle(IKey.constant("Random yaw"), (b) -> this.editor.editMultiple(this.clip.randomYaw, (value) -> value.set(b.getValue())));
         this.spawnOnBlock = new UIToggle(IKey.constant("Surface"), (b) -> this.editor.editMultiple(this.clip.spawnOnBlock, (value) -> value.set(b.getValue())));
         this.skipUnsafe = new UIToggle(IKey.constant("Skip blocked"), (b) -> this.editor.editMultiple(this.clip.skipUnsafe, (value) -> value.set(b.getValue())));
@@ -104,7 +106,8 @@ public class UICrowdSpawnActionClip extends UIActionClip<CrowdSpawnActionClip>
             ),
             this.section("Placement",
                 UI.row(1, this.spawnOnBlock, this.skipUnsafe),
-                UI.row(1, this.randomYaw, this.replaceExisting)
+                UI.row(1, this.randomYaw, this.replaceExisting),
+                this.disableAi
             ),
             this.section("NPC Model",
                 this.row("Mob", this.mobType),
@@ -131,6 +134,7 @@ public class UICrowdSpawnActionClip extends UIActionClip<CrowdSpawnActionClip>
         this.spacing.setValue(this.clip.spacing.get());
         this.refreshFormationLabel();
         this.holeRadius.setValue(this.clip.holeRadius.get());
+        this.disableAi.setValue(this.clip.disableAi.get());
         this.randomYaw.setValue(this.clip.randomYaw.get());
         this.spawnOnBlock.setValue(this.clip.spawnOnBlock.get());
         this.skipUnsafe.setValue(this.clip.skipUnsafe.get());

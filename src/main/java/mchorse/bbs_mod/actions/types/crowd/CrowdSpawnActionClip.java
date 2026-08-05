@@ -49,11 +49,16 @@ public class CrowdSpawnActionClip extends ActionClip
      * entity tick itself rather than the crowd logic. The high end of this range is meant for
      * rendering out a shot, not for editing one live - vanilla's own entity ticking will not
      * hold 20 TPS there. */
-    public final ValueInt count = new ValueInt("count", 20, 1, 10000);
+    public final ValueInt count = new ValueInt("count", 20, 1, 100000);
     public final ValueInt seed = new ValueInt("seed", 1);
     public final ValueFloat spacing = new ValueFloat("spacing", 1.0F, 0.1F, 64F);
     public final ValueInt formation = new ValueInt("formation", CrowdFormation.CIRCLE.ordinal(), 0, CrowdFormation.values().length - 1);
     public final ValueFloat holeRadius = new ValueFloat("hole_radius", 4F, 0F, 128F);
+    /* The crowd behaviour clip drives movement by setting velocity directly and stops the
+     * navigator anyway, so vanilla AI contributes nothing but cost - and for villagers that
+     * cost is the brain, comfortably the most expensive thing they do per tick. Turning it off
+     * also stops them wandering off on their own errands, out of the loaded chunks. */
+    public final ValueBoolean disableAi = new ValueBoolean("disable_ai", false);
     public final ValueBoolean randomYaw = new ValueBoolean("random_yaw", true);
     public final ValueBoolean spawnOnBlock = new ValueBoolean("spawn_on_block", true);
     public final ValueBoolean skipUnsafe = new ValueBoolean("skip_unsafe", true);
@@ -74,6 +79,7 @@ public class CrowdSpawnActionClip extends ActionClip
         this.add(this.spacing);
         this.add(this.formation);
         this.add(this.holeRadius);
+        this.add(this.disableAi);
         this.add(this.randomYaw);
         this.add(this.spawnOnBlock);
         this.add(this.skipUnsafe);
@@ -164,7 +170,7 @@ public class CrowdSpawnActionClip extends ActionClip
 
                 entityData = mob.initialize(world, world.getLocalDifficulty(initial), SpawnReason.COMMAND, entityData, null);
                 mob.setPersistent();
-                mob.setAiDisabled(false);
+                mob.setAiDisabled(this.disableAi.get());
                 mob.setSilent(false);
                 mob.setCustomNameVisible(false);
                 entity = mob;
@@ -312,6 +318,20 @@ public class CrowdSpawnActionClip extends ActionClip
     private boolean isSpawnClear(ServerWorld world, LivingEntity entity, Vec3d spawn)
     {
         double halfWidth = Math.max(0.2D, entity.getWidth() * 0.5D - 0.01D);
+
+        /* Same reasoning as findSurfaceY - the footprint can straddle a chunk border, and the
+         * probe must not be what pulls an ungenerated chunk in on the server thread. */
+        for (int cx = (int) Math.floor(spawn.x - halfWidth) >> 4; cx <= (int) Math.floor(spawn.x + halfWidth) >> 4; cx++)
+        {
+            for (int cz = (int) Math.floor(spawn.z - halfWidth) >> 4; cz <= (int) Math.floor(spawn.z + halfWidth) >> 4; cz++)
+            {
+                if (!world.getChunkManager().isChunkLoaded(cx, cz))
+                {
+                    return false;
+                }
+            }
+        }
+
         int height = Math.max(1, (int) Math.ceil(entity.getHeight()));
         double[] xs = new double[] {spawn.x, spawn.x - halfWidth, spawn.x + halfWidth};
         double[] zs = new double[] {spawn.z, spawn.z - halfWidth, spawn.z + halfWidth};
@@ -366,6 +386,15 @@ public class CrowdSpawnActionClip extends ActionClip
      */
     private Double findSurfaceY(ServerWorld world, Vec3d center, int bx, int bz)
     {
+        /* Never touch a column whose chunk is not already loaded. Reading a block out there
+         * would force a synchronous generate on the server thread, and a wide crowd has enough
+         * rim members to chain those into a freeze that also takes the world save down with it.
+         * Skipping the member instead simply leaves the crowd's edge at the loaded boundary. */
+        if (!world.getChunkManager().isChunkLoaded(bx >> 4, bz >> 4))
+        {
+            return null;
+        }
+
         int origin = (int) Math.floor(center.y);
         int minY = Math.max(world.getBottomY() + 1, origin - VERTICAL_RANGE);
         int maxY = Math.min(world.getTopY() - 2, origin + VERTICAL_RANGE);

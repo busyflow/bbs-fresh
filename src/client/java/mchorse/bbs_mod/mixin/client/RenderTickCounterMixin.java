@@ -34,6 +34,12 @@ public class RenderTickCounterMixin
 
         if (videoRecorder.isRecording())
         {
+            /* Let the world catch up before deciding this frame exists. Client ticks run right
+             * after this returns and are what hand the arriving entity updates to the world, so
+             * a frame produced while the server still owes ticks would be rendered from
+             * positions the world has already moved past. */
+            videoRecorder.awaitServerTicks();
+
             if (videoRecorder.getCounter() == 0)
             {
                 this.tickDelta = 0;

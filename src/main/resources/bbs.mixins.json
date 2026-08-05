@@ -13,7 +13,10 @@
         "LivingEntityMixin",
         "ServerPlayerEntityMixin",
         "LimbAnimatorAccessor",
-        "LevelPropertiesAccessor"
+        "LevelPropertiesAccessor",
+        "KillCommandMixin",
+        "EntityCrowdBoundsMixin",
+        "LivingEntityCrowdCostMixin"
     ],
     "injectors": {
         "defaultRequire": 1

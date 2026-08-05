@@ -42,7 +42,46 @@ public class VideoRecorder
     private int counter;
 
     public int serverTicks;
-    public int lastServerTicks;
+    public volatile int lastServerTicks;
+
+    /**
+     * Block until the server has run every tick this recording has asked for.
+     *
+     * <p>The two run on different threads: frames are produced on the render thread while the
+     * integrated server consumes {@link #serverTicks} on its own. That is invisible at normal
+     * speed, but a scene heavy enough to push the server to seconds per tick lets the recorder
+     * race dozens of frames ahead of the world, and every one of them captures the same stale
+     * entity positions - the recording shows the scene lurching forward once a second instead
+     * of moving. Waiting costs wall-clock time and nothing else: the frames are still one tick
+     * apart, so the video comes out at full rate however long it took to make.</p>
+     *
+     * @return false if the wait timed out, which means the server is not ticking at all
+     */
+    public boolean awaitServerTicks()
+    {
+        long deadline = System.currentTimeMillis() + 120000L;
+
+        while (this.lastServerTicks < this.serverTicks)
+        {
+            if (System.currentTimeMillis() > deadline)
+            {
+                return false;
+            }
+
+            try
+            {
+                Thread.sleep(1L);
+            }
+            catch (InterruptedException e)
+            {
+                Thread.currentThread().interrupt();
+
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     public boolean isRecording()
     {

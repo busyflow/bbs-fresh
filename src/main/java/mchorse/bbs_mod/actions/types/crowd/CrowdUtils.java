@@ -11,6 +11,7 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -18,6 +19,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 public class CrowdUtils
 {
@@ -72,12 +74,25 @@ public class CrowdUtils
             && entity.getCommandTags().contains(crowdTag(crowdTag));
     }
 
+    /**
+     * Every member of a tagged crowd, nearest-index first.
+     *
+     * <p>{@code range} of 0 or less means the whole world. Membership is decided by the tags
+     * alone, so a crowd spread wider than the query box would otherwise have its far half
+     * silently ignored - the visible symptom being that only the members near the target react
+     * to a behaviour clip.</p>
+     *
+     * <p>The unlimited case walks the world's loaded entities rather than asking for a
+     * world-sized box: a box query visits every chunk section it spans, so a box big enough to
+     * cover the world costs seconds per call and stalls the server thread outright.</p>
+     */
     public static List<LivingEntity> getCrowd(ServerWorld world, Film film, String crowdTag, Vec3d center, double range)
     {
-        double r = Math.max(8D, range);
-        Box box = Box.of(center, r * 2D, Math.max(16D, r), r * 2D);
-
-        List<LivingEntity> entities = world.getEntitiesByClass(LivingEntity.class, box, (entity) -> hasTags(entity, film, crowdTag));
+        List<LivingEntity> entities = range <= 0D
+            ? collectTagged(world, film, crowdTag)
+            : world.getEntitiesByClass(LivingEntity.class,
+                Box.of(center, Math.max(8D, range) * 2D, Math.max(16D, range), Math.max(8D, range) * 2D),
+                (entity) -> hasTags(entity, film, crowdTag));
 
         /* entityIndex walks the entity's command tags, so read it once per member and sort on
          * the cached number - a comparator that recomputed it would do that walk on every one
@@ -96,14 +111,37 @@ public class CrowdUtils
         return entities;
     }
 
+    /**
+     * Walks every loaded entity once. Used wherever the whole world has to be covered, since a
+     * world-sized {@link Box} query iterates chunk sections instead of entities and takes
+     * seconds.
+     */
+    private static List<LivingEntity> collectTagged(ServerWorld world, Predicate<LivingEntity> predicate)
+    {
+        List<LivingEntity> found = new ArrayList<>();
+
+        for (Entity entity : world.iterateEntities())
+        {
+            if (entity instanceof LivingEntity living && predicate.test(living))
+            {
+                found.add(living);
+            }
+        }
+
+        return found;
+    }
+
+    private static List<LivingEntity> collectTagged(ServerWorld world, Film film, String crowdTag)
+    {
+        return collectTagged(world, (entity) -> hasTags(entity, film, crowdTag));
+    }
+
     public static void removeCrowd(ServerWorld world, Film film, String crowdTag)
     {
         String tag = crowdTag(crowdTag);
         String runTag = getRunTag(film);
-        double radius = 30000000D;
-        Box box = new Box(-radius, world.getBottomY(), -radius, radius, world.getTopY(), radius);
 
-        for (LivingEntity mob : world.getEntitiesByClass(LivingEntity.class, box, (entity) ->
+        for (LivingEntity mob : collectTagged(world, (entity) ->
             entity.getCommandTags().contains(INTERNAL_TAG)
                 && entity.getCommandTags().contains(runTag)
                 && entity.getCommandTags().contains(tag)))
@@ -115,10 +153,8 @@ public class CrowdUtils
     public static void removeAllForFilm(ServerWorld world, Film film)
     {
         String runTag = getRunTag(film);
-        double radius = 30000000D;
-        Box box = new Box(-radius, world.getBottomY(), -radius, radius, world.getTopY(), radius);
 
-        for (LivingEntity mob : world.getEntitiesByClass(LivingEntity.class, box, (entity) ->
+        for (LivingEntity mob : collectTagged(world, (entity) ->
             entity.getCommandTags().contains(INTERNAL_TAG) && entity.getCommandTags().contains(runTag)))
         {
             mob.discard();
