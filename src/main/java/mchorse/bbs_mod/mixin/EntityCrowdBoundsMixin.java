@@ -33,12 +33,23 @@ public class EntityCrowdBoundsMixin
     {
         Entity self = (Entity) (Object) this;
 
-        if (movement == null || (movement.x == 0D && movement.z == 0D))
+        if (movement == null || !(self.getWorld() instanceof ServerWorld world) || !self.getCommandTags().contains(CrowdUtils.INTERNAL_TAG))
         {
             return movement;
         }
 
-        if (!(self.getWorld() instanceof ServerWorld world) || !self.getCommandTags().contains(CrowdUtils.INTERNAL_TAG))
+        /* A falling entity that covers a block in one tick has vanilla raycast its fall path to
+         * find what it is about to land on, and that walk reads blocks the entity has not
+         * reached yet. Reading one in terrain that has not been generated makes the server
+         * generate it there and then, on the server thread, inside this tick - minutes of it,
+         * which the watchdog reports as a dead server. It is the one read in movement the check
+         * below cannot prevent, because the path is chosen after the step is decided.
+         *
+         * A crowd member carries no fall distance, so the check never fires. They are placed on
+         * the surface and driven every tick, so there is nothing it could tell us. */
+        self.fallDistance = 0F;
+
+        if (movement.x == 0D && movement.z == 0D)
         {
             return movement;
         }

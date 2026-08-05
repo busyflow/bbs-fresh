@@ -358,6 +358,18 @@ public class CrowdBehaviorActionClip extends ActionClip
         entity.noClip = false;
         entity.setStepHeight(Math.min(entity.getStepHeight(), Math.max(0F, Math.min(0.75F, this.maxStepHeight.get()))));
 
+        /* A falling entity that covers a block in one tick has vanilla raycast its fall path to
+         * find what it is about to land on. That walk reads blocks the entity has not reached
+         * yet, and reading one in terrain that has not been generated makes the server generate
+         * it there and then - minutes, on the server thread, inside a single tick, which the
+         * watchdog then reports as a dead server. It is the one block read in movement that the
+         * loaded-chunk guard cannot see coming, because the path is decided after the step.
+         *
+         * A crowd member carries no fall distance, so the check never fires. They are placed on
+         * the surface and driven every tick anyway, so there is nothing for it to tell us, and
+         * it also spares them fall damage on a slope. */
+        entity.fallDistance = 0F;
+
         if (entity instanceof MobEntity mob)
         {
             mob.getNavigation().stop();
