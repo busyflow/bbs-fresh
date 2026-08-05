@@ -75,8 +75,11 @@ public class CrowdBehaviorActionClip extends ActionClip
     private double pushX;
     private double pushZ;
     private int pushSamples;
+    /** Set by {@link #tryAutoJump} while steering one member, read back when its velocity is written. */
+    private boolean jumped;
     public final ValueFloat separation = new ValueFloat("separation", 0.85F, 0F, 6F);
     public final ValueFloat maxStepHeight = new ValueFloat("max_step_height", 0.55F, 0F, 0.75F);
+    public final ValueBoolean autoJump = new ValueBoolean("auto_jump", true);
     public final ValueBoolean crouch = new ValueBoolean("crouch", false);
     public final ValueBoolean zigZag = new ValueBoolean("zig_zag", false);
     public final ValueBoolean randomJump = new ValueBoolean("random_jump", false);
@@ -142,6 +145,7 @@ public class CrowdBehaviorActionClip extends ActionClip
         this.add(this.wanderRadius);
         this.add(this.separation);
         this.add(this.maxStepHeight);
+        this.add(this.autoJump);
         this.add(this.crouch);
         this.add(this.zigZag);
         this.add(this.randomJump);
@@ -844,6 +848,8 @@ public class CrowdBehaviorActionClip extends ActionClip
             return;
         }
 
+        this.jumped = false;
+
         Vec3d delta = destination.subtract(entity.getPos());
         Vec3d horizontal = new Vec3d(delta.x, 0D, delta.z);
         Vec3d separation = this.getSeparationMotion(entity, crowd);
@@ -896,7 +902,7 @@ public class CrowdBehaviorActionClip extends ActionClip
          * position stream alone describes the motion, and the client interpolates it smoothly.
          * It also spares one packet per member per tick, which at crowd scale is the difference
          * between keeping up and not. */
-        entity.setVelocity(safe.x, velocity.y, safe.z);
+        entity.setVelocity(safe.x, this.jumped ? 0.42D : velocity.y, safe.z);
 
         if (safe.lengthSquared() > 1.0E-6D)
         {
@@ -919,6 +925,15 @@ public class CrowdBehaviorActionClip extends ActionClip
             return desired;
         }
 
+        /* Before giving up on the direction and turning, see whether hopping clears it. The step
+         * height a walk can absorb tops out below a block, so a single grass block is enough to
+         * stop a member dead, and a crowd walking into a one-block rise piles up against it
+         * instead of crossing. */
+        if (this.tryAutoJump(world, entity, desired))
+        {
+            return desired;
+        }
+
         boolean flip = Math.floorMod(CrowdUtils.entitySeed(entity, this.seed.get(), 0x2a71) + tick / 10, 2) == 0;
         double[] angles = flip
             ? new double[] {25D, -25D, 45D, -45D, 70D, -70D, 105D, -105D, 150D}
@@ -935,6 +950,42 @@ public class CrowdBehaviorActionClip extends ActionClip
         }
 
         return Vec3d.ZERO;
+    }
+
+    /**
+     * Hop a member over an obstacle that walking cannot climb.
+     *
+     * <p>Only worth doing when the way is blocked at foot level but open a block higher, which
+     * is the shape of a kerb, a step or a single block of terrain - the things a crowd should
+     * cross without noticing. Anything taller is a wall, and the member should turn instead, so
+     * this reports failure and leaves the steering to look for a way round.</p>
+     *
+     * <p>The jump is recorded rather than applied, because the caller has already read the
+     * velocity it is about to write and would put the old vertical component straight back over
+     * the top of it.</p>
+     */
+    private boolean tryAutoJump(ServerWorld world, LivingEntity entity, Vec3d motion)
+    {
+        if (!this.autoJump.get() || !entity.isOnGround() || this.jumped)
+        {
+            return false;
+        }
+
+        Box box = entity.getBoundingBox().offset(motion.x, 0D, motion.z);
+
+        /* One block up clears a one-block rise; the taller probe covers a member standing a
+         * little below the obstacle, on a slab or partway down a slope. */
+        for (double lift : new double[] {1D, 1.25D})
+        {
+            if (world.isSpaceEmpty(null, box.offset(0D, lift, 0D)))
+            {
+                this.jumped = true;
+
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private boolean canMove(ServerWorld world, LivingEntity entity, Vec3d motion)

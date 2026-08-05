@@ -41,6 +41,7 @@ public class UICrowdBehaviorActionClip extends UIActionClip<CrowdBehaviorActionC
     private UITrackpad wanderRadius;
     private UITrackpad separation;
     private UITrackpad maxStepHeight;
+    private UIToggle autoJump;
     private UIToggle crouch;
     private UIToggle zigZag;
     private UIToggle randomJump;
@@ -123,6 +124,8 @@ public class UICrowdBehaviorActionClip extends UIActionClip<CrowdBehaviorActionC
         this.separation.limit(this.clip.separation).values(0.05D, 0.01D, 0.25D);
         this.maxStepHeight = new UITrackpad((value) -> this.editor.editMultiple(this.clip.maxStepHeight, (v) -> v.set(value.floatValue())));
         this.maxStepHeight.limit(this.clip.maxStepHeight).values(0.05D, 0.01D, 0.1D);
+        this.autoJump = new UIToggle(IKey.constant("Auto jump"), (b) -> this.editor.editMultiple(this.clip.autoJump, (value) -> value.set(b.getValue())));
+        this.autoJump.tooltip(IKey.constant("Hop over obstacles a step cannot climb, such as a single block of terrain, instead of piling up against them."));
         this.crouch = new UIToggle(IKey.constant("Crouch"), (b) -> this.editor.editMultiple(this.clip.crouch, (value) -> value.set(b.getValue())));
         this.zigZag = new UIToggle(IKey.constant("Zig zag"), (b) -> this.editor.editMultiple(this.clip.zigZag, (value) -> value.set(b.getValue())));
         this.randomJump = new UIToggle(IKey.constant("Jump"), (b) -> this.editor.editMultiple(this.clip.randomJump, (value) -> value.set(b.getValue())));
@@ -208,7 +211,8 @@ public class UICrowdBehaviorActionClip extends UIActionClip<CrowdBehaviorActionC
                 this.row("Range", this.range),
                 this.row("Path", this.pathRefresh),
                 this.row("Spacing", this.separation),
-                this.row("Soft step", this.maxStepHeight)
+                this.row("Soft step", this.maxStepHeight),
+                UI.row(2, this.autoJump)
             ),
             this.section("Action Area",
                 this.row("Wander radius", this.wanderRadius)
@@ -281,6 +285,7 @@ public class UICrowdBehaviorActionClip extends UIActionClip<CrowdBehaviorActionC
         this.wanderRadius.setValue(this.clip.wanderRadius.get());
         this.separation.setValue(this.clip.separation.get());
         this.maxStepHeight.setValue(this.clip.maxStepHeight.get());
+        this.autoJump.setValue(this.clip.autoJump.get());
         this.crouch.setValue(this.clip.crouch.get());
         this.zigZag.setValue(this.clip.zigZag.get());
         this.randomJump.setValue(this.clip.randomJump.get());

@@ -1,5 +1,7 @@
 package mchorse.bbs_mod.actions.types.crowd;
 
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import mchorse.bbs_mod.film.Film;
 import mchorse.bbs_mod.film.replays.Replay;
 import net.minecraft.entity.Entity;
@@ -98,16 +100,22 @@ public class CrowdUtils
 
         /* entityIndex walks the entity's command tags, so read it once per member and sort on
          * the cached number - a comparator that recomputed it would do that walk on every one
-         * of the n log n comparisons, which is what a five-figure crowd notices. */
-        Map<Entity, Integer> indices = new IdentityHashMap<>(entities.size());
+         * of the n log n comparisons, which is what a five-figure crowd notices.
+         *
+         * Cached against the primitive: a boxing map allocates an Integer per member as it is
+         * filled and unboxes on every one of those comparisons, and entities do not override
+         * equality, so the open map already compares them by identity. */
+        Object2IntMap<LivingEntity> indices = new Object2IntOpenHashMap<>(entities.size());
 
-        for (LivingEntity entity : entities)
+        for (int i = 0; i < entities.size(); i++)
         {
+            LivingEntity entity = entities.get(i);
+
             indices.put(entity, entityIndex(entity));
         }
 
         entities.sort(Comparator
-            .comparingInt((LivingEntity entity) -> indices.get(entity))
+            .comparingInt((LivingEntity entity) -> indices.getInt(entity))
             .thenComparingInt(Entity::getId));
 
         return entities;

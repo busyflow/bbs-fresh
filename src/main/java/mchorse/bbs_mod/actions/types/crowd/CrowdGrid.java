@@ -1,11 +1,11 @@
 package mchorse.bbs_mod.actions.types.crowd;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.entity.LivingEntity;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -20,17 +20,31 @@ import java.util.function.Consumer;
 public class CrowdGrid
 {
     private final double cell;
-    private final Map<Long, List<LivingEntity>> buckets = new HashMap<>();
+    /* Keyed on the primitive. A boxing map would allocate a Long for every member as the index
+     * is built and another for each of the nine cells every member then reads - four hundred
+     * thousand short-lived objects a tick at five figures, which the collector has to keep up
+     * with on top of everything else the tick is doing. */
+    private final Long2ObjectMap<List<LivingEntity>> buckets = new Long2ObjectOpenHashMap<>();
 
     public CrowdGrid(List<LivingEntity> crowd, double cell)
     {
         this.cell = Math.max(1D, cell);
 
-        for (LivingEntity entity : crowd)
+        for (int i = 0; i < crowd.size(); i++)
         {
+            LivingEntity entity = crowd.get(i);
+
             if (entity.isAlive() && !entity.isRemoved())
             {
-                this.buckets.computeIfAbsent(this.key(entity.getX(), entity.getZ()), (k) -> new ArrayList<>()).add(entity);
+                long key = this.key(entity.getX(), entity.getZ());
+                List<LivingEntity> bucket = this.buckets.get(key);
+
+                if (bucket == null)
+                {
+                    this.buckets.put(key, bucket = new ArrayList<>());
+                }
+
+                bucket.add(entity);
             }
         }
     }
