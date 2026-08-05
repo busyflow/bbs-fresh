@@ -109,22 +109,33 @@ public class AreaBrush
         }
 
         /* Right-drag erases whatever the current mode is, so correcting a stroke doesn't mean
-         * going back to the panel to flip a toggle and back. The choice is fixed when the stroke
-         * starts, so the rest of it can't change meaning halfway through. */
-        strokeErase = erasing || context.mouseButton == 1;
-        painting = true;
-
-        stamp(context, area, camera, strokeErase);
+         * going back to the panel to flip a toggle and back. */
+        held(context, area, camera, context.mouseButton == 1);
 
         return true;
     }
 
-    /** Continue a stroke — called every frame the button is held. */
-    public static void drag(UIContext context, Area area, Camera camera)
+    /**
+     * Paint from the raw button state, once per frame, for as long as a button is held.
+     *
+     * <p>The viewport's click event is not a reliable place to start a stroke — it is contested by
+     * the orbit camera, the gizmos and form picking, and whichever of them the editor hands the
+     * press to, the brush never hears about it. Polling the button instead means the brush works
+     * the same whoever else wanted that click, and a stroke is naturally continuous: it is simply
+     * "the button is down and the cursor is here", every frame.</p>
+     */
+    public static void held(UIContext context, Area area, Camera camera, boolean right)
     {
-        if (clip == null || !painting)
+        if (clip == null)
         {
             return;
+        }
+
+        if (!painting)
+        {
+            /* First frame of the stroke: fix paint-or-erase now so it can't change halfway. */
+            strokeErase = erasing || right;
+            painting = true;
         }
 
         stamp(context, area, camera, strokeErase);
