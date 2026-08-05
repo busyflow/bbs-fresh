@@ -821,6 +821,17 @@ public class CrowdBehaviorActionClip extends ActionClip
             return;
         }
 
+        /* A destination that isn't a number - an actor with no resolvable position, a keyframe
+         * track that evaluated to nothing - would otherwise travel through the arithmetic below
+         * untouched and be written into the member's position, where it becomes a permanent
+         * defect in the save rather than a bad frame. */
+        if (!isFinite(destination.x) || !isFinite(destination.y) || !isFinite(destination.z))
+        {
+            this.stopHorizontal(entity);
+
+            return;
+        }
+
         Vec3d delta = destination.subtract(entity.getPos());
         Vec3d horizontal = new Vec3d(delta.x, 0D, delta.z);
         Vec3d separation = this.getSeparationMotion(entity, crowd);
@@ -998,6 +1009,11 @@ public class CrowdBehaviorActionClip extends ActionClip
         }
 
         return Vec3d.ZERO;
+    }
+
+    private static boolean isFinite(double value)
+    {
+        return !Double.isNaN(value) && !Double.isInfinite(value);
     }
 
     private Vec3d getSeparationMotion(LivingEntity entity, List<LivingEntity> crowd)

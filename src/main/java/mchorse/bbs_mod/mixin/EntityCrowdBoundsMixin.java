@@ -7,7 +7,9 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * Keeps crowd members from walking out of the loaded world.
@@ -40,6 +42,16 @@ public class EntityCrowdBoundsMixin
             return movement;
         }
 
+        /* A step that isn't a number puts the member at a position that isn't one either, and
+         * that is a wound the world carries: the member is written into the save, and every
+         * later load of that chunk throws building a stack trace before discarding it. A crowd
+         * worth of those turns opening the world into a several-minute grind. Refuse the step
+         * instead - a member that stands still for a tick is not something a shot can show. */
+        if (!isFinite(movement.x) || !isFinite(movement.y) || !isFinite(movement.z))
+        {
+            return Vec3d.ZERO;
+        }
+
         /* Moving reads every block the entity's box touches after the step, not just the block
          * under its feet, and collision widens that box by another block on each side. Testing
          * only the destination column let a member standing near a chunk edge still read across
@@ -63,5 +75,26 @@ public class EntityCrowdBoundsMixin
         }
 
         return movement;
+    }
+
+    /**
+     * Keep crowd members out of the save file.
+     *
+     * <p>They are props for a shot, respawned by the clip whenever it plays, so writing them to
+     * disk gains nothing and costs plenty: quitting mid-scene bakes a five-figure crowd into the
+     * world, and every later load has to read all of it back before the world opens.</p>
+     */
+    @Inject(method = "shouldSave", at = @At("HEAD"), cancellable = true)
+    private void bbs$doNotSaveCrowd(CallbackInfoReturnable<Boolean> info)
+    {
+        if (((Entity) (Object) this).getCommandTags().contains(CrowdUtils.INTERNAL_TAG))
+        {
+            info.setReturnValue(false);
+        }
+    }
+
+    private static boolean isFinite(double value)
+    {
+        return !Double.isNaN(value) && !Double.isInfinite(value);
     }
 }
