@@ -16,7 +16,8 @@
         "LevelPropertiesAccessor",
         "KillCommandMixin",
         "EntityCrowdBoundsMixin",
-        "LivingEntityCrowdCostMixin"
+        "LivingEntityCrowdCostMixin",
+        "EntityViewCrowdCollisionMixin"
     ],
     "injectors": {
         "defaultRequire": 1

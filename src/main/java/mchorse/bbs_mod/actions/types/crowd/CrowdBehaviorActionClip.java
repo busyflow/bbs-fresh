@@ -846,15 +846,25 @@ public class CrowdBehaviorActionClip extends ActionClip
          * but never below a quarter speed or the final approach turns into a crawl. */
         double step = Math.min(maxStep, Math.max(maxStep * 0.25D, distance * 0.18D));
         Vec3d desired = horizontal.normalize().multiply(step);
-        Vec3d motion = this.steerAroundObstacles(world, entity, desired, tick);
         Vec3d velocity = entity.getVelocity();
         double blend = 0.28D + Math.min(0.22D, speed * 0.035D);
+        /* Ease towards the step wanted rather than snapping onto it, then check that once.
+         * Checking the step and then checking the eased result is two collision queries per
+         * member per tick where the crowd is in the open and both always pass - and in the
+         * open is where a crowd this size spends nearly all of its time. */
         Vec3d smooth = new Vec3d(
-            velocity.x + (motion.x - velocity.x) * blend,
+            velocity.x + (desired.x - velocity.x) * blend,
             0D,
-            velocity.z + (motion.z - velocity.z) * blend
+            velocity.z + (desired.z - velocity.z) * blend
         );
-        Vec3d safe = this.trimToSafeMotion(world, entity, smooth);
+        Vec3d safe = this.steerAroundObstacles(world, entity, smooth, tick);
+
+        if (safe.lengthSquared() < 1.0E-6D)
+        {
+            /* Every direction is blocked, so try to make progress with a shorter step. Only
+             * members actually up against something pay for this. */
+            safe = this.trimToSafeMotion(world, entity, smooth);
+        }
 
         /* Deliberately not flagging velocityModified. That flag exists to push a velocity packet
          * to clients, and a client that is told a velocity simulates the entity forward with it
