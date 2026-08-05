@@ -307,7 +307,10 @@ public class UIClipsPanel extends UIElement implements IUIClipsDelegate
 
         for (Clip clip : this.clips.getClipsFromSelection())
         {
-            BaseValue value = clip.getRecursively(path);
+            /* A selection can span clip types, and the property being edited only exists on
+             * some of them - the ones without it are meant to be skipped by the guard below,
+             * so look the path up without demanding that it resolve. */
+            BaseValue value = clip.findRecursively(path);
 
             if (value != null && value.getClass() == property.getClass())
             {

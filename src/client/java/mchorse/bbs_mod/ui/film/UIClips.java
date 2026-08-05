@@ -1588,6 +1588,13 @@ public class UIClips extends UIElement
 
     private void dragClips(int mouseX, int mouseY)
     {
+        /* A drag can outlive what it grabbed - deleting or reselecting clips mid-drag empties
+         * these, and every drag mode below reads the last entry of both. */
+        if (grabbedClips.isEmpty() || grabbedData.isEmpty())
+        {
+            return;
+        }
+
         List<Clip> others = Window.isAltPressed() ? Collections.emptyList() : this.otherClips;
         int dx = this.fromGraphX(mouseX) - this.fromGraphX(this.initialX);
         int dy = this.fromLayerY(mouseY) - this.fromLayerY(this.initialY);
