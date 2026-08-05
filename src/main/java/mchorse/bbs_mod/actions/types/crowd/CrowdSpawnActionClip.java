@@ -31,6 +31,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.Heightmap;
+import net.minecraft.world.chunk.ChunkStatus;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -325,7 +326,7 @@ public class CrowdSpawnActionClip extends ActionClip
         {
             for (int cz = (int) Math.floor(spawn.z - halfWidth) >> 4; cz <= (int) Math.floor(spawn.z + halfWidth) >> 4; cz++)
             {
-                if (!world.getChunkManager().isChunkLoaded(cx, cz))
+                if (world.getChunk(cx, cz, ChunkStatus.FULL, false) == null)
                 {
                     return false;
                 }
@@ -386,11 +387,13 @@ public class CrowdSpawnActionClip extends ActionClip
      */
     private Double findSurfaceY(ServerWorld world, Vec3d center, int bx, int bz)
     {
-        /* Never touch a column whose chunk is not already loaded. Reading a block out there
+        /* Never touch a column whose chunk is not already finished. Reading a block out there
          * would force a synchronous generate on the server thread, and a wide crowd has enough
          * rim members to chain those into a freeze that also takes the world save down with it.
-         * Skipping the member instead simply leaves the crowd's edge at the loaded boundary. */
-        if (!world.getChunkManager().isChunkLoaded(bx >> 4, bz >> 4))
+         * Skipping the member instead simply leaves the crowd's edge at the loaded boundary.
+         * A chunk part-way through generation counts as loaded but is not free to read, so ask
+         * for a finished one and accept its absence rather than waiting for it. */
+        if (world.getChunk(bx >> 4, bz >> 4, ChunkStatus.FULL, false) == null)
         {
             return null;
         }

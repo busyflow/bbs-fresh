@@ -5,6 +5,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.chunk.ChunkStatus;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -67,7 +68,14 @@ public class EntityCrowdBoundsMixin
         {
             for (int cz = minZ; cz <= maxZ; cz++)
             {
-                if (!world.getChunkManager().isChunkLoaded(cx, cz))
+                /* Asking whether the chunk is loaded is not the same as asking whether reading
+                 * a block in it is free. A chunk part-way through generation counts as loaded,
+                 * but reading a block from it makes the server finish generating it first, and
+                 * the read waits - which is the stall this exists to prevent, so the crowd
+                 * walked straight through the guard and hung the server for minutes at a time.
+                 * Accept only a chunk that is already finished, and never ask for one that
+                 * isn't. */
+                if (world.getChunk(cx, cz, ChunkStatus.FULL, false) == null)
                 {
                     return new Vec3d(0D, movement.y, 0D);
                 }
