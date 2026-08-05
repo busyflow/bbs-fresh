@@ -45,6 +45,60 @@ public class VideoRecorder
     public volatile int lastServerTicks;
 
     /**
+     * Where the wall-clock time of an export actually goes, sampled on the render thread.
+     *
+     * <p>An export that runs slower than real time is worth speeding up, but only in the place
+     * that is costing the time, and the three candidates are not distinguishable by watching
+     * it: waiting on the world to tick, drawing the frame, and getting the finished frame out
+     * to the encoder. Each is timed separately and the split is reported into the log every
+     * {@link #PROFILE_INTERVAL} frames.</p>
+     */
+    private static final int PROFILE_INTERVAL = 120;
+
+    private long waitNanos;
+    private long readbackNanos;
+    private long pipeNanos;
+    private long profileStart;
+    private int profileFrames;
+
+    /**
+     * Report the phase split of the frames captured since the last report.
+     *
+     * <p>Whatever is left after the three measured phases is the frame being drawn, which
+     * covers both the client's own per-frame work and the GPU, since the driver makes the
+     * render thread wait for a GPU that has fallen behind.</p>
+     */
+    private void reportProfile()
+    {
+        long elapsed = System.nanoTime() - this.profileStart;
+
+        if (elapsed <= 0L || this.profileFrames == 0)
+        {
+            return;
+        }
+
+        double frames = this.profileFrames;
+        double total = elapsed / 1_000_000D;
+        double wait = this.waitNanos / 1_000_000D;
+        double readback = this.readbackNanos / 1_000_000D;
+        double pipe = this.pipeNanos / 1_000_000D;
+        double draw = Math.max(0D, total - wait - readback - pipe);
+
+        System.out.printf(
+            "BBS export: %.1f fps - %.1f ms/frame = %.1f world wait (%.0f%%) + %.1f draw (%.0f%%) + %.1f read back (%.0f%%) + %.1f encoder (%.0f%%)%n",
+            frames / (total / 1000D), total / frames,
+            wait / frames, wait / total * 100D,
+            draw / frames, draw / total * 100D,
+            readback / frames, readback / total * 100D,
+            pipe / frames, pipe / total * 100D
+        );
+
+        this.waitNanos = this.readbackNanos = this.pipeNanos = 0L;
+        this.profileFrames = 0;
+        this.profileStart = System.nanoTime();
+    }
+
+    /**
      * Block until the server has run every tick this recording has asked for.
      *
      * <p>The two run on different threads: frames are produced on the render thread while the
@@ -59,28 +113,92 @@ public class VideoRecorder
      */
     public boolean awaitServerTicks()
     {
+        if (this.lastServerTicks >= this.serverTicks)
+        {
+            return true;
+        }
+
+        long start = System.nanoTime();
         long deadline = System.currentTimeMillis() + 120000L;
 
-        while (this.lastServerTicks < this.serverTicks)
+        try
         {
-            if (System.currentTimeMillis() > deadline)
+            while (this.lastServerTicks < this.serverTicks)
             {
-                return false;
-            }
+                if (System.currentTimeMillis() > deadline)
+                {
+                    return false;
+                }
 
-            try
-            {
-                Thread.sleep(1L);
-            }
-            catch (InterruptedException e)
-            {
-                Thread.currentThread().interrupt();
+                try
+                {
+                    Thread.sleep(1L);
+                }
+                catch (InterruptedException e)
+                {
+                    Thread.currentThread().interrupt();
 
-                return false;
+                    return false;
+                }
             }
+        }
+        finally
+        {
+            this.waitNanos += System.nanoTime() - start;
         }
 
         return true;
+    }
+
+    /** The x264 part of the stock arguments, and what each vendor's fixed-function encoder wants instead. */
+    private static final String SOFTWARE_CODEC = "-c:v libx264 -preset ultrafast -tune zerolatency -qp 18";
+
+    /**
+     * Hand the encoding to the fixed-function video encoder on the GPU.
+     *
+     * <p>Every GPU of the last decade has one, and it sits idle through an export while x264
+     * does the same job on the processor - which during a crowd export is the part of the
+     * machine with nothing to spare. The encoder is chosen from the OpenGL vendor, since that
+     * is the GPU actually drawing the frames.</p>
+     *
+     * <p>Only the stock codec arguments are swapped. Arguments the user has written themselves
+     * are theirs, and quietly rewriting them would be worse than not helping.</p>
+     */
+    private static String applyHardwareEncoder(String params)
+    {
+        if (!params.contains(SOFTWARE_CODEC))
+        {
+            System.out.println("BBS export: hardware encoding is on, but the encoder arguments have been customised, so they are left alone.");
+
+            return params;
+        }
+
+        String vendor = GL11.glGetString(GL11.GL_VENDOR);
+
+        vendor = vendor == null ? "" : vendor.toLowerCase();
+
+        String codec;
+
+        if (vendor.contains("nvidia"))
+        {
+            codec = "-c:v h264_nvenc -preset p1 -tune ll -rc constqp -qp 18";
+        }
+        else if (vendor.contains("amd") || vendor.contains("ati") || vendor.contains("radeon"))
+        {
+            codec = "-c:v h264_amf -usage lowlatency -quality speed -rc cqp -qp_i 18 -qp_p 18";
+        }
+        else if (vendor.contains("intel"))
+        {
+            codec = "-c:v h264_qsv -preset veryfast -global_quality 18";
+        }
+        else
+        {
+            System.out.println("BBS export: no known hardware encoder for GPU vendor '" + vendor + "', encoding on the processor.");
+
+            return params;
+        }
+
+        return params.replace(SOFTWARE_CODEC, codec);
     }
 
     public boolean isRecording()
@@ -139,6 +257,11 @@ public class VideoRecorder
             String params = audioFile == null
                 ? BBSSettings.videoArguments.get()
                 : BBSSettings.videoArgumentsAudio.get();
+
+            if (BBSSettings.videoHardwareEncoder.get())
+            {
+                params = applyHardwareEncoder(params);
+            }
             StringBuilder filters = new StringBuilder("vflip");
             float frameRate = (float) BBSRendering.getVideoFrameRate();
 
@@ -246,6 +369,10 @@ public class VideoRecorder
             this.channel = Channels.newChannel(os);
             this.recording = true;
 
+            this.waitNanos = this.readbackNanos = this.pipeNanos = 0L;
+            this.profileFrames = 0;
+            this.profileStart = System.nanoTime();
+
             UIUtils.playClick(2F);
         }
         catch (Exception e)
@@ -275,6 +402,8 @@ public class VideoRecorder
         {
             return;
         }
+
+        this.reportProfile();
 
         if (this.pbos != null)
         {
@@ -373,6 +502,12 @@ public class VideoRecorder
         }
 
         this.counter += 1;
+        this.profileFrames += 1;
+
+        if (this.profileFrames >= PROFILE_INTERVAL)
+        {
+            this.reportProfile();
+        }
     }
 
     /**
@@ -387,6 +522,8 @@ public class VideoRecorder
             int pbo = this.pboIndex;
             int nextPbo = (this.pboIndex + 1) % this.pbos.length;
 
+            long start = System.nanoTime();
+
             GL30.glPixelStorei(GL30.GL_PACK_ALIGNMENT, 1);
             GL30.glBindBuffer(GL30.GL_PIXEL_PACK_BUFFER, this.pbos[pbo]);
             GL30.glBindTexture(GL30.GL_TEXTURE_2D, this.textureId);
@@ -394,11 +531,19 @@ public class VideoRecorder
 
             GL30.glBindBuffer(GL30.GL_PIXEL_PACK_BUFFER, this.pbos[nextPbo]);
 
+            /* Mapping is where a read back that hasn't finished shows up as time. */
             ByteBuffer mappedBuffer = GL30.glMapBuffer(GL30.GL_PIXEL_PACK_BUFFER, GL30.GL_READ_ONLY);
+
+            this.readbackNanos += System.nanoTime() - start;
 
             if (mappedBuffer != null && this.counter != 0)
             {
+                /* And writing is where an encoder that can't keep up shows up, as a full pipe. */
+                start = System.nanoTime();
+
                 this.channel.write(mappedBuffer);
+
+                this.pipeNanos += System.nanoTime() - start;
             }
 
             GL30.glUnmapBuffer(GL30.GL_PIXEL_PACK_BUFFER);

@@ -118,6 +118,7 @@ public class BBSSettings {
 	public static ValueFloat videoDelay;
 	public static ValueBoolean videoOpenFolderAfterExport;
 	public static ValueBoolean videoPlaySoundAfterExport;
+	public static ValueBoolean videoHardwareEncoder;
 	public static ValueString videoArguments;
 	public static ValueString videoArgumentsAudio;
 	public static ValueString videoArgumentsMux;
@@ -744,6 +745,7 @@ public class BBSSettings {
 		videoDelay = builder.getFloat("delay", 0.5F, 0F, 30F);
 		videoOpenFolderAfterExport = builder.getBoolean("open_folder_after_export", false);
 		videoPlaySoundAfterExport = builder.getBoolean("play_sound_after_export", true);
+		videoHardwareEncoder = builder.getBoolean("hardware_encoder", false);
 		videoArguments = builder.getString("arguments", DEFAULT_FFMPEG_ARGUMENTS);
 		videoArgumentsAudio = builder.getString("arguments_audio", DEFAULT_AUDIO_FFMPEG_ARGUMENTS);
 		videoArgumentsMux = builder.getString("arguments_mux", DEFAULT_MUX_FFMPEG_ARGUMENTS);

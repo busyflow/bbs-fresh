@@ -293,6 +293,8 @@
 	"bbs.config.video.frame_rate-comment": "How many frames per second the exported video will have.",
 	"bbs.config.video.limit_frame_rate": "Limit frame rate",
 	"bbs.config.video.limit_frame_rate-comment": "When enabled, recording is throttled so it never renders faster than the frame rate above in real time. Use it on powerful machines where recording otherwise runs too fast (e.g. when capturing live or with audio).",
+	"bbs.config.video.hardware_encoder": "Hardware encoding",
+	"bbs.config.video.hardware_encoder-comment": "Encode the video on the graphics card instead of the processor, which frees the processor for the scene itself. Only the default encoder arguments are swapped - custom ones are left alone.",
 	"bbs.config.video.export_path": "Export path",
 	"bbs.config.video.export_path-comment": "Folder where exported videos will be saved. If empty, the default export folder is used.",
 	"bbs.config.video.filename_format": "Filename format",
