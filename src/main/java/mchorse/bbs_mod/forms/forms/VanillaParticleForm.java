@@ -12,6 +12,13 @@ public class VanillaParticleForm extends Form
     public final ValueBoolean paused = new ValueBoolean("paused", false);
     public final ValueBoolean local = new ValueBoolean("local", false);
     public final ValueFloat velocity = new ValueFloat("velocity", 0.1F);
+    /* Which way the particles leave the emitter, in the form's own space. Up, because that is
+     * what smoke, fire and dust do and what these emitters are nearly always dressing. It used
+     * to be fixed at the form's forward axis, which sends them sideways out of an upright form
+     * and cannot be talked out of it. */
+    public final ValueFloat directionX = new ValueFloat("direction_x", 0F);
+    public final ValueFloat directionY = new ValueFloat("direction_y", 1F);
+    public final ValueFloat directionZ = new ValueFloat("direction_z", 0F);
     public final ValueInt count = new ValueInt("count", 5);
     public final ValueInt frequency = new ValueInt("frequency", 5);
     public final ValueFloat scatteringYaw = new ValueFloat("scattering_yaw", 0F);
@@ -30,6 +37,9 @@ public class VanillaParticleForm extends Form
         this.add(this.paused);
         this.add(this.local);
         this.add(this.velocity);
+        this.add(this.directionX);
+        this.add(this.directionY);
+        this.add(this.directionZ);
         this.add(this.count);
         this.add(this.frequency);
         this.add(this.scatteringYaw);

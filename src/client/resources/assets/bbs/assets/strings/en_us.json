@@ -982,6 +982,7 @@
 	"bbs.ui.forms.editors.vanilla_particle.count": "Count",
 	"bbs.ui.forms.editors.vanilla_particle.editor.pick": "Pick particle...",
 	"bbs.ui.forms.editors.vanilla_particle.editor.title": "Particles",
+	"bbs.ui.forms.editors.vanilla_particle.direction": "Direction",
 	"bbs.ui.forms.editors.vanilla_particle.emission": "Emission",
 	"bbs.ui.forms.editors.vanilla_particle.frequency": "Frequency",
 	"bbs.ui.forms.editors.vanilla_particle.horizontal": "Horizontal",

@@ -15,6 +15,9 @@ public class UIVanillaParticleFormPanel extends UIFormPanel<VanillaParticleForm>
     public UIToggle paused;
     public UIToggle local;
     public UITrackpad velocity;
+    public UITrackpad directionX;
+    public UITrackpad directionY;
+    public UITrackpad directionZ;
     public UITrackpad count;
     public UITrackpad frequency;
     public UITrackpad scatteringYaw;
@@ -31,6 +34,12 @@ public class UIVanillaParticleFormPanel extends UIFormPanel<VanillaParticleForm>
         this.paused = new UIToggle(UIKeys.FORMS_EDITORS_VANILLA_PARTICLE_PAUSED, (b) -> this.form.paused.set(b.getValue()));
         this.local = new UIToggle(UIKeys.FORMS_EDITORS_VANILLA_PARTICLE_LOCAL, (b) -> this.form.local.set(b.getValue()));
         this.velocity = new UITrackpad((v) -> this.form.velocity.set(v.floatValue()));
+        this.directionX = new UITrackpad((v) -> this.form.directionX.set(v.floatValue()));
+        this.directionX.tooltip(UIKeys.GENERAL_X);
+        this.directionY = new UITrackpad((v) -> this.form.directionY.set(v.floatValue()));
+        this.directionY.tooltip(UIKeys.GENERAL_Y);
+        this.directionZ = new UITrackpad((v) -> this.form.directionZ.set(v.floatValue()));
+        this.directionZ.tooltip(UIKeys.GENERAL_Z);
         this.count = new UITrackpad((v) -> this.form.count.set(v.intValue())).integer();
         this.count.tooltip(UIKeys.FORMS_EDITORS_VANILLA_PARTICLE_COUNT);
         this.frequency = new UITrackpad((v) -> this.form.frequency.set(v.intValue())).integer();
@@ -47,6 +56,7 @@ public class UIVanillaParticleFormPanel extends UIFormPanel<VanillaParticleForm>
         this.offsetZ.tooltip(UIKeys.GENERAL_Z);
 
         this.options.add(this.settings, this.paused.marginTop(UIConstants.SECTION_GAP), this.local, UI.labelRow(UIKeys.FORMS_EDITORS_VANILLA_PARTICLE_VELOCITY, this.velocity).marginTop(UIConstants.SECTION_GAP));
+        this.options.add(UI.label(UIKeys.FORMS_EDITORS_VANILLA_PARTICLE_DIRECTION).marginTop(UIConstants.SECTION_GAP), UI.row(this.directionX, this.directionY, this.directionZ));
         this.options.add(UI.label(UIKeys.FORMS_EDITORS_VANILLA_PARTICLE_EMISSION).marginTop(UIConstants.SECTION_GAP), UI.row(this.count, this.frequency));
         this.options.add(UI.label(UIKeys.FORMS_EDITORS_VANILLA_PARTICLE_SCATTER).marginTop(UIConstants.SECTION_GAP), UI.row(this.scatteringYaw, this.scatteringPitch));
         this.options.add(UI.label(UIKeys.FORMS_EDITORS_VANILLA_PARTICLE_OFFSET).marginTop(UIConstants.SECTION_GAP), UI.row(this.offsetX, this.offsetY, this.offsetZ));
@@ -61,6 +71,9 @@ public class UIVanillaParticleFormPanel extends UIFormPanel<VanillaParticleForm>
         this.paused.setValue(form.paused.get());
         this.local.setValue(form.local.get());
         this.velocity.setValue(form.velocity.get());
+        this.directionX.setValue(form.directionX.get());
+        this.directionY.setValue(form.directionY.get());
+        this.directionZ.setValue(form.directionZ.get());
         this.count.setValue(form.count.get());
         this.frequency.setValue(form.frequency.get());
         this.scatteringYaw.setValue(form.scatteringYaw.get());

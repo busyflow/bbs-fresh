@@ -74,7 +74,16 @@ public class VanillaParticleFormRenderer extends FormRenderer<VanillaParticleFor
         context.stack.multiplyPositionMatrix(new Matrix4f(RenderSystem.getInverseViewRotationMatrix()).invert());
 
         this.pos.set(translation);
-        this.vel.set(0F, 0F, 1F);
+        /* Normalised, so the direction says which way and the velocity setting says how fast -
+         * otherwise a direction of (0, 2, 0) would quietly double the speed. */
+        this.vel.set(this.form.directionX.get(), this.form.directionY.get(), this.form.directionZ.get());
+
+        if (this.vel.lengthSquared() < 1.0E-6F)
+        {
+            this.vel.set(0F, 1F, 0F);
+        }
+
+        this.vel.normalize();
         this.rot.set(matrix).transform(this.vel);
 
         context.stack.pop();

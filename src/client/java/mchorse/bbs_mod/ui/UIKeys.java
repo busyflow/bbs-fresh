@@ -583,6 +583,7 @@ public class UIKeys
     public static final IKey FORMS_EDITORS_VANILLA_PARTICLE_COUNT = L10n.lang("bbs.ui.forms.editors.vanilla_particle.count");
     public static final IKey FORMS_EDITORS_VANILLA_PARTICLE_EDITOR_PICK = L10n.lang("bbs.ui.forms.editors.vanilla_particle.editor.pick");
     public static final IKey FORMS_EDITORS_VANILLA_PARTICLE_EDITOR_TITLE = L10n.lang("bbs.ui.forms.editors.vanilla_particle.editor.title");
+    public static final IKey FORMS_EDITORS_VANILLA_PARTICLE_DIRECTION = L10n.lang("bbs.ui.forms.editors.vanilla_particle.direction");
     public static final IKey FORMS_EDITORS_VANILLA_PARTICLE_EMISSION = L10n.lang("bbs.ui.forms.editors.vanilla_particle.emission");
     public static final IKey FORMS_EDITORS_VANILLA_PARTICLE_FREQUENCY = L10n.lang("bbs.ui.forms.editors.vanilla_particle.frequency");
     public static final IKey FORMS_EDITORS_VANILLA_PARTICLE_HORIZONTAL = L10n.lang("bbs.ui.forms.editors.vanilla_particle.horizontal");
