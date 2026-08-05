@@ -198,6 +198,42 @@ public class Pose implements IMapSerializable
         return pose;
     }
 
+    /**
+     * Copy another pose into this one while keeping the transform objects already here.
+     *
+     * <p>Same result as {@link #copy(Pose)}, but a pose that is refilled every frame from the same
+     * rig — which is what a render's working pose is — stops allocating a transform per bone once
+     * it has settled. Keys the source no longer carries are dropped rather than left at their
+     * defaults, because applying a pose ASSIGNS a bone's colour and light level: a stale entry
+     * would quietly wipe what an animation set on that bone.</p>
+     */
+    public void copyReusing(Pose pose)
+    {
+        this.transforms.entrySet().removeIf((entry) ->
+        {
+            PoseTransform source = pose.transforms.get(entry.getKey());
+
+            return source == null || source.isDefault();
+        });
+
+        for (Map.Entry<String, PoseTransform> entry : pose.transforms.entrySet())
+        {
+            if (entry.getValue().isDefault())
+            {
+                continue;
+            }
+
+            PoseTransform transform = this.transforms.get(entry.getKey());
+
+            if (transform == null)
+            {
+                this.transforms.put(entry.getKey(), transform = new PoseTransform());
+            }
+
+            transform.copy(entry.getValue());
+        }
+    }
+
     public void copy(Pose pose)
     {
         this.transforms.clear();

@@ -19,6 +19,9 @@ import mchorse.bbs_mod.cubic.render.CubicMatrixRenderer;
 import mchorse.bbs_mod.cubic.render.CubicRenderer;
 import mchorse.bbs_mod.cubic.render.CubicVAOBuilderRenderer;
 import mchorse.bbs_mod.cubic.render.CubicVAORenderer;
+import mchorse.bbs_mod.cubic.render.skin.SkinnedModel;
+import mchorse.bbs_mod.cubic.render.skin.SkinnedPalette;
+import mchorse.bbs_mod.cubic.render.skin.SkinnedVAO;
 import mchorse.bbs_mod.cubic.render.vao.BOBJModelVAO;
 import mchorse.bbs_mod.cubic.render.vao.ModelVAO;
 import mchorse.bbs_mod.cubic.render.vao.ModelVAORenderer;
@@ -97,6 +100,14 @@ public class ModelInstance implements IModelInstance
 
     /** Per group, the geometry split into one VAO per material name (empty key = default texture). */
     private Map<ModelGroup, Map<String, ModelVAO>> vaos = new HashMap<>();
+
+    /**
+     * The whole model merged into one buffer per material for GPU skinning, built on first use.
+     * {@link #skinnedChecked} separates "not built yet" from "this model can't be skinned", so a
+     * model that declines the path is only ever asked once.
+     */
+    private SkinnedModel skinned;
+    private boolean skinnedChecked;
 
     public transient Matrix4f lastBaseTransform;
     public transient Form form;
@@ -344,6 +355,14 @@ public class ModelInstance implements IModelInstance
         }
 
         this.vaos.clear();
+
+        if (this.skinned != null)
+        {
+            this.skinned.delete();
+            this.skinned = null;
+        }
+
+        this.skinnedChecked = false;
     }
 
     /* Rendering */
@@ -651,6 +670,101 @@ public class ModelInstance implements IModelInstance
         return false;
     }
 
+    /**
+     * Draw the model as one mesh per material, its bones riding a matrix palette on the GPU.
+     *
+     * @return false when this frame doesn't qualify — nothing has been drawn and the caller must
+     * fall through to the per-bone renderers. Everything that can't be expressed exactly is
+     * declined here rather than approximated: stencil picking (its per-bone light index is the
+     * stencil id), Iris and the cutout fallback (their own vertex programs know nothing of the
+     * palette), translucency that splits or defers (a sorted replay would need its own command),
+     * and per-bone colour or light levels (see {@link SkinnedPalette#compute}).
+     */
+    private boolean renderSkinned(MatrixStack stack, ShaderProgram shader, Color color, int light, int overlay, StencilMap stencilMap, Function<String, Link> textureResolver, Model model)
+    {
+        /* An all-CPU model (config's "on CPU") asked not to be baked at all, so it doesn't get
+         * baked into a skinned buffer behind its back either. */
+        if (stencilMap != null || shader != BBSShaders.getModel() || this.vaos.isEmpty() || !SkinnedModel.isEnabled())
+        {
+            return false;
+        }
+
+        if (!this.skinnedChecked)
+        {
+            this.skinnedChecked = true;
+            this.skinned = SkinnedModel.build(model);
+        }
+
+        if (this.skinned == null || this.skinned.isEmpty())
+        {
+            return false;
+        }
+
+        ShaderProgram program = BBSShaders.getModelSkinned();
+
+        if (FormTranslucentQueue.needsWholeDefer(program, null, color.a))
+        {
+            return false;
+        }
+
+        /* Resolve every material's texture BEFORE drawing anything: a texture that needs the
+         * two-pass translucent split sends the whole model back to the per-bone path, and that
+         * decision has to be made while nothing has been submitted yet. */
+        Map<String, SkinnedVAO> vaos = this.skinned.getVaos();
+        Texture[] textures = new Texture[vaos.size()];
+        int i = 0;
+
+        for (String material : vaos.keySet())
+        {
+            Texture texture = null;
+
+            if (textureResolver != null)
+            {
+                Link link = textureResolver.apply(material);
+
+                if (link != null)
+                {
+                    texture = BBSModClient.getTextures().getTexture(link);
+                }
+            }
+
+            if (texture == null)
+            {
+                texture = BBSModClient.getTextures().getLastBound();
+            }
+
+            if (FormTranslucentQueue.needsSplit(program, null, texture, color.a))
+            {
+                return false;
+            }
+
+            textures[i] = texture;
+            i += 1;
+        }
+
+        SkinnedPalette palette = SkinnedModel.pose(model);
+
+        if (palette == null)
+        {
+            return false;
+        }
+
+        Matrix4f modelView = ModelVAORenderer.captureModelView(stack);
+        Matrix3f normalMat = stack.peek().getNormalMatrix();
+
+        i = 0;
+
+        for (SkinnedVAO vao : vaos.values())
+        {
+            BBSModClient.getTextures().bindTexture(textures[i]);
+            SkinnedModel.render(program, vao, modelView, normalMat, palette, color.r, color.g, color.b, color.a, light, overlay);
+
+            i += 1;
+        }
+
+        return true;
+    }
+
     public void render(MatrixStack stack, Supplier<ShaderProgram> program, Color color, int light, int overlay, StencilMap stencilMap, ShapeKeys keys, Function<String, Link> textureResolver)
     {
         ShaderProgram shader = program.get();
@@ -658,6 +772,14 @@ public class ModelInstance implements IModelInstance
         if (this.model instanceof Model model)
         {
             List<WeldBinding> bindings = this.getWeldBindings();
+
+            /* One draw for the whole model when everything about this frame allows it — a crowd of
+             * custom models lives or dies on this. Declining costs nothing: the per-bone paths
+             * below are untouched and still handle every case. */
+            if (bindings.isEmpty() && !this.partialVaos && this.renderSkinned(stack, shader, color, light, overlay, stencilMap, textureResolver, model))
+            {
+                return;
+            }
 
             /* Welds and partially-baked (shape-keyed) models mix VAO and immediate rendering; a partial
              * model whose VAOs aren't baked yet falls through to the plain CPU path below. */

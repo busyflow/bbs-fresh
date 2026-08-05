@@ -39,6 +39,14 @@ public class CubicVAOBuilderRenderer implements ICubicRenderer
 
     private Map<ModelGroup, Map<String, ModelVAO>> model;
 
+    /**
+     * Non-null puts the builder in merged mode: every group's geometry lands in ONE bucket per
+     * material for the whole model, each vertex tagged with its bone, and no per-group VAO is
+     * built. That is the buffer the GPU-skinned path draws in a single call.
+     */
+    private Map<String, MaterialBucket> merged;
+    private int bone;
+
     /* Temporary variables to avoid allocating and GC vectors */
     private ModelVertex modelVertex = new ModelVertex();
     private Vector3f normal = new Vector3f();
@@ -49,12 +57,24 @@ public class CubicVAOBuilderRenderer implements ICubicRenderer
         this.model = model;
     }
 
-    /** Accumulated triangle data for a single material within a group. */
-    private static class MaterialBucket
+    /** The merged (GPU-skinned) bake — see {@link #merged}. */
+    public static CubicVAOBuilderRenderer merging(Map<String, MaterialBucket> merged)
     {
-        private final List<Float> vertices = new ArrayList<>();
-        private final List<Float> normals = new ArrayList<>();
-        private final List<Float> uvs = new ArrayList<>();
+        CubicVAOBuilderRenderer renderer = new CubicVAOBuilderRenderer((Map<ModelGroup, Map<String, ModelVAO>>) null);
+
+        renderer.merged = merged;
+
+        return renderer;
+    }
+
+    /** Accumulated triangle data for a single material within a group (or, merged, the model). */
+    public static class MaterialBucket
+    {
+        public final List<Float> vertices = new ArrayList<>();
+        public final List<Float> normals = new ArrayList<>();
+        public final List<Float> uvs = new ArrayList<>();
+        /** One bone index per vertex — filled in merged mode only. */
+        public final List<Float> bones = new ArrayList<>();
     }
 
     @Override
@@ -76,7 +96,9 @@ public class CubicVAOBuilderRenderer implements ICubicRenderer
 
         /* Split a group's geometry by material so each material can be drawn with its own
          * texture: cubes belong to the default material (""), meshes to their own. */
-        Map<String, MaterialBucket> buckets = new LinkedHashMap<>();
+        Map<String, MaterialBucket> buckets = this.merged == null ? new LinkedHashMap<>() : this.merged;
+
+        this.bone = group.index;
 
         for (ModelCube cube : group.cubes)
         {
@@ -88,6 +110,13 @@ public class CubicVAOBuilderRenderer implements ICubicRenderer
             String material = mesh.material == null ? "" : mesh.material;
 
             this.renderMesh(buckets.computeIfAbsent(material, (k) -> new MaterialBucket()), stack, model, group, mesh);
+        }
+
+        if (this.merged != null)
+        {
+            /* Merged mode keeps accumulating across groups — the caller builds the VAOs once the
+             * whole model has been walked. */
+            return false;
         }
 
         Map<String, ModelVAO> groupVaos = new HashMap<>();
@@ -213,5 +242,10 @@ public class CubicVAOBuilderRenderer implements ICubicRenderer
         bucket.normals.add(normal.z);
         bucket.uvs.add(vertex.uv.x);
         bucket.uvs.add(vertex.uv.y);
+
+        if (this.merged != null)
+        {
+            bucket.bones.add((float) this.bone);
+        }
     }
 }

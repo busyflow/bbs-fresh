@@ -85,6 +85,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
     }
 
     private MatrixCache bones = new MatrixCache();
+    private Pose scratchPose;
 
     private ActionsConfig lastConfigs;
     private IAnimator animator;
@@ -169,7 +170,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
 
     public Pose getPose()
     {
-        Pose pose = this.form.pose.get().copy();
+        Pose pose = this.workingPose();
         Pose overlay = this.form.poseOverlay.get();
 
         this.applyPose(pose, overlay);
@@ -180,6 +181,31 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
         }
 
         return pose;
+    }
+
+    /**
+     * The pose the render composes into: a copy of the form's pose, either fresh or — on the
+     * high-bone path — the renderer's own scratch refilled in place. The result is read within the
+     * render and never kept, so reusing it saves a map and a transform per bone every frame
+     * without changing what the render sees.
+     */
+    private Pose workingPose()
+    {
+        Pose pose = this.form.pose.get();
+
+        if (BBSSettings.highBoneModelOptimization == null || !BBSSettings.highBoneModelOptimization.get())
+        {
+            return pose.copy();
+        }
+
+        if (this.scratchPose == null)
+        {
+            this.scratchPose = new Pose();
+        }
+
+        this.scratchPose.copyReusing(pose);
+
+        return this.scratchPose;
     }
 
     private void applyPose(Pose targetPose, Pose pose)
@@ -433,7 +459,10 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
         }
 
         /* Render items */
-        this.captureMatrices(model);
+        if (this.needsMatrices(model))
+        {
+            this.captureMatrices(model);
+        }
 
         if (stencilMap == null)
         {
@@ -818,6 +847,27 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
     {
         /* this.bones.clear()? */
         model.captureMatrices(this.bones);
+    }
+
+    /**
+     * Whether anything this render will read the bone matrices.
+     *
+     * <p>Capturing them walks the model a second time and builds two matrices per bone, which is
+     * on the order of what drawing the model costs — and a form with no body parts, no held items
+     * and no armour slots (every member of a crowd) never looks at the result. Only the high-bone
+     * path skips it, so ordinary rendering keeps its previous behaviour exactly.</p>
+     */
+    private boolean needsMatrices(ModelInstance model)
+    {
+        if (BBSSettings.highBoneModelOptimization == null || !BBSSettings.highBoneModelOptimization.get())
+        {
+            return true;
+        }
+
+        return !this.form.parts.getAllTyped().isEmpty()
+            || !model.getItemsMain().isEmpty()
+            || !model.getItemsOff().isEmpty()
+            || !model.getArmorSlots().isEmpty();
     }
 
     @Override
