@@ -133,14 +133,23 @@ final class ModelPhysicsCache
         }
     }
 
-    public record Compiled(List<CompiledChain> chains, ModelPhysicsConfig.Wind wind)
+    /** The two skeleton points that give a ragdoll body a real, collidable centre of mass. */
+    public record RagdollRig(String rootBone, String chestBone)
+    {
+    }
+
+    public record Compiled(List<CompiledChain> chains, ModelPhysicsConfig.Wind wind, RagdollRig ragdoll)
     {
     }
 
     private static final WeakHashMap<MapType, EmbeddedCompiled> EMBEDDED = new WeakHashMap<>();
-    private static final Map<RagdollKey, List<CompiledChain>> RAGDOLLS = new HashMap<>();
+    private static final Map<RagdollKey, RagdollCompiled> RAGDOLLS = new HashMap<>();
 
     private record EmbeddedCompiled(IModel model, List<CompiledChain> chains, ModelPhysicsConfig.Wind wind)
+    {
+    }
+
+    private record RagdollCompiled(List<CompiledChain> chains, RagdollRig rig)
     {
     }
 
@@ -165,7 +174,7 @@ final class ModelPhysicsCache
 
         if (cached != null && cached.model == model)
         {
-            return new Compiled(cached.chains, cached.wind);
+            return new Compiled(cached.chains, cached.wind, null);
         }
 
         ModelPhysicsConfig config = ModelPhysicsIO.fromData(data);
@@ -175,7 +184,7 @@ final class ModelPhysicsCache
         EmbeddedCompiled next = new EmbeddedCompiled(model, compiled, wind);
         EMBEDDED.put(data, next);
 
-        return new Compiled(compiled, wind);
+        return new Compiled(compiled, wind, null);
     }
 
     /**
@@ -199,11 +208,11 @@ final class ModelPhysicsCache
         }
 
         RagdollKey key = new RagdollKey(model, control.gravity, control.damping, control.stiffness, control.radius, control.collisions);
-        List<CompiledChain> cached = RAGDOLLS.get(key);
+        RagdollCompiled cached = RAGDOLLS.get(key);
 
         if (cached != null)
         {
-            return new Compiled(cached, ModelPhysicsConfig.Wind.NONE);
+            return new Compiled(cached.chains, ModelPhysicsConfig.Wind.NONE, cached.rig);
         }
 
         List<CompiledChain> out = new ArrayList<>();
@@ -266,9 +275,98 @@ final class ModelPhysicsCache
             out.add(new CompiledChain(attach + ":" + leaf, attach, "", ids, lengths, settings));
         }
 
-        RAGDOLLS.put(key, out);
+        RagdollRig rig = deriveRagdollRig(model);
 
-        return new Compiled(out, ModelPhysicsConfig.Wind.NONE);
+        RAGDOLLS.put(key, new RagdollCompiled(out, rig));
+
+        return new Compiled(out, ModelPhysicsConfig.Wind.NONE, rig);
+    }
+
+    /**
+     * Finds the body axis without asking each model author to name their hips or chest.
+     *
+     * <p>The biggest root is the model's actual skeleton when decorative roots are present. From
+     * there a spine usually travels through single-child bones until it reaches the first fork
+     * (arms, head and legs). Models that put every limb directly below their root still need an
+     * axis, so their largest child is a better physical chest point than abandoning the body
+     * solve altogether.</p>
+     */
+    private static RagdollRig deriveRagdollRig(IModel model)
+    {
+        List<String> roots = new ArrayList<>(model.getRootGroupKeys());
+
+        Collections.sort(roots);
+
+        String root = null;
+        int largest = -1;
+
+        for (String candidate : roots)
+        {
+            int size = descendantCount(model, candidate);
+
+            if (size > largest)
+            {
+                root = candidate;
+                largest = size;
+            }
+        }
+
+        if (root == null || root.isEmpty())
+        {
+            return null;
+        }
+
+        String chest = root;
+
+        while (true)
+        {
+            List<String> children = new ArrayList<>(model.getDirectChildrenKeys(chest));
+
+            if (children.size() != 1)
+            {
+                break;
+            }
+
+            chest = children.get(0);
+        }
+
+        if (chest.equals(root))
+        {
+            List<String> children = new ArrayList<>(model.getDirectChildrenKeys(root));
+
+            Collections.sort(children);
+
+            int largestChild = -1;
+
+            for (String child : children)
+            {
+                int size = descendantCount(model, child);
+
+                if (size > largestChild)
+                {
+                    chest = child;
+                    largestChild = size;
+                }
+            }
+        }
+
+        return chest.equals(root) ? null : new RagdollRig(root, chest);
+    }
+
+    private static int descendantCount(IModel model, String root)
+    {
+        int count = 0;
+        List<String> pending = new ArrayList<>();
+
+        pending.add(root);
+
+        for (int i = 0; i < pending.size(); i++)
+        {
+            count++;
+            pending.addAll(model.getDirectChildrenKeys(pending.get(i)));
+        }
+
+        return count;
     }
 
     private record RagdollKey(IModel model, float gravity, float damping, float stiffness, float radius, boolean collisions)

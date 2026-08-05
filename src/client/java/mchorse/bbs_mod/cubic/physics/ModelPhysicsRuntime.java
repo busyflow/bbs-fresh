@@ -13,8 +13,6 @@ import mchorse.bbs_mod.forms.entities.IEntity;
 import mchorse.bbs_mod.forms.forms.ModelForm;
 import net.minecraft.world.World;
 import org.joml.Matrix4f;
-import mchorse.bbs_mod.utils.MathUtils;
-import mchorse.bbs_mod.utils.interps.Lerps;
 import mchorse.bbs_mod.utils.pose.Pose;
 import mchorse.bbs_mod.utils.pose.PoseTransform;
 import mchorse.bbs_mod.utils.pose.Transform;
@@ -38,32 +36,29 @@ import java.util.WeakHashMap;
  */
 public final class ModelPhysicsRuntime
 {
-    /**
-     * The body falling over, which the limb chains cannot express.
-     *
-     * <p>A chain hangs from an anchor the animation owns, so limbs alone give a figure that flails
-     * while standing perfectly upright. What is missing is the one thing that makes it read as a
-     * body: it stops holding itself up. That is a topple - the whole model turning about the
-     * ground at its feet - so it is a single angle rather than a second physics engine.</p>
-     */
-    static final class ToppleState
+    /** The two collidable points that carry the body while the chains carry its limbs. */
+    static final class BodyState
     {
         public int seenImpulse;
         public int lastAge = Integer.MIN_VALUE;
+        public final Vector3f[] pos = {new Vector3f(), new Vector3f()};
+        public final Vector3f[] prev = {new Vector3f(), new Vector3f()};
+        public final Vector3f[] settled = {new Vector3f(), new Vector3f()};
+        public final Vector3f[] settledPrev = {new Vector3f(), new Vector3f()};
+        public float length;
 
-        /** Radians from upright, and the angle of the previous tick for the render to sit between. */
-        public float angle;
-        public float prevAngle;
-        public float velocity;
-
-        /** The horizontal axis it turns about, in the model's own frame. */
-        public final Vector3f axis = new Vector3f(1F, 0F, 0F);
+        public void reset()
+        {
+            this.seenImpulse = 0;
+            this.lastAge = Integer.MIN_VALUE;
+            this.length = 0F;
+        }
     }
 
     static final class InstanceState
     {
         public final Map<String, ChainState> chains = new HashMap<>();
-        public final ToppleState topple = new ToppleState();
+        public final BodyState body = new BodyState();
 
         /**
          * The model the chains were last simulated against. States are keyed by form, not by model, so a
@@ -81,8 +76,10 @@ public final class ModelPhysicsRuntime
      */
     private static final WeakHashMap<IEntity, Map<String, InstanceState>> STATES = new WeakHashMap<>();
 
-    /** A body lying flat, the angle a topple stops at. */
-    private static final float HALF_PI = (float) (Math.PI * 0.5D);
+    private static final int BODY_SUBSTEPS_PER_TICK = 3;
+    private static final int BODY_MAX_STEPS = 30;
+    private static final float BODY_BASE_GRAVITY = 0.08F;
+    private static final float BODY_COLLISION_FRICTION = 0.7F;
 
     private ModelPhysicsRuntime()
     {
@@ -134,7 +131,7 @@ public final class ModelPhysicsRuntime
             compiled = ModelPhysicsCache.getFromData(model, map);
         }
 
-        if (compiled == null || compiled.chains() == null || compiled.chains().isEmpty())
+        if (compiled == null || (compiled.chains() == null || compiled.chains().isEmpty()) && (ragdoll == null || compiled.ragdoll() == null))
         {
             return;
         }
@@ -147,6 +144,7 @@ public final class ModelPhysicsRuntime
         if (!Objects.equals(state.modelId, instance.id))
         {
             state.chains.clear();
+            state.body.reset();
             state.modelId = instance.id;
         }
 
@@ -165,113 +163,196 @@ public final class ModelPhysicsRuntime
 
         /* Before the chains, not after: they anchor on the bone frames, so the body has to have
          * fallen already or the limbs would hang from a figure still standing upright. */
-        applyTopple(ragdoll, model, entity.getAge(), transition, state.topple, baseTransform);
+        applyBody(ragdoll, compiled.ragdoll(), model, entity.getWorld(), entity.getAge(), transition, state.body, baseTransform);
 
-        applyCompiled(entity.getWorld(), entity.getAge(), transition, model, instance, compiled.chains(), wind, constraints, state, baseTransform);
+        if (compiled.chains() != null && !compiled.chains().isEmpty())
+        {
+            applyCompiled(entity.getWorld(), entity.getAge(), transition, model, instance, compiled.chains(), wind, constraints, state, baseTransform);
+        }
 
         applyImpulse(ragdoll, state);
     }
 
     /**
-     * Tip the whole model over onto the ground and hold it there.
+     * Simulates a chest and hips point, then turns the root bone to join them.
      *
-     * <p>Modelled as a falling stick rather than as another chain, because that is the shape of
-     * the motion: a body that stops holding itself up turns about its feet, slowly at first and
-     * fastest as it lands, and then stays down. A chain cannot do it - a chain hangs from
-     * something the animation is still holding upright.</p>
-     *
-     * <p>The blow starts it and gravity finishes it. Landing takes the speed rather than
-     * returning it, so the body settles instead of rocking, and the small bias in the torque
-     * means a body that was pushed almost straight down still eventually goes over rather than
-     * balancing forever on the spot.</p>
+     * <p>This is deliberately a tiny rigid body, not a second general-purpose physics engine.
+     * Two points and one distance constraint are enough for the body to land on blocks, slide off
+     * ledges and settle differently on slopes, while retaining the chain solver for the detailed
+     * parts where it is strongest. The same block resolver is used for both paths, so a body hit
+     * and a hand hit have the same inelastic contacts.</p>
      */
-    private static void applyTopple(RagdollControl ragdoll, IModel model, int age, float transition, ToppleState state, Matrix4f baseTransform)
+    private static void applyBody(RagdollControl ragdoll, ModelPhysicsCache.RagdollRig rig, IModel model, World world, int age, float transition, BodyState state, Matrix4f baseTransform)
     {
-        if (ragdoll == null || !ragdoll.topple)
+        if (ragdoll == null || !ragdoll.topple || rig == null)
         {
-            state.seenImpulse = 0;
-            state.angle = 0F;
-            state.prevAngle = 0F;
-            state.velocity = 0F;
+            state.reset();
 
             return;
         }
 
-        if (state.seenImpulse != ragdoll.impulse)
+        Set<String> wanted = new HashSet<>();
+
+        wanted.add(rig.rootBone());
+        wanted.add(rig.chestBone());
+
+        Map<String, PivotFrame> frames = new HashMap<>(4);
+        ModelPivotFrames.collect(model, wanted, frames, baseTransform);
+
+        PivotFrame hipsFrame = frames.get(rig.rootBone());
+        PivotFrame chestFrame = frames.get(rig.chestBone());
+
+        if (hipsFrame == null || chestFrame == null)
         {
-            state.seenImpulse = ragdoll.impulse;
-            state.angle = 0F;
-            state.prevAngle = 0F;
-            state.lastAge = age;
+            state.reset();
 
-            /* It falls the way it was hit: about the horizontal axis across the blow. A blow
-             * straight up or down picks an arbitrary one rather than none, so it still goes over. */
-            Vector3f fall = new Vector3f(ragdoll.x, 0F, ragdoll.z);
-
-            if (fall.lengthSquared() < 1.0E-6F)
-            {
-                fall.set(0F, 0F, 1F);
-            }
-
-            fall.normalize();
-
-            Vector3f axis = new Vector3f(0F, 1F, 0F).cross(fall).normalize();
-
-            /* The bones turn in the model's frame, not the world's. */
-            new Matrix4f(baseTransform).invert().transformDirection(axis);
-
-            if (axis.lengthSquared() < 1.0E-6F)
-            {
-                axis.set(1F, 0F, 0F);
-            }
-
-            state.axis.set(axis.normalize());
-            state.velocity = ragdoll.strength * 0.25F;
+            return;
         }
 
-        if (age != state.lastAge)
+        Vector3f rest = new Vector3f(chestFrame.position()).sub(hipsFrame.position());
+
+        if (rest.lengthSquared() < ChainSolver.EPS * ChainSolver.EPS)
         {
-            state.lastAge = age;
-            state.prevAngle = state.angle;
+            state.reset();
 
-            if (state.angle < HALF_PI)
-            {
-                state.velocity += (float) (Math.sin(state.angle + 0.12D) * ragdoll.gravity * 0.045D);
-                state.velocity *= 1F - MathUtils.clamp(ragdoll.damping, 0F, 1F) * 0.25F;
-                state.angle += state.velocity;
-
-                if (state.angle >= HALF_PI)
-                {
-                    state.angle = HALF_PI;
-                    state.velocity = 0F;
-                }
-            }
+            return;
         }
 
-        float angle = Lerps.lerp(state.prevAngle, state.angle, MathUtils.clamp(transition, 0F, 1F));
+        if (state.seenImpulse != ragdoll.impulse || state.lastAge == Integer.MIN_VALUE)
+        {
+            seedBody(state, ragdoll, age, hipsFrame.position(), chestFrame.position());
+        }
+        else
+        {
+            stepBody(state, ragdoll, world, age);
+        }
 
-        if (angle <= 0.0001F)
+        float alpha = Math.max(0F, Math.min(1F, transition));
+        Vector3f hips = new Vector3f(state.settledPrev[0]).lerp(state.settled[0], alpha);
+        Vector3f chest = new Vector3f(state.settledPrev[1]).lerp(state.settled[1], alpha);
+        Vector3f fallen = new Vector3f(chest).sub(hips);
+
+        if (fallen.lengthSquared() < ChainSolver.EPS * ChainSolver.EPS)
         {
             return;
         }
+
+        Quaternionf worldDelta = new Quaternionf().rotationTo(rest.normalize(), fallen.normalize());
+        Quaternionf rootRotation = hipsFrame.worldRotation();
+        Quaternionf localDelta = new Quaternionf(rootRotation).invert().mul(worldDelta).mul(rootRotation);
+        Vector3f localMove = new Vector3f(hips).sub(hipsFrame.position());
+
+        new Quaternionf(hipsFrame.parentRotation()).invert().transform(localMove);
+
+        PoseTransform transform = new PoseTransform();
+        transform.rotationMode = Transform.RotationMode.QUATERNION;
+        transform.quat.set(localDelta);
+
+        /* Cubic bones store their local pivot shift in pixels and mirror X while rendering it. */
+        transform.translate.set(-localMove.x * 16F, localMove.y * 16F, localMove.z * 16F);
 
         Pose pose = new Pose();
+        pose.transforms.put(rig.rootBone(), transform);
+        model.applyPose(pose);
+    }
 
-        for (String root : model.getRootGroupKeys())
+    private static void seedBody(BodyState state, RagdollControl ragdoll, int age, Vector3f hips, Vector3f chest)
+    {
+        state.seenImpulse = ragdoll.impulse;
+        state.lastAge = age;
+        state.pos[0].set(hips);
+        state.pos[1].set(chest);
+        state.prev[0].set(hips);
+        state.prev[1].set(chest);
+        state.length = state.pos[0].distance(state.pos[1]);
+
+        Vector3f push = new Vector3f(ragdoll.x, ragdoll.y, ragdoll.z).mul(ragdoll.strength);
+
+        /* Giving the chest more of the blow makes an immediate, visible lean; gravity and block
+         * contact take over from the following sub-step instead of a permanently applied force. */
+        state.prev[0].sub(new Vector3f(push).mul(0.3F));
+        state.prev[1].sub(push);
+        state.pos[0].add(new Vector3f(push).mul(0.015F));
+        state.pos[1].add(new Vector3f(push).mul(0.05F));
+        copyBody(state.pos, state.settled);
+        copyBody(state.pos, state.settledPrev);
+    }
+
+    private static void stepBody(BodyState state, RagdollControl ragdoll, World world, int age)
+    {
+        int delta = age - state.lastAge;
+
+        if (delta <= 0)
         {
-            PoseTransform transform = new PoseTransform();
-
-            transform.rotationMode = Transform.RotationMode.QUATERNION;
-            transform.quat.setAngleAxis(angle, state.axis.x, state.axis.y, state.axis.z);
-
-            /* Follows the fall rather than being applied at once, so the body sinks as it goes
-             * over instead of dropping through the floor while still standing. */
-            transform.translate.y -= ragdoll.toppleDrop * (float) Math.sin(angle);
-
-            pose.transforms.put(root, transform);
+            return;
         }
 
-        model.applyPose(pose);
+        if (delta > BODY_MAX_STEPS / BODY_SUBSTEPS_PER_TICK)
+        {
+            /* A scrub has no missing intermediate simulation to replay. Keeping the settled body
+             * rather than inventing a catch-up avoids a frame stall and lets the normal hit start
+             * again when playback resumes. */
+            state.lastAge = age;
+
+            return;
+        }
+
+        copyBody(state.settled, state.settledPrev);
+
+        int steps = Math.min(delta * BODY_SUBSTEPS_PER_TICK, BODY_MAX_STEPS);
+        float h = 1F / BODY_SUBSTEPS_PER_TICK;
+        float damp = (float) Math.pow(1F - Math.max(0F, Math.min(1F, ragdoll.damping)), h);
+        float gravity = BODY_BASE_GRAVITY * ragdoll.gravity * h * h;
+        float radius = Math.max(0.16F, ragdoll.radius * 1.75F);
+        Vector3f velocity = new Vector3f();
+
+        for (int step = 0; step < steps; step++)
+        {
+            for (int i = 0; i < state.pos.length; i++)
+            {
+                velocity.set(state.pos[i]).sub(state.prev[i]).mul(damp);
+                state.prev[i].set(state.pos[i]);
+                state.pos[i].add(velocity).y -= gravity;
+            }
+
+            for (int pass = 0; pass < 3; pass++)
+            {
+                constrainBodyLength(state);
+
+                if (ragdoll.collisions && world != null)
+                {
+                    ModelPhysicsWorldCollisions.resolve(world, state.pos, state.prev, 0, state.pos.length, radius, BODY_COLLISION_FRICTION);
+                }
+            }
+
+            constrainBodyLength(state);
+        }
+
+        copyBody(state.pos, state.settled);
+        state.lastAge = age;
+    }
+
+    private static void constrainBodyLength(BodyState state)
+    {
+        Vector3f delta = new Vector3f(state.pos[1]).sub(state.pos[0]);
+        float length = delta.length();
+
+        if (length <= ChainSolver.EPS || state.length <= ChainSolver.EPS)
+        {
+            return;
+        }
+
+        delta.mul((length - state.length) / (length * 2F));
+        state.pos[0].add(delta);
+        state.pos[1].sub(delta);
+    }
+
+    private static void copyBody(Vector3f[] source, Vector3f[] target)
+    {
+        for (int i = 0; i < source.length; i++)
+        {
+            target[i].set(source[i]);
+        }
     }
 
     /**
