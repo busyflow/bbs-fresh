@@ -27,6 +27,8 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.registry.Registries;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
+import mchorse.bbs_mod.actions.types.area.ValueAreaCells;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
@@ -65,6 +67,12 @@ public class CrowdSpawnActionClip extends ActionClip
     public final ValueBoolean skipUnsafe = new ValueBoolean("skip_unsafe", true);
     public final ValueBoolean replaceExisting = new ValueBoolean("replace_existing", true);
 
+    /* The {@link CrowdFormation#PAINT} formation's shape: ground painted by hand in the editor,
+     * as the surface height of every column the brush covered. Unlike every other formation this
+     * one is absolute world space, not an offset from the replay - it is drawn onto the world. */
+    public final ValueAreaCells cells = new ValueAreaCells("cells");
+    public final ValueInt brushSize = new ValueInt("brush_size", 4, 1, 64);
+
     public CrowdSpawnActionClip()
     {
         super();
@@ -85,6 +93,30 @@ public class CrowdSpawnActionClip extends ActionClip
         this.add(this.spawnOnBlock);
         this.add(this.skipUnsafe);
         this.add(this.replaceExisting);
+        this.add(this.cells);
+        this.add(this.brushSize);
+    }
+
+    /* Painting, from the editor's brush. */
+
+    public Long2IntOpenHashMap getCells()
+    {
+        return this.cells.get();
+    }
+
+    public void paint(int x, int y, int z)
+    {
+        this.getCells().put(ValueAreaCells.key(x, z), y);
+    }
+
+    public void erase(int x, int z)
+    {
+        this.getCells().remove(ValueAreaCells.key(x, z));
+    }
+
+    public void clearCells()
+    {
+        this.getCells().clear();
     }
 
     @Override
@@ -134,6 +166,19 @@ public class CrowdSpawnActionClip extends ActionClip
         List<Link> textures = this.randomTextures.get() ? this.collectTextures(this.randomTextureFolder.get()) : List.of();
         Map<Long, Double> surfaceCache = this.spawnOnBlock.get() ? new HashMap<>() : null;
         EntityData entityData = null;
+        CrowdPaintArea area = null;
+
+        if (formation == CrowdFormation.PAINT)
+        {
+            area = new CrowdPaintArea(this.getCells());
+
+            /* Nothing painted means nothing was asked for. Falling back to a circle here would
+             * put a crowd somewhere the shot never called for. */
+            if (area.isEmpty())
+            {
+                return;
+            }
+        }
 
         for (int i = 0; i < count; i++)
         {
@@ -179,7 +224,7 @@ public class CrowdSpawnActionClip extends ActionClip
 
             entity.setUuid(CrowdUtils.deterministicUuid(film, tag, this.seed.get(), i));
 
-            Vec3d spawn = this.findSpawnPoint(world, entity, center, formation, i, count, spacing, surfaceCache);
+            Vec3d spawn = this.findSpawnPoint(world, entity, center, formation, area, i, count, spacing, surfaceCache);
 
             if (spawn == null)
             {
@@ -259,20 +304,46 @@ public class CrowdSpawnActionClip extends ActionClip
         return textures;
     }
 
-    private Vec3d findSpawnPoint(ServerWorld world, LivingEntity entity, Vec3d center, CrowdFormation formation, int index, int count, double spacing, Map<Long, Double> surfaceCache)
+    private Vec3d findSpawnPoint(ServerWorld world, LivingEntity entity, Vec3d center, CrowdFormation formation, CrowdPaintArea area, int index, int count, double spacing, Map<Long, Double> surfaceCache)
     {
         Vec3d fallback = null;
         boolean skipUnsafe = this.skipUnsafe.get();
 
         for (int attempt = 0; attempt < 16; attempt++)
         {
-            Vec3d offset = this.getOffset(formation, index, count, spacing, attempt);
-            double x = center.x + offset.x;
-            double z = center.z + offset.z;
-            double sampledY = center.y + offset.y;
+            double x;
+            double z;
+            double sampledY;
+
+            if (area != null)
+            {
+                /* Painted ground is drawn onto the world, so its points are already absolute -
+                 * the replay's position doesn't move them. */
+                Vec3d painted = area.point(index, count, attempt);
+
+                x = painted.x;
+                z = painted.z;
+                sampledY = painted.y;
+            }
+            else
+            {
+                Vec3d offset = this.getOffset(formation, index, count, spacing, attempt);
+
+                x = center.x + offset.x;
+                z = center.z + offset.z;
+                sampledY = center.y + offset.y;
+            }
+
             Double y;
 
-            if (this.spawnOnBlock.get())
+            if (area != null)
+            {
+                /* The brush already found this column's surface, and it did it against the world
+                 * the shot was composed in. Re-deriving it here would cost a block read per
+                 * member - forty thousand of them - to answer a question already answered. */
+                y = sampledY;
+            }
+            else if (this.spawnOnBlock.get())
             {
                 y = this.findSurfaceY(world, center, x, z, surfaceCache);
             }

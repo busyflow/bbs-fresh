@@ -10,7 +10,13 @@ public enum CrowdFormation
     SQUARE("Square"),
     SQUARE_OUTLINE("Square outline"),
     BOX("Box"),
-    BOX_OUTLINE("Box outline");
+    BOX_OUTLINE("Box outline"),
+    /**
+     * Not a shape at all — the crowd fills ground painted by hand in the editor, at even density
+     * over however many separate patches were painted. Appended last so the saved ordinals of
+     * every formation above it stay put.
+     */
+    PAINT("Paint");
 
     public final String title;
 

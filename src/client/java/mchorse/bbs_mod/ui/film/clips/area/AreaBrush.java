@@ -1,6 +1,6 @@
 package mchorse.bbs_mod.ui.film.clips.area;
 
-import mchorse.bbs_mod.actions.types.area.AreaActionClip;
+import mchorse.bbs_mod.actions.types.crowd.CrowdSpawnActionClip;
 import mchorse.bbs_mod.camera.Camera;
 import mchorse.bbs_mod.camera.CameraUtils;
 import mchorse.bbs_mod.ui.framework.UIContext;
@@ -15,7 +15,7 @@ import org.joml.Vector3d;
 import org.joml.Vector3f;
 
 /**
- * The free-hand brush that paints an {@link AreaActionClip}'s ground.
+ * The free-hand brush that paints an {@link CrowdSpawnActionClip}'s ground.
  *
  * <p>One brush exists at a time and belongs to whichever area clip is open in the editor — arming
  * it takes over left-drag in the viewport, which is why it disarms itself the moment the clip
@@ -28,7 +28,7 @@ public class AreaBrush
     /** How far above and below the brushed surface a neighbouring column may follow it. */
     private static final int SURFACE_SPAN = 8;
 
-    private static AreaActionClip clip;
+    private static CrowdSpawnActionClip clip;
     private static boolean erasing;
     private static boolean painting;
     private static boolean strokeErase;
@@ -37,7 +37,7 @@ public class AreaBrush
     private static BlockPos hovered;
     private static int hoveredRadius;
 
-    public static AreaActionClip getClip()
+    public static CrowdSpawnActionClip getClip()
     {
         return clip;
     }
@@ -67,7 +67,7 @@ public class AreaBrush
         return hoveredRadius;
     }
 
-    public static void arm(AreaActionClip target, boolean erase)
+    public static void arm(CrowdSpawnActionClip target, boolean erase)
     {
         clip = target;
         erasing = erase;
@@ -82,7 +82,7 @@ public class AreaBrush
     }
 
     /** Drop the brush when the clip it belongs to is no longer the one being edited. */
-    public static void disarmUnless(AreaActionClip target)
+    public static void disarmUnless(CrowdSpawnActionClip target)
     {
         if (clip != null && clip != target)
         {

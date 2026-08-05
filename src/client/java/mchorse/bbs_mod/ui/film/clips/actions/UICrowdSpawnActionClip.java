@@ -7,6 +7,10 @@ import mchorse.bbs_mod.resources.Link;
 import mchorse.bbs_mod.settings.values.core.ValueForm;
 import mchorse.bbs_mod.l10n.keys.IKey;
 import mchorse.bbs_mod.ui.film.IUIClipsDelegate;
+import mchorse.bbs_mod.ui.film.clips.area.AreaBrush;
+import mchorse.bbs_mod.ui.framework.UIContext;
+import mchorse.bbs_mod.ui.framework.elements.utils.UILabel;
+import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.ui.forms.UIFormPalette;
 import mchorse.bbs_mod.ui.forms.UINestedEdit;
 import mchorse.bbs_mod.ui.framework.elements.UIElement;
@@ -47,6 +51,12 @@ public class UICrowdSpawnActionClip extends UIActionClip<CrowdSpawnActionClip>
     private UIToggle spawnOnBlock;
     private UIToggle skipUnsafe;
     private UIToggle replaceExisting;
+    private UIElement paintSection;
+    private UITrackpad brushSize;
+    private UIButton paint;
+    private UIButton erase;
+    private UIButton removeSelection;
+    private UILabel paintInfo;
 
     static
     {
@@ -88,12 +98,28 @@ public class UICrowdSpawnActionClip extends UIActionClip<CrowdSpawnActionClip>
         this.spawnOnBlock = new UIToggle(IKey.constant("Surface"), (b) -> this.editor.editMultiple(this.clip.spawnOnBlock, (value) -> value.set(b.getValue())));
         this.skipUnsafe = new UIToggle(IKey.constant("Skip blocked"), (b) -> this.editor.editMultiple(this.clip.skipUnsafe, (value) -> value.set(b.getValue())));
         this.replaceExisting = new UIToggle(IKey.constant("Replace same tag"), (b) -> this.editor.editMultiple(this.clip.replaceExisting, (value) -> value.set(b.getValue())));
+
+        this.brushSize = new UITrackpad((value) -> this.editor.editMultiple(this.clip.brushSize, (v) -> v.set(value.intValue())));
+        this.brushSize.limit(this.clip.brushSize).integer();
+        this.paint = new UIButton(IKey.constant("Paint"), (b) -> this.toggleBrush(false));
+        this.erase = new UIButton(IKey.constant("Erase"), (b) -> this.toggleBrush(true));
+        this.removeSelection = new UIButton(IKey.constant("Remove selection"), (b) ->
+            this.editor.editMultiple(this.clip.cells, (value) -> value.get().clear()));
+        this.removeSelection.color(Colors.NEGATIVE);
+        this.paintInfo = UI.label(IKey.EMPTY);
     }
 
     @Override
     protected void registerPanels()
     {
         super.registerPanels();
+
+        this.paintSection = this.section("Painted area",
+            this.row("Brush size", this.brushSize),
+            UI.row(2, this.paint, this.erase),
+            this.removeSelection,
+            this.paintInfo
+        );
 
         this.panels.add(
             this.section("Crowd",
@@ -104,6 +130,7 @@ public class UICrowdSpawnActionClip extends UIActionClip<CrowdSpawnActionClip>
                 this.row("Formation", this.formation),
                 this.row("Donut hole", this.holeRadius)
             ),
+            this.paintSection,
             this.section("Placement",
                 UI.row(1, this.spawnOnBlock, this.skipUnsafe),
                 UI.row(1, this.randomYaw, this.replaceExisting),
@@ -139,7 +166,47 @@ public class UICrowdSpawnActionClip extends UIActionClip<CrowdSpawnActionClip>
         this.spawnOnBlock.setValue(this.clip.spawnOnBlock.get());
         this.skipUnsafe.setValue(this.clip.skipUnsafe.get());
         this.replaceExisting.setValue(this.clip.replaceExisting.get());
+        this.brushSize.setValue(this.clip.brushSize.get());
         this.refreshTextureFolderLabel();
+    }
+
+    @Override
+    public void render(UIContext context)
+    {
+        /* The brush belongs to whichever crowd clip is open, and only while it is asking to be
+         * painted — switching formation away from Paint puts left-drag back where it was. */
+        boolean painting = CrowdFormation.get(this.clip.formation.get()) == CrowdFormation.PAINT;
+
+        AreaBrush.disarmUnless(this.clip);
+
+        if (!painting)
+        {
+            AreaBrush.disarm();
+        }
+
+        this.paintSection.setVisible(painting);
+
+        boolean armed = AreaBrush.getClip() == this.clip;
+
+        this.paint.custom = armed && !AreaBrush.isErasing();
+        this.paint.customColor = Colors.A100 | Colors.ACTIVE;
+        this.erase.custom = armed && AreaBrush.isErasing();
+        this.erase.customColor = Colors.A100 | Colors.ACTIVE;
+        this.paintInfo.label = IKey.constant(this.clip.getCells().size() + " blocks painted");
+
+        super.render(context);
+    }
+
+    private void toggleBrush(boolean erasing)
+    {
+        if (AreaBrush.getClip() == this.clip && AreaBrush.isErasing() == erasing)
+        {
+            AreaBrush.disarm();
+
+            return;
+        }
+
+        AreaBrush.arm(this.clip, erasing);
     }
 
     private UIElement row(String label, UIElement element)

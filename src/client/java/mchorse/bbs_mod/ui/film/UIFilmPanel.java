@@ -8,7 +8,6 @@ import mchorse.bbs_mod.BBSSettings;
 import it.unimi.dsi.fastutil.longs.Long2IntMap;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import mchorse.bbs_mod.actions.ActionState;
-import mchorse.bbs_mod.actions.types.area.AreaActionClip;
 import mchorse.bbs_mod.actions.types.area.ValueAreaCells;
 import mchorse.bbs_mod.ui.film.clips.area.AreaBrush;
 import net.minecraft.util.math.BlockPos;
@@ -2210,17 +2209,23 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
     }
 
     /**
-     * Draw a painted area's ground: a translucent skin over every painted column and a solid edge
-     * wherever the paint stops.
+     * Outline the painted spawn area: one flat line on the ground wherever the paint stops.
      *
-     * <p>The edge is what makes the shape readable — a flat shade over a hundred columns of grass
-     * reads as a tint, but its border reads as a boundary. Only the sides of a cell whose
-     * neighbour is unpainted are drawn, so the interior stays clean instead of turning into a
-     * grid.</p>
+     * <p>Only the sides of a column whose neighbour is unpainted are drawn, so the inside of a
+     * patch stays clear instead of turning into a grid, and separate patches each get their own
+     * loop. Each segment is a strip lying on the surface, run half its own width past both ends —
+     * that overlap is what makes corners meet, since two perpendicular segments that stop exactly
+     * at the corner leave a square hole at every turn, and a hand-painted edge is nothing but
+     * turns.</p>
      */
     private void renderArea(WorldRenderContext context)
     {
-        if (this.actionEditor == null || !this.actionEditor.isVisible() || !(this.actionEditor.getClip() instanceof AreaActionClip clip))
+        if (this.actionEditor == null || !this.actionEditor.isVisible() || !(this.actionEditor.getClip() instanceof CrowdSpawnActionClip clip))
+        {
+            return;
+        }
+
+        if (CrowdFormation.get(clip.formation.get()) != CrowdFormation.PAINT)
         {
             return;
         }
@@ -2235,7 +2240,7 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         RenderSystem.setShader(GameRenderer::getPositionColorProgram);
         builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
 
-        boolean fill = clip.showFill.get();
+        float half = 0.06F;
 
         for (Long2IntMap.Entry entry : cells.long2IntEntrySet())
         {
@@ -2249,15 +2254,25 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
             float x2 = x1 + 1F;
             float z2 = z1 + 1F;
 
-            if (fill)
+            if (!cells.containsKey(ValueAreaCells.key(x - 1, z)))
             {
-                Draw.fillQuad(builder, stack, x1, y, z1, x2, y, z1, x2, y, z2, x1, y, z2, 1F, 0.55F, 0.1F, 0.22F);
+                this.areaLine(builder, stack, x1 - half, z1 - half, x1 + half, z2 + half, y);
             }
 
-            if (!cells.containsKey(ValueAreaCells.key(x - 1, z))) Draw.fillBoxTo(builder, stack, x1, y, z1, x1, y, z2, 0.05F, 1F, 0.65F, 0.15F, 0.95F);
-            if (!cells.containsKey(ValueAreaCells.key(x + 1, z))) Draw.fillBoxTo(builder, stack, x2, y, z1, x2, y, z2, 0.05F, 1F, 0.65F, 0.15F, 0.95F);
-            if (!cells.containsKey(ValueAreaCells.key(x, z - 1))) Draw.fillBoxTo(builder, stack, x1, y, z1, x2, y, z1, 0.05F, 1F, 0.65F, 0.15F, 0.95F);
-            if (!cells.containsKey(ValueAreaCells.key(x, z + 1))) Draw.fillBoxTo(builder, stack, x1, y, z2, x2, y, z2, 0.05F, 1F, 0.65F, 0.15F, 0.95F);
+            if (!cells.containsKey(ValueAreaCells.key(x + 1, z)))
+            {
+                this.areaLine(builder, stack, x2 - half, z1 - half, x2 + half, z2 + half, y);
+            }
+
+            if (!cells.containsKey(ValueAreaCells.key(x, z - 1)))
+            {
+                this.areaLine(builder, stack, x1 - half, z1 - half, x2 + half, z1 + half, y);
+            }
+
+            if (!cells.containsKey(ValueAreaCells.key(x, z + 1)))
+            {
+                this.areaLine(builder, stack, x1 - half, z2 - half, x2 + half, z2 + half, y);
+            }
         }
 
         /* Where the next stroke would land, so the brush size is something you can see rather
@@ -2270,7 +2285,7 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
             float y = (float) (hovered.getY() + 1.05D - camera.y);
             float cx = (float) (hovered.getX() + 0.5D - camera.x);
             float cz = (float) (hovered.getZ() + 0.5D - camera.z);
-            int segments = MathUtils.clamp(radius * 8, 32, 128);
+            int segments = (int) MathUtils.clamp(radius * 8, 32, 160);
             float r = AreaBrush.isErasing() ? 1F : 0.3F;
             float g = AreaBrush.isErasing() ? 0.3F : 1F;
 
@@ -2290,6 +2305,12 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
 
         RenderSystem.disableBlend();
         RenderSystem.disableDepthTest();
+    }
+
+    /** One flat segment of the area outline, lying on the surface. */
+    private void areaLine(BufferBuilder builder, MatrixStack stack, float x1, float z1, float x2, float z2, float y)
+    {
+        Draw.fillQuad(builder, stack, x1, y, z1, x2, y, z1, x2, y, z2, x1, y, z2, 1F, 0.7F, 0.15F, 1F);
     }
 
     /**

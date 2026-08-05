@@ -396,6 +396,10 @@ public class CrowdUtils
 
         switch (formation)
         {
+            /* Painted ground has its own outline drawn over it — a ring around it would only be a
+             * second, wrong boundary. */
+            case PAINT:
+                return 0D;
             case DONUT:
                 return Math.sqrt(hole * hole + count * spacing * spacing / Math.PI);
             case CIRCLE_OUTLINE:
