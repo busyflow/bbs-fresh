@@ -2237,10 +2237,14 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
 
         RenderSystem.disableDepthTest();
         RenderSystem.enableBlend();
+        /* The outline is a flat strip lying on the ground, so it has one facing and the camera
+         * looks at it from above OR below depending on where the shot is. A single winding would
+         * simply vanish from one of those. */
+        RenderSystem.disableCull();
         RenderSystem.setShader(GameRenderer::getPositionColorProgram);
         builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
 
-        float half = 0.06F;
+        float half = 0.08F;
 
         for (Long2IntMap.Entry entry : cells.long2IntEntrySet())
         {
@@ -2303,6 +2307,7 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
 
         BufferRenderer.drawWithGlobalProgram(builder.end());
 
+        RenderSystem.enableCull();
         RenderSystem.disableBlend();
         RenderSystem.disableDepthTest();
     }
