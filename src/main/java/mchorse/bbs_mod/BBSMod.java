@@ -11,6 +11,7 @@ import mchorse.bbs_mod.actions.types.blocks.PlaceBlockActionClip;
 import mchorse.bbs_mod.actions.types.chat.ChatActionClip;
 import mchorse.bbs_mod.actions.types.chat.CommandActionClip;
 import mchorse.bbs_mod.actions.types.crowd.CrowdBehaviorActionClip;
+import mchorse.bbs_mod.actions.types.area.AreaActionClip;
 import mchorse.bbs_mod.actions.types.crowd.CrowdSpawnActionClip;
 import mchorse.bbs_mod.actions.types.item.ItemDropActionClip;
 import mchorse.bbs_mod.actions.types.item.UseBlockItemActionClip;
@@ -461,7 +462,8 @@ public class BBSMod implements ModInitializer
             .register(Link.bbs("damage"), DamageActionClip.class, new ClipFactoryData(Icons.SKULL, Colors.CURSOR))
             .register(Link.bbs("swipe"), SwipeActionClip.class, new ClipFactoryData(Icons.LIMB, Colors.ORANGE))
             .register(Link.bbs("crowd_spawn"), CrowdSpawnActionClip.class, new ClipFactoryData(Icons.CHICKEN, Colors.GREEN))
-            .register(Link.bbs("crowd_behavior"), CrowdBehaviorActionClip.class, new ClipFactoryData(Icons.ALL_DIRECTIONS, Colors.CYAN));
+            .register(Link.bbs("crowd_behavior"), CrowdBehaviorActionClip.class, new ClipFactoryData(Icons.ALL_DIRECTIONS, Colors.CYAN))
+            .register(Link.bbs("area"), AreaActionClip.class, new ClipFactoryData(Icons.BRUSH, Colors.ORANGE));
 
         setupConfig(Icons.SETTINGS, "bbs", new File(settingsFolder, "bbs.json"), BBSSettings::register);
 

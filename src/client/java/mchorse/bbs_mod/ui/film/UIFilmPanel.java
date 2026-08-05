@@ -5,7 +5,13 @@ import com.mojang.logging.LogUtils;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.BBSSettings;
+import it.unimi.dsi.fastutil.longs.Long2IntMap;
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import mchorse.bbs_mod.actions.ActionState;
+import mchorse.bbs_mod.actions.types.area.AreaActionClip;
+import mchorse.bbs_mod.actions.types.area.ValueAreaCells;
+import mchorse.bbs_mod.ui.film.clips.area.AreaBrush;
+import net.minecraft.util.math.BlockPos;
 import mchorse.bbs_mod.actions.types.crowd.CrowdBehaviorActionClip;
 import mchorse.bbs_mod.actions.types.crowd.CrowdSpawnActionClip;
 import mchorse.bbs_mod.actions.types.crowd.CrowdFormation;
@@ -2200,6 +2206,90 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
 
         this.controller.renderFrame(context);
         this.renderCrowdRadius(context);
+        this.renderArea(context);
+    }
+
+    /**
+     * Draw a painted area's ground: a translucent skin over every painted column and a solid edge
+     * wherever the paint stops.
+     *
+     * <p>The edge is what makes the shape readable — a flat shade over a hundred columns of grass
+     * reads as a tint, but its border reads as a boundary. Only the sides of a cell whose
+     * neighbour is unpainted are drawn, so the interior stays clean instead of turning into a
+     * grid.</p>
+     */
+    private void renderArea(WorldRenderContext context)
+    {
+        if (this.actionEditor == null || !this.actionEditor.isVisible() || !(this.actionEditor.getClip() instanceof AreaActionClip clip))
+        {
+            return;
+        }
+
+        Long2IntOpenHashMap cells = clip.getCells();
+        Vec3d camera = context.camera().getPos();
+        MatrixStack stack = context.matrixStack();
+        BufferBuilder builder = Tessellator.getInstance().getBuffer();
+
+        RenderSystem.disableDepthTest();
+        RenderSystem.enableBlend();
+        RenderSystem.setShader(GameRenderer::getPositionColorProgram);
+        builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+
+        boolean fill = clip.showFill.get();
+
+        for (Long2IntMap.Entry entry : cells.long2IntEntrySet())
+        {
+            long key = entry.getLongKey();
+            int x = ValueAreaCells.keyX(key);
+            int z = ValueAreaCells.keyZ(key);
+            /* A hair above the block it covers, or it fights the ground's own top face. */
+            float y = (float) (entry.getIntValue() + 1.02D - camera.y);
+            float x1 = (float) (x - camera.x);
+            float z1 = (float) (z - camera.z);
+            float x2 = x1 + 1F;
+            float z2 = z1 + 1F;
+
+            if (fill)
+            {
+                Draw.fillQuad(builder, stack, x1, y, z1, x2, y, z1, x2, y, z2, x1, y, z2, 1F, 0.55F, 0.1F, 0.22F);
+            }
+
+            if (!cells.containsKey(ValueAreaCells.key(x - 1, z))) Draw.fillBoxTo(builder, stack, x1, y, z1, x1, y, z2, 0.05F, 1F, 0.65F, 0.15F, 0.95F);
+            if (!cells.containsKey(ValueAreaCells.key(x + 1, z))) Draw.fillBoxTo(builder, stack, x2, y, z1, x2, y, z2, 0.05F, 1F, 0.65F, 0.15F, 0.95F);
+            if (!cells.containsKey(ValueAreaCells.key(x, z - 1))) Draw.fillBoxTo(builder, stack, x1, y, z1, x2, y, z1, 0.05F, 1F, 0.65F, 0.15F, 0.95F);
+            if (!cells.containsKey(ValueAreaCells.key(x, z + 1))) Draw.fillBoxTo(builder, stack, x1, y, z2, x2, y, z2, 0.05F, 1F, 0.65F, 0.15F, 0.95F);
+        }
+
+        /* Where the next stroke would land, so the brush size is something you can see rather
+         * than a number you have to guess at. */
+        BlockPos hovered = AreaBrush.getHovered();
+
+        if (hovered != null)
+        {
+            int radius = AreaBrush.getHoveredRadius();
+            float y = (float) (hovered.getY() + 1.05D - camera.y);
+            float cx = (float) (hovered.getX() + 0.5D - camera.x);
+            float cz = (float) (hovered.getZ() + 0.5D - camera.z);
+            int segments = MathUtils.clamp(radius * 8, 32, 128);
+            float r = AreaBrush.isErasing() ? 1F : 0.3F;
+            float g = AreaBrush.isErasing() ? 0.3F : 1F;
+
+            for (int i = 0; i < segments; i++)
+            {
+                double a1 = i / (double) segments * Math.PI * 2D;
+                double a2 = (i + 1) / (double) segments * Math.PI * 2D;
+
+                Draw.fillBoxTo(builder, stack,
+                    (float) (cx + Math.cos(a1) * radius), y, (float) (cz + Math.sin(a1) * radius),
+                    (float) (cx + Math.cos(a2) * radius), y, (float) (cz + Math.sin(a2) * radius),
+                    0.06F, r, g, 0.35F, 0.9F);
+            }
+        }
+
+        BufferRenderer.drawWithGlobalProgram(builder.end());
+
+        RenderSystem.disableBlend();
+        RenderSystem.disableDepthTest();
     }
 
     /**

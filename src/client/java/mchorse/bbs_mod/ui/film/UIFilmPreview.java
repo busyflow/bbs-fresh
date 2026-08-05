@@ -20,6 +20,7 @@ import mchorse.bbs_mod.settings.ui.UISettingsOverlayPanel;
 import mchorse.bbs_mod.ui.Keys;
 import mchorse.bbs_mod.ui.UIKeys;
 import mchorse.bbs_mod.ui.dashboard.panels.UIDashboardPanels;
+import mchorse.bbs_mod.ui.film.clips.area.AreaBrush;
 import mchorse.bbs_mod.ui.film.controller.UIMotionPathContextMenu;
 import mchorse.bbs_mod.ui.film.controller.UIOnionSkinContextMenu;
 import mchorse.bbs_mod.ui.film.controller.UIFilmController;
@@ -332,6 +333,13 @@ public class UIFilmPreview extends UIElement
 
         if (area.isInside(context))
         {
+            /* Ahead of the gizmo and of form picking: an armed area brush owns dragging in the
+             * viewport, or a stroke over a replay would select it instead of painting. */
+            if (AreaBrush.click(context, area, this.panel.getCamera()))
+            {
+                return true;
+            }
+
             if (this.panel.getController().orbitGizmo.mouseClicked(context, area))
             {
                 return true;
@@ -341,6 +349,14 @@ public class UIFilmPreview extends UIElement
         }
 
         return super.subMouseClicked(context);
+    }
+
+    @Override
+    protected boolean subMouseReleased(UIContext context)
+    {
+        AreaBrush.stopPainting();
+
+        return super.subMouseReleased(context);
     }
 
     @Override
@@ -372,6 +388,22 @@ public class UIFilmPreview extends UIElement
         camera.copy(this.panel.getWorldCamera());
         camera.view.set(this.panel.lastView);
         camera.projection.set(this.panel.lastProjection);
+
+        /* A stroke is continuous: it keeps stamping wherever the cursor is while the button is
+         * held, rather than only where it was pressed. Traced against the camera the viewport
+         * was actually drawn with, which is only true once the matrices above are in. */
+        if (AreaBrush.isArmed())
+        {
+            if (AreaBrush.isPainting())
+            {
+                AreaBrush.drag(context, area, camera);
+            }
+            else
+            {
+                AreaBrush.hover(context, area, camera);
+            }
+        }
+
         context.batcher.flush();
 
         if (texture != null)
