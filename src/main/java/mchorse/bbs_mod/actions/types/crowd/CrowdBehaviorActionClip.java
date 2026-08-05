@@ -71,6 +71,11 @@ public class CrowdBehaviorActionClip extends ActionClip
     /** Neighbour index for the tick being applied; null outside of it. Not saved. */
     private CrowdGrid grid;
 
+    /* Where the target's eyes are this tick, when the target is a real entity rather than a
+     * keyframed position. Watching an entity means watching its face; a fixed height above its
+     * feet reads as staring at its chest, and past a few blocks the error is a visible squint. */
+    private Vec3d targetEye;
+
     /** Scratch for {@link #getSeparationMotion}, see the note there. */
     private double pushX;
     private double pushZ;
@@ -202,6 +207,10 @@ public class CrowdBehaviorActionClip extends ActionClip
         Vec3d gatherPos;
         Replay targetReplay = null;
 
+        /* Per-tick state: a target that has gone away must not leave the crowd watching where
+         * its eyes used to be. */
+        this.targetEye = null;
+
         if (noTarget)
         {
             /* No replay target: anchor each mob to its own spawn point. We only
@@ -239,6 +248,7 @@ public class CrowdBehaviorActionClip extends ActionClip
             if (targetActor != null && targetActor.isAlive())
             {
                 gatherPos = targetActor.getPos();
+                this.targetEye = eyePoint(targetActor);
             }
         }
 
@@ -719,7 +729,7 @@ public class CrowdBehaviorActionClip extends ActionClip
             }
         }
 
-        return targetPos.add(0D, 1.25D, 0D);
+        return this.targetEye == null ? targetPos.add(0D, 1.25D, 0D) : this.targetEye;
     }
 
     private LivingEntity getConversationTarget(LivingEntity entity, List<LivingEntity> crowd, int tick)
@@ -1337,26 +1347,21 @@ public class CrowdBehaviorActionClip extends ActionClip
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         float pitch = (float) Math.toDegrees(-Math.atan2(dy, Math.max(horizontal, 1.0E-6D)));
         float stepScale = 0.25F + 0.75F * blend;
-        float maxYawStep = 12F * stepScale;
-        float maxPitchStep = 8F * stepScale;
 
         if (mode == CrowdBehaviorMode.SAD_WALK)
         {
             pitch = 28F;
         }
 
-        /* LookControl only ticks as part of the mob's AI, so a crowd spawned with AI off has
-         * to take the direct-yaw path below instead. */
-        if (mob instanceof MobEntity entity && !entity.isAiDisabled() && !this.lookBodyYaw.get() && this.lookHeadYaw.get() && this.lookHeadPitch.get() && mode != CrowdBehaviorMode.SAD_WALK)
-        {
-            entity.getLookControl().lookAt(targetPos.x, targetPos.y, targetPos.z, maxYawStep, maxPitchStep);
-
-            return;
-        }
-
+        /* Every angle is written here rather than handed to the mob's own LookControl. A fixed
+         * ceiling per tick is what stops a head from keeping up with anything that moves: a
+         * target crossing the frame outruns it and the crowd trails behind at a constant lag,
+         * never arriving. Turning by a share of the error instead means the head closes fast
+         * when it is far off and eases in as it arrives, and once it is on target it stays there
+         * for as long as the target keeps moving - the ceilings below only cap the extremes. */
         if (this.lookBodyYaw.get())
         {
-            float bodyYaw = stepAngle(mob.getBodyYaw(), yaw, maxYawStep);
+            float bodyYaw = stepAngle(mob.getBodyYaw(), yaw, turnStep(mob.getBodyYaw(), yaw, stepScale, 3F, 30F));
 
             mob.setBodyYaw(bodyYaw);
             mob.setYaw(bodyYaw);
@@ -1364,13 +1369,24 @@ public class CrowdBehaviorActionClip extends ActionClip
 
         if (this.lookHeadYaw.get())
         {
-            mob.setHeadYaw(stepAngle(mob.getHeadYaw(), yaw, maxYawStep));
+            mob.setHeadYaw(stepAngle(mob.getHeadYaw(), yaw, turnStep(mob.getHeadYaw(), yaw, stepScale, 4F, 45F)));
         }
 
         if (this.lookHeadPitch.get())
         {
-            mob.setPitch(stepAngle(mob.getPitch(), pitch, maxPitchStep));
+            mob.setPitch(stepAngle(mob.getPitch(), pitch, turnStep(mob.getPitch(), pitch, stepScale, 3F, 30F)));
         }
+    }
+
+    /**
+     * How far an angle may turn this tick: a share of how far off it is, floored so the last
+     * degree does not creep and capped so a target appearing behind the crowd is not a snap.
+     */
+    private static float turnStep(float current, float target, float scale, float min, float max)
+    {
+        float error = Math.abs(wrapDegrees(target - current));
+
+        return Math.min(max, Math.max(min, error * 0.45F)) * scale;
     }
 
     private void applyPerformanceMotion(LivingEntity entity, CrowdBehaviorMode mode, int tick, List<LivingEntity> crowd)
