@@ -1384,6 +1384,14 @@ public class CrowdBehaviorActionClip extends ActionClip
 
             mob.setBodyYaw(bodyYaw);
             mob.setYaw(bodyYaw);
+
+            /* Vanilla would otherwise swing the body back toward whichever way the member is
+             * walking before the tick is out, and the torso would never be seen pointing anywhere
+             * the clip asked for. */
+            if (mob instanceof CrowdBodyYawOwner owner)
+            {
+                owner.bbs$driveBodyYaw();
+            }
         }
 
         if (this.lookHeadPitch.get())

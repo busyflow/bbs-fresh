@@ -17,6 +17,7 @@
         "KillCommandMixin",
         "EntityCrowdBoundsMixin",
         "LivingEntityCrowdCostMixin",
+        "LivingEntityCrowdBodyMixin",
         "LookControlCrowdMixin",
         "EntityViewCrowdCollisionMixin"
     ],
