@@ -20,6 +20,13 @@ import net.minecraft.util.math.Vec3d;
  * while Z-order scatters them. It matters most when the crowd is smaller than the area, where the
  * ordering IS the pattern: every n-th column in row-major order is a lattice of lines, in Z-order
  * it's an even scatter.</p>
+ *
+ * <p>Two things then break up what is left of the grid, because a crowd is judged entirely on
+ * whether it looks placed or grown. Each member picks its column at random from the run of columns
+ * it was given rather than taking the first, so even a Z-order stride does not repeat; and each
+ * one stands off the middle of its slot by its own amount, because one figure at the exact centre
+ * of every block is a lattice however the blocks were chosen. Both are hashed off the member's
+ * index, so the crowd is scattered but stands in the same place on every playback.</p>
  */
 public class CrowdPaintArea
 {
@@ -72,18 +79,40 @@ public class CrowdPaintArea
         count = Math.max(1, count);
         index = Math.max(0, Math.min(index, count - 1));
 
-        int column = (int) ((long) index * columns / count);
+        int lo = (int) ((long) index * columns / count);
+        int hi = (int) ((long) (index + 1) * columns / count);
+        int column;
+        int share;
+        int slot;
+
+        if (hi > lo + 1)
+        {
+            /* Fewer members than painted columns, so this member has a run of them to itself.
+             * Taking one at random from inside its own run keeps the density exactly as even as
+             * marching through them would, and breaks up the ranks that a fixed stride draws:
+             * every n-th column of a Z-order walk is still a repeating pattern, and at crowd
+             * scale a repeating pattern is rows you can count. */
+            column = lo + (int) (hash(index, 0xC2B2AE35) * (hi - lo));
+            share = 1;
+            slot = 0;
+        }
+        else
+        {
+            /* More members than columns: several share one, so work out which run of members
+             * landed here - the inverse of the mapping above. */
+            column = lo;
+
+            long first = ((long) column * count + columns - 1) / columns;
+            long next = ((long) (column + 1) * count + columns - 1) / columns;
+
+            share = (int) Math.max(1L, next - first);
+            slot = (int) Math.max(0L, Math.min(index - first, share - 1));
+        }
 
         if (column >= columns)
         {
             column = columns - 1;
         }
-
-        /* The inverse of the mapping above: the run of members that landed in this column. */
-        long first = ((long) column * count + columns - 1) / columns;
-        long next = ((long) (column + 1) * count + columns - 1) / columns;
-        int share = (int) Math.max(1L, next - first);
-        int slot = (int) Math.max(0L, Math.min(index - first, share - 1));
 
         /* A square-ish grid inside the block, with the last (short) row spread across the full
          * width instead of bunched at one edge. */
@@ -93,8 +122,18 @@ public class CrowdPaintArea
         int inRow = side <= 0 ? 0 : slot % side;
         int rowCount = Math.min(side, share - row * side);
 
-        double px = (inRow + 0.5D) / Math.max(1, rowCount);
-        double pz = (row + 0.5D) / Math.max(1, rows);
+        double cellX = 1D / Math.max(1, rowCount);
+        double cellZ = 1D / Math.max(1, rows);
+        double px = (inRow + 0.5D) * cellX;
+        double pz = (row + 0.5D) * cellZ;
+
+        /* Off the middle of its slot, by an amount that is its own. One member per block standing
+         * dead centre of every block is a lattice, and a lattice is what the eye picks out of a
+         * crowd first - the ranks and files people see in a painted area are the block grid
+         * showing through, not the choice of columns. Kept inside the slot so the spread stays
+         * even, and hashed rather than random so a member stands in the same place every play. */
+        px += (hash(index * 3 + 1, 0x9E3779B9) - 0.5D) * cellX * 0.85D;
+        pz += (hash(index * 3 + 2, 0x85EBCA6B) - 0.5D) * cellZ * 0.85D;
 
         if (attempt > 0)
         {
@@ -102,9 +141,10 @@ public class CrowdPaintArea
              * same member lands in the same place on every playback. */
             px += (hash(index * 31 + attempt, 0x9E3779B9) - 0.5D) * 0.8D;
             pz += (hash(index * 31 + attempt, 0x85EBCA6B) - 0.5D) * 0.8D;
-            px = Math.max(0.05D, Math.min(0.95D, px));
-            pz = Math.max(0.05D, Math.min(0.95D, pz));
         }
+
+        px = Math.max(0.05D, Math.min(0.95D, px));
+        pz = Math.max(0.05D, Math.min(0.95D, pz));
 
         long key = this.keys[column];
 

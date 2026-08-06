@@ -1359,22 +1359,36 @@ public class CrowdBehaviorActionClip extends ActionClip
          * never arriving. Turning by a share of the error instead means the head closes fast
          * when it is far off and eases in as it arrives, and once it is on target it stays there
          * for as long as the target keeps moving - the ceilings below only cap the extremes. */
+        /* The first tick of the clip is a placement, not a movement. Whatever way the crowd was
+         * facing when it spawned is not something the shot ever meant to show, so turning from it
+         * is a few seconds of everyone visibly correcting themselves at the top of the take. They
+         * start where they were going to end up, and the easing below covers the target moving
+         * from there on. */
+        boolean calibrating = tick <= this.tick.get();
+
+        if (this.lookHeadYaw.get())
+        {
+            mob.setHeadYaw(calibrating ? yaw : stepAngle(mob.getHeadYaw(), yaw, turnStep(mob.getHeadYaw(), yaw, stepScale, 4F, 45F)));
+        }
+
         if (this.lookBodyYaw.get())
         {
-            float bodyYaw = stepAngle(mob.getBodyYaw(), yaw, turnStep(mob.getBodyYaw(), yaw, stepScale, 3F, 30F));
+            /* The torso follows the head rather than the target, so the two agree: they turn at
+             * different rates, and a body converging on its own arrives late and leaves the head
+             * craned over one shoulder for the whole approach. Pitch is the head's alone - a
+             * torso does not look up or down. */
+            float bodyTarget = this.lookHeadYaw.get() ? mob.getHeadYaw() : yaw;
+            float bodyYaw = calibrating
+                ? bodyTarget
+                : stepAngle(mob.getBodyYaw(), bodyTarget, turnStep(mob.getBodyYaw(), bodyTarget, stepScale, 3F, 30F));
 
             mob.setBodyYaw(bodyYaw);
             mob.setYaw(bodyYaw);
         }
 
-        if (this.lookHeadYaw.get())
-        {
-            mob.setHeadYaw(stepAngle(mob.getHeadYaw(), yaw, turnStep(mob.getHeadYaw(), yaw, stepScale, 4F, 45F)));
-        }
-
         if (this.lookHeadPitch.get())
         {
-            mob.setPitch(stepAngle(mob.getPitch(), pitch, turnStep(mob.getPitch(), pitch, stepScale, 3F, 30F)));
+            mob.setPitch(calibrating ? pitch : stepAngle(mob.getPitch(), pitch, turnStep(mob.getPitch(), pitch, stepScale, 3F, 30F)));
         }
     }
 
