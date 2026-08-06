@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.network;
 
+import mchorse.bbs_mod.actions.types.crowd.CrowdClientMembers;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.actions.ActionState;
 import mchorse.bbs_mod.blocks.entities.ModelBlockEntity;
@@ -84,6 +85,7 @@ public class ClientNetwork
         ClientPlayNetworking.registerGlobalReceiver(ServerNetwork.CLIENT_ANIMATION_STATE_MODEL_BLOCK_TRIGGER, (client, handler, buf, responseSender) -> handleAnimationStateModelBlockPacket(client, buf));
         ClientPlayNetworking.registerGlobalReceiver(ServerNetwork.CLIENT_REFRESH_MODEL_BLOCKS, (client, handler, buf, responseSender) -> handleRefreshModelBlocksPacket(client, buf));
         ClientPlayNetworking.registerGlobalReceiver(ServerNetwork.CLIENT_REQUEST_FILM_RESYNC, (client, handler, buf, responseSender) -> handleRequestFilmResync(client, buf));
+        ClientPlayNetworking.registerGlobalReceiver(ServerNetwork.CLIENT_CROWD_MEMBERS, (client, handler, buf, responseSender) -> handleCrowdMembersPacket(client, buf));
     }
 
     /* Handlers */
@@ -177,7 +179,24 @@ public class ClientNetwork
     {
         String filmId = buf.readString();
 
-        client.execute(() -> Films.stopFilm(filmId));
+        client.execute(() ->
+        {
+            CrowdClientMembers.clear();
+            Films.stopFilm(filmId);
+        });
+    }
+
+    private static void handleCrowdMembersPacket(MinecraftClient client, PacketByteBuf buf)
+    {
+        int count = buf.readInt();
+        int[] ids = new int[count];
+
+        for (int i = 0; i < count; i++)
+        {
+            ids[i] = buf.readInt();
+        }
+
+        client.execute(() -> CrowdClientMembers.add(ids));
     }
 
     private static void handleRequestFilmResync(MinecraftClient client, PacketByteBuf buf)

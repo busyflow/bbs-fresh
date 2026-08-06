@@ -1,5 +1,8 @@
 package mchorse.bbs_mod.actions.types.crowd;
 
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.ints.IntList;
+import mchorse.bbs_mod.network.ServerNetwork;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.actions.SuperFakePlayer;
 import mchorse.bbs_mod.actions.types.ActionClip;
@@ -70,6 +73,9 @@ public class CrowdBehaviorActionClip extends ActionClip
 
     /** Neighbour index for the tick being applied; null outside of it. Not saved. */
     private CrowdGrid grid;
+
+    /** Fingerprint of the crowd last announced to the clients. Not saved. */
+    private int announced;
 
     /* Where the target's eyes are this tick, when the target is a real entity rather than a
      * keyframed position. Watching an entity means watching its face; a fixed height above its
@@ -264,6 +270,8 @@ public class CrowdBehaviorActionClip extends ActionClip
             return;
         }
 
+        this.announceCrowd(world, crowd);
+
         List<LivingEntity> enemies = this.getEnemyCrowd(world, film, gatherPos, mode);
         LivingEntity replayEnemy = mode == CrowdBehaviorMode.FIGHT
             ? this.resolveReplayTargetEntity(film, noTarget ? null : targetReplay)
@@ -365,6 +373,43 @@ public class CrowdBehaviorActionClip extends ActionClip
         }
 
         this.grid = null;
+    }
+
+    /**
+     * Tell the clients who this crowd is, when the answer has changed.
+     *
+     * <p>They need to know because a body's facing is worked out on the client, from movement,
+     * rather than sent - so without this the torsos ignore everything the clip says. Announced
+     * from here rather than from the spawner because this is the one place that already has the
+     * whole crowd in hand every tick, so respawning, sweeping and a member dying are all covered
+     * by the same check. The fingerprint is what keeps it from being a per-tick broadcast: it
+     * only misses a change that swaps one member for another of the same count and identical
+     * combined ids, which the next change corrects.</p>
+     */
+    private void announceCrowd(ServerWorld world, List<LivingEntity> crowd)
+    {
+        int fingerprint = crowd.size();
+
+        for (LivingEntity entity : crowd)
+        {
+            fingerprint = fingerprint * 31 + entity.getId();
+        }
+
+        if (fingerprint == this.announced)
+        {
+            return;
+        }
+
+        this.announced = fingerprint;
+
+        IntList ids = new IntArrayList(crowd.size());
+
+        for (LivingEntity entity : crowd)
+        {
+            ids.add(entity.getId());
+        }
+
+        ServerNetwork.sendCrowdMembers(world, ids);
     }
 
     private void prepareCrowdEntity(LivingEntity entity)

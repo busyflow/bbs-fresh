@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.network;
 
+import it.unimi.dsi.fastutil.ints.IntList;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.actions.ActionManager;
 import mchorse.bbs_mod.actions.ActionPlayer;
@@ -72,6 +73,7 @@ public class ServerNetwork
     public static final Identifier CLIENT_ANIMATION_STATE_MODEL_BLOCK_TRIGGER = new Identifier(BBSMod.MOD_ID, "c16");
     public static final Identifier CLIENT_REFRESH_MODEL_BLOCKS = new Identifier(BBSMod.MOD_ID, "c17");
     public static final Identifier CLIENT_REQUEST_FILM_RESYNC = new Identifier(BBSMod.MOD_ID, "c18");
+    public static final Identifier CLIENT_CROWD_MEMBERS = new Identifier(BBSMod.MOD_ID, "c19");
 
     public static final Identifier SERVER_MODEL_BLOCK_FORM_PACKET = new Identifier(BBSMod.MOD_ID, "s1");
     public static final Identifier SERVER_MODEL_BLOCK_TRANSFORMS_PACKET = new Identifier(BBSMod.MOD_ID, "s2");
@@ -751,6 +753,33 @@ public class ServerNetwork
         }
 
         ServerPlayNetworking.send(player, CLIENT_ACTORS, buf);
+    }
+
+    /**
+     * Tell every client which entities are crowd members.
+     *
+     * <p>The server marks them with a command tag, which is never sent anywhere - and the client
+     * is where the crowd is drawn, and where vanilla decides a body's facing for itself rather
+     * than from anything the server said. Sent whole rather than as changes, and only when a
+     * crowd is spawned or cleared, which is the only time the answer moves.</p>
+     */
+    public static void sendCrowdMembers(ServerWorld world, IntList ids)
+    {
+        for (ServerPlayerEntity player : world.getPlayers())
+        {
+            /* A fresh buffer each time: sending one reads it to the end, and the next player
+             * would get an empty crowd. */
+            PacketByteBuf buf = PacketByteBufs.create();
+
+            buf.writeInt(ids.size());
+
+            for (int i = 0; i < ids.size(); i++)
+            {
+                buf.writeInt(ids.getInt(i));
+            }
+
+            ServerPlayNetworking.send(player, CLIENT_CROWD_MEMBERS, buf);
+        }
     }
 
     public static void sendGunProperties(ServerPlayerEntity player, GunProjectileEntity projectile)
