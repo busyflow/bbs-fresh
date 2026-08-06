@@ -53,6 +53,20 @@ public class Window
         return verticalScroll;
     }
 
+    /**
+     * Whether any mouse button is physically down right now.
+     *
+     * <p>Asked of the hardware rather than tracked from events, so it stays true to what the user's
+     * hand is doing even when the matching release event went somewhere else or nowhere at all -
+     * released over another panel that swallowed it, or outside the window entirely.</p>
+     */
+    public static boolean isAnyMouseButtonPressed()
+    {
+        return isMouseButtonPressed(GLFW.GLFW_MOUSE_BUTTON_LEFT)
+            || isMouseButtonPressed(GLFW.GLFW_MOUSE_BUTTON_RIGHT)
+            || isMouseButtonPressed(GLFW.GLFW_MOUSE_BUTTON_MIDDLE);
+    }
+
     public static boolean isMouseButtonPressed(int mouse)
     {
         return GLFW.glfwGetMouseButton(getWindow(), mouse) == GLFW.GLFW_PRESS;

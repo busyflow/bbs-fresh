@@ -1294,6 +1294,16 @@ public class UIKeyframes extends UIElement
     @Override
     public void render(UIContext context)
     {
+        /* The release is offered to the whole element tree and the first element to take it ends
+         * the dispatch, so letting go over another panel leaves this one still dragging, and the
+         * next click carries on from where the drag left off. Releasing outside the game window
+         * sends no event at all. Ask the hardware instead of guessing which panels swallow it, and
+         * wait for every button rather than one so a pan in progress is not cut short. */
+        if (this.isInteracting() && !Window.isAnyMouseButtonPressed())
+        {
+            this.subMouseReleased(context);
+        }
+
         super.render(context);
 
         this.handleMouse(context);

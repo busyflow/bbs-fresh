@@ -1527,9 +1527,38 @@ public class UIClips extends UIElement
         return super.subKeyPressed(context);
     }
 
+    /** Whether a mouse drag started here is still in progress. */
+    private boolean isInteracting()
+    {
+        return this.grabbing || this.selecting || this.scrubbing || this.scrolling || this.selectingLoop >= 0;
+    }
+
+    /**
+     * End a drag whose release never came back to us.
+     *
+     * <p>The release is offered to the whole element tree, but the first element to take it ends
+     * the dispatch - so letting go of the playhead over another panel hands that panel the event
+     * and leaves the timeline still scrubbing. The next click anywhere then jumps the playhead,
+     * which is the bug the user sees. Releasing outside the game window is worse still: no event
+     * is ever sent at all.</p>
+     *
+     * <p>Rather than guess which panels might swallow it, ask the hardware whether the button is
+     * actually still down, and if it is not, run the same cleanup the release would have. Waiting
+     * for every button rather than the left one alone means a middle-button pan in progress is not
+     * cut short.</p>
+     */
+    private void releaseStuckDrag(UIContext context)
+    {
+        if (this.isInteracting() && !Window.isAnyMouseButtonPressed())
+        {
+            this.subMouseReleased(context);
+        }
+    }
+
     @Override
     public void render(UIContext context)
     {
+        this.releaseStuckDrag(context);
         this.updateScrollSize();
 
         if (this.centerScrollOnRender)
