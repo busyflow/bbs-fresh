@@ -1,6 +1,6 @@
 package mchorse.bbs_mod.mixin;
 
-import mchorse.bbs_mod.actions.types.crowd.CrowdBodyYawOwner;
+import mchorse.bbs_mod.actions.types.crowd.CrowdDrivenEntity;
 import net.minecraft.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -22,10 +22,25 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * off still walks the way vanilla turns it, and the neck limit still applies to everyone else.</p>
  */
 @Mixin(LivingEntity.class)
-public class LivingEntityCrowdBodyMixin implements CrowdBodyYawOwner
+public class LivingEntityCrowdBodyMixin implements CrowdDrivenEntity
 {
     @Unique
     private boolean bbs$bodyYawDriven;
+
+    @Unique
+    private int bbs$crowdLookTick = Integer.MIN_VALUE;
+
+    @Override
+    public int bbs$getCrowdLookTick()
+    {
+        return this.bbs$crowdLookTick;
+    }
+
+    @Override
+    public void bbs$setCrowdLookTick(int tick)
+    {
+        this.bbs$crowdLookTick = tick;
+    }
 
     @Override
     public void bbs$driveBodyYaw()

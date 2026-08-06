@@ -1346,7 +1346,14 @@ public class CrowdBehaviorActionClip extends ActionClip
 
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         float pitch = (float) Math.toDegrees(-Math.atan2(dy, Math.max(horizontal, 1.0E-6D)));
-        float stepScale = 0.25F + 0.75F * blend;
+
+        /* The ease softens the start of the behaviour; it must not make the crowd unable to keep
+         * up. Turning by a share of the error settles at a lag of roughly twice whatever the
+         * target's angular speed is, so halving the share doubles the lag - at a quarter, a
+         * target crossing the shot leaves the crowd a quarter-turn behind it for the whole take,
+         * which does not read as easing in, it reads as not looking. Half is as slow as tracking
+         * survives. */
+        float stepScale = 0.5F + 0.5F * blend;
 
         if (mode == CrowdBehaviorMode.SAD_WALK)
         {
@@ -1359,16 +1366,27 @@ public class CrowdBehaviorActionClip extends ActionClip
          * never arriving. Turning by a share of the error instead means the head closes fast
          * when it is far off and eases in as it arrives, and once it is on target it stays there
          * for as long as the target keeps moving - the ceilings below only cap the extremes. */
-        /* The first tick of the clip is a placement, not a movement. Whatever way the crowd was
-         * facing when it spawned is not something the shot ever meant to show, so turning from it
-         * is a few seconds of everyone visibly correcting themselves at the top of the take. They
-         * start where they were going to end up, and the easing below covers the target moving
-         * from there on. */
+        /* The first tick of a run is a placement, not a movement. Whatever way the member was
+         * facing beforehand is not something the shot ever meant to show, so turning from it is
+         * everyone visibly correcting themselves over the opening seconds of the take.
+         *
+         * "First tick of a run" is the last tick it was driven not being the one just gone,
+         * rather than the clip's own start tick: an export of a loop range begins in the middle
+         * of the clip and never crosses its start, and scrubbing does not drive the crowd at all,
+         * so a take could start from angles left over from whenever it was last played - which is
+         * why it looked right in the editor and wrong in the export. */
         boolean calibrating = tick <= this.tick.get();
+
+        if (mob instanceof CrowdDrivenEntity driven)
+        {
+            calibrating |= driven.bbs$getCrowdLookTick() != tick - 1;
+
+            driven.bbs$setCrowdLookTick(tick);
+        }
 
         if (this.lookHeadYaw.get())
         {
-            mob.setHeadYaw(calibrating ? yaw : stepAngle(mob.getHeadYaw(), yaw, turnStep(mob.getHeadYaw(), yaw, stepScale, 4F, 45F)));
+            mob.setHeadYaw(calibrating ? yaw : stepAngle(mob.getHeadYaw(), yaw, turnStep(mob.getHeadYaw(), yaw, stepScale, 4F, 75F)));
         }
 
         if (this.lookBodyYaw.get())
@@ -1380,7 +1398,7 @@ public class CrowdBehaviorActionClip extends ActionClip
             float bodyTarget = this.lookHeadYaw.get() ? mob.getHeadYaw() : yaw;
             float bodyYaw = calibrating
                 ? bodyTarget
-                : stepAngle(mob.getBodyYaw(), bodyTarget, turnStep(mob.getBodyYaw(), bodyTarget, stepScale, 3F, 30F));
+                : stepAngle(mob.getBodyYaw(), bodyTarget, turnStep(mob.getBodyYaw(), bodyTarget, stepScale, 3F, 60F));
 
             mob.setBodyYaw(bodyYaw);
             mob.setYaw(bodyYaw);
@@ -1388,7 +1406,7 @@ public class CrowdBehaviorActionClip extends ActionClip
             /* Vanilla would otherwise swing the body back toward whichever way the member is
              * walking before the tick is out, and the torso would never be seen pointing anywhere
              * the clip asked for. */
-            if (mob instanceof CrowdBodyYawOwner owner)
+            if (mob instanceof CrowdDrivenEntity owner)
             {
                 owner.bbs$driveBodyYaw();
             }
@@ -1396,7 +1414,7 @@ public class CrowdBehaviorActionClip extends ActionClip
 
         if (this.lookHeadPitch.get())
         {
-            mob.setPitch(calibrating ? pitch : stepAngle(mob.getPitch(), pitch, turnStep(mob.getPitch(), pitch, stepScale, 3F, 30F)));
+            mob.setPitch(calibrating ? pitch : stepAngle(mob.getPitch(), pitch, turnStep(mob.getPitch(), pitch, stepScale, 3F, 60F)));
         }
     }
 
