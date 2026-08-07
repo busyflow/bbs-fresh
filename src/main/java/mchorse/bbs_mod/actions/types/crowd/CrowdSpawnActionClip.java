@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.actions.types.crowd;
 
+import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.film.FilmExportState;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
@@ -57,23 +58,6 @@ public class CrowdSpawnActionClip extends ActionClip
      * rendering out a shot, not for editing one live - vanilla's own entity ticking will not
      * hold 20 TPS there. */
     public final ValueInt count = new ValueInt("count", 20, 1, 100000);
-    /**
-     * How many of {@link #count} to spawn while the shot is being built rather than exported.
-     * Zero for all of them.
-     *
-     * <p>A five-figure crowd cannot be worked with live - it is spawned, ticked and drawn in
-     * full, and the editor falls to single-figure frame rates. But a crowd is placed against the
-     * world it stands in, and the things worth catching early are where it does not fit: members
-     * dropped into a hole, pressed against a wall, standing on a roof. Seeing none of it until
-     * the export is no better than seeing all of it.</p>
-     *
-     * <p>So the preview spawns a sample rather than a prefix. Members are taken at an even
-     * stride through the crowd's own numbering and placed at the position that number would have
-     * had in the full crowd, so the sample covers the whole painted area at a lower density -
-     * every part of the ground the crowd would stand on is represented. An export spawns all of
-     * them, in exactly those places.</p>
-     */
-    public final ValueInt previewCount = new ValueInt("preview_count", 500, 0, 100000);
     public final ValueInt seed = new ValueInt("seed", 1);
     public final ValueFloat spacing = new ValueFloat("spacing", 1.0F, 0.1F, 64F);
     public final ValueInt formation = new ValueInt("formation", CrowdFormation.CIRCLE.ordinal(), 0, CrowdFormation.values().length - 1);
@@ -105,7 +89,6 @@ public class CrowdSpawnActionClip extends ActionClip
         this.add(this.randomTextures);
         this.add(this.randomTextureFolder);
         this.add(this.count);
-        this.add(this.previewCount);
         this.add(this.seed);
         this.add(this.spacing);
         this.add(this.formation);
@@ -202,7 +185,14 @@ public class CrowdSpawnActionClip extends ActionClip
             }
         }
 
-        int preview = this.previewCount.get();
+        /* How many of the crowd to spawn while the shot is being built rather than exported;
+         * zero for all of them. A five-figure crowd cannot be worked with live - it is spawned,
+         * ticked and drawn in full, and the editor falls to single-figure frame rates. But a
+         * crowd is placed against the world it stands in, and the things worth catching early
+         * are where it does not fit: members dropped into a hole, pressed against a wall,
+         * standing on a roof. Seeing none of it until the export is no better than seeing all
+         * of it. So the preview spawns a sample rather than a prefix - see the stride below. */
+        int preview = BBSSettings.crowdPreviewCount.get();
         int spawnCount = FilmExportState.isAnyExporting() || preview <= 0 ? count : Math.min(preview, count);
         IntList spawned = new IntArrayList(spawnCount);
 

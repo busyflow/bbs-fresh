@@ -222,6 +222,8 @@
 	"bbs.config.editor.speed-comment": "Flight speed when moving the camera around",
 	"bbs.config.editor.title": "Camera editor",
 	"bbs.config.editor.tooltip": "Config options which are used within camera editor",
+	"bbs.config.fresh.crowd_preview_count": "Crowd preview count",
+	"bbs.config.fresh.crowd_preview_count-comment": "How many of a crowd to spawn while you are building the shot. An export always spawns the full count set on the crowd spawn clip. The preview is a sample spread evenly over the whole painted area rather than the first few filling one corner, so it still shows where the crowd stands, including anyone dropped into a hole or pressed against a wall. Set to 0 to always spawn the full crowd",
 	"bbs.config.fresh.high_bone_model_optimization": "High-bone model optimization",
 	"bbs.config.fresh.high_bone_model_optimization-comment": "Draws every bone of a cubic model in a single draw call by skinning it on the GPU, and skips per-frame bone matrix capture and pose copies that nothing reads. Meant for crowds of custom models, where the per-bone draw cost is what separates them from vanilla entities. Models with welds, shape keys, per-bone colors or shaders keep rendering the old way",
 	"bbs.config.fresh.kill_exclude_self": "Exclude yourself from /kill @e",

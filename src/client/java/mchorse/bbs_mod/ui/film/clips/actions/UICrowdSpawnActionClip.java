@@ -42,7 +42,6 @@ public class UICrowdSpawnActionClip extends UIActionClip<CrowdSpawnActionClip>
     private UIToggle randomTextures;
     private UIButton randomTextureFolder;
     private UITrackpad count;
-    private UITrackpad previewCount;
     private UITrackpad seed;
     private UITrackpad spacing;
     private UIButton formation;
@@ -87,9 +86,6 @@ public class UICrowdSpawnActionClip extends UIActionClip<CrowdSpawnActionClip>
         this.randomTextureFolder = new UIButton(IKey.EMPTY, (b) -> this.openTextureFolderPicker());
         this.count = new UITrackpad((value) -> this.editor.editMultiple(this.clip.count, (v) -> v.set(value.intValue())));
         this.count.limit(this.clip.count).integer();
-        this.previewCount = new UITrackpad((value) -> this.editor.editMultiple(this.clip.previewCount, (v) -> v.set(value.intValue())));
-        this.previewCount.limit(this.clip.previewCount).integer();
-        this.previewCount.tooltip(IKey.constant("How many of the crowd to spawn while editing. An export always spawns the full count.\n\nThe preview is spread evenly over the whole area rather than filling one corner, so it still shows where the crowd stands - including anyone dropped into a hole or pressed against a wall.\n\n0 spawns all of them, always."));
         this.seed = new UITrackpad((value) -> this.editor.editMultiple(this.clip.seed, (v) -> v.set(value.intValue())));
         this.seed.integer();
         this.spacing = new UITrackpad((value) -> this.editor.editMultiple(this.clip.spacing, (v) -> v.set(value.floatValue())));
@@ -129,7 +125,6 @@ public class UICrowdSpawnActionClip extends UIActionClip<CrowdSpawnActionClip>
             this.section("Crowd",
                 this.row("Tag", this.crowdTag),
                 this.row("Count", this.count),
-                this.row("Preview count", this.previewCount),
                 this.row("Seed", this.seed),
                 this.row("Spacing", this.spacing),
                 this.row("Formation", this.formation),
@@ -162,7 +157,6 @@ public class UICrowdSpawnActionClip extends UIActionClip<CrowdSpawnActionClip>
         this.actorForm.setForm(this.clip.actorForm.get());
         this.randomTextures.setValue(this.clip.randomTextures.get());
         this.count.setValue(this.clip.count.get());
-        this.previewCount.setValue(this.clip.previewCount.get());
         this.seed.setValue(this.clip.seed.get());
         this.spacing.setValue(this.clip.spacing.get());
         this.refreshFormationLabel();
