@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.network;
 
+import mchorse.bbs_mod.film.FilmExportState;
 import it.unimi.dsi.fastutil.ints.IntList;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.actions.ActionManager;
@@ -90,6 +91,7 @@ public class ServerNetwork
     public static final Identifier SERVER_ZOOM = new Identifier(BBSMod.MOD_ID, "s12");
     public static final Identifier SERVER_PAUSE_FILM = new Identifier(BBSMod.MOD_ID, "s13");
     public static final Identifier SERVER_APPLY_FILM_PLAYER_SETTINGS = new Identifier(BBSMod.MOD_ID, "s14");
+    public static final Identifier SERVER_EXPORT_STATE = new Identifier(BBSMod.MOD_ID, "s15");
 
     private static ServerPacketCrusher crusher = new ServerPacketCrusher();
 
@@ -114,6 +116,7 @@ public class ServerNetwork
         ServerPlayNetworking.registerGlobalReceiver(SERVER_ZOOM, (server, player, handler, buf, responder) -> handleZoomPacket(server, player, buf));
         ServerPlayNetworking.registerGlobalReceiver(SERVER_PAUSE_FILM, (server, player, handler, buf, responder) -> handlePauseFilmPacket(server, player, buf));
         ServerPlayNetworking.registerGlobalReceiver(SERVER_APPLY_FILM_PLAYER_SETTINGS, (server, player, handler, buf, responder) -> handleApplyFilmPlayerSettings(server, player, buf));
+        ServerPlayNetworking.registerGlobalReceiver(SERVER_EXPORT_STATE, (server, player, handler, buf, responder) -> handleExportState(server, player, buf));
     }
 
     /* Handlers */
@@ -540,6 +543,20 @@ public class ServerNetwork
                 BBSMod.getActions().syncData(filmId, dataPath, data);
             });
         });
+    }
+
+    /**
+     * The client telling us it has started or finished exporting a film to video.
+     *
+     * <p>Exporting is a client-side business - it is frames taken off the screen - but the crowd
+     * is spawned here, and how much of it to spawn is the one thing that has to know the
+     * difference between a take and a shot being built.</p>
+     */
+    private static void handleExportState(MinecraftServer server, ServerPlayerEntity player, PacketByteBuf buf)
+    {
+        boolean exporting = buf.readBoolean();
+
+        server.execute(() -> FilmExportState.set(player.getUuid(), exporting));
     }
 
     private static void handleTeleportPlayer(MinecraftServer server, ServerPlayerEntity player, PacketByteBuf buf)

@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.film;
 
+import mchorse.bbs_mod.network.ClientNetwork;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.audio.MinecraftSoundCapture;
@@ -110,8 +111,14 @@ public abstract class VideoExportSession
         this.height = height;
         this.audioFile = null;
 
+        /* Before prepare, so that anything the server builds for this take - the crowd's full
+         * population above all - is built at export size rather than the size the editor was
+         * showing a moment ago. */
+        ClientNetwork.sendExportState(true);
+
         if (!this.prepare())
         {
+            ClientNetwork.sendExportState(false);
             this.reset();
 
             return false;
@@ -245,6 +252,8 @@ public abstract class VideoExportSession
         {
             return;
         }
+
+        ClientNetwork.sendExportState(false);
 
         VideoRecorder recorder = this.getRecorder();
         int recordedFrames = recorder.getCounter();

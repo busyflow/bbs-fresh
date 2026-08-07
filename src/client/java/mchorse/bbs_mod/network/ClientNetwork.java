@@ -508,6 +508,26 @@ public class ClientNetwork
         ClientPlayNetworking.send(ServerNetwork.SERVER_TOGGLE_FILM, buf);
     }
 
+    /**
+     * Tell the server we are, or are no longer, exporting a film to video.
+     *
+     * <p>Exporting happens entirely on this side, but the crowd is spawned on the other, and how
+     * much of it to spawn is the one decision that has to tell a take from a shot being built.</p>
+     */
+    public static void sendExportState(boolean exporting)
+    {
+        if (!isIsBBSModOnServer())
+        {
+            return;
+        }
+
+        PacketByteBuf buf = PacketByteBufs.create();
+
+        buf.writeBoolean(exporting);
+
+        ClientPlayNetworking.send(ServerNetwork.SERVER_EXPORT_STATE, buf);
+    }
+
     public static void sendActionState(String filmId, ActionState state, int tick)
     {
         PacketByteBuf buf = PacketByteBufs.create();

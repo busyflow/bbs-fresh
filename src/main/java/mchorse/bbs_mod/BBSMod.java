@@ -1,5 +1,6 @@
 package mchorse.bbs_mod;
 
+import mchorse.bbs_mod.film.FilmExportState;
 import mchorse.bbs_mod.actions.ActionHandler;
 import mchorse.bbs_mod.actions.ActionManager;
 import mchorse.bbs_mod.actions.types.AttackActionClip;
@@ -520,6 +521,9 @@ public class BBSMod implements ModInitializer
 
         ServerLifecycleEvents.SERVER_STARTED.register((event) -> worldFolder = event.getSavePath(WorldSavePath.ROOT).toFile());
         ServerPlayConnectionEvents.JOIN.register((a, b, c) -> ServerNetwork.sendHandshake(c, b));
+        /* A player who drops mid-export cannot tell us it ended, and a server left believing one
+         * is still running would spawn every crowd at full size from then on. */
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> FilmExportState.clear(handler.getPlayer().getUuid()));
 
         ActionHandler.registerHandlers(actions);
 

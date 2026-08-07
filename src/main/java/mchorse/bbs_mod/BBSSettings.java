@@ -159,9 +159,6 @@ public class BBSSettings {
 	public static ValueBoolean editorRewind;
 	public static ValueBoolean editorHorizontalClipEditor;
 	public static ValueBoolean editorMinutesBackup;
-	public static ValueBoolean crowdPreviewThinning;
-	public static ValueFloat crowdPreviewRadius;
-	public static ValueFloat crowdPreviewFloor;
 	public static ValueBoolean editorResizablePanels;
 	public static ValueInt editorTrackWidth;
 	public static ValueInt keyframeDefaultShape;
@@ -797,10 +794,6 @@ public class BBSSettings {
 		editorPreviewResolutionScale = builder.getFloat("preview_resolution_scale", 2F, 1F, 3F).slider();
 		editorKeepFrameOnExit = builder.getBoolean("keep_frame_on_exit", false);
 
-		builder.category("crowd", Icons.USER);
-		crowdPreviewThinning = builder.getBoolean("preview_thinning", true);
-		crowdPreviewRadius = builder.getFloat("preview_radius", 24F, 4F, 512F);
-		crowdPreviewFloor = builder.getFloat("preview_floor", 0.03F, 0F, 1F).slider();
 
 		builder.category("recording", Icons.FILM);
 		recordingCountdown = builder.getFloat("countdown", 1.5F, 0F, 30F);
