@@ -1,5 +1,8 @@
 package mchorse.bbs_mod.actions.types.crowd;
 
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.ints.IntList;
+import mchorse.bbs_mod.network.ServerNetwork;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.actions.SuperFakePlayer;
 import mchorse.bbs_mod.actions.types.ActionClip;
@@ -180,6 +183,8 @@ public class CrowdSpawnActionClip extends ActionClip
             }
         }
 
+        IntList spawned = new IntArrayList(count);
+
         for (int i = 0; i < count; i++)
         {
             LivingEntity entity;
@@ -254,6 +259,16 @@ public class CrowdSpawnActionClip extends ActionClip
             CrowdUtils.tag(entity, film, tag, i);
 
             world.spawnEntity(entity);
+            spawned.add(entity.getId());
+        }
+
+        /* Tell the clients who these are as soon as they exist, rather than leaving it to the
+         * behaviour clip: a crowd is allowed to have no behaviour at all, and one that never
+         * announced itself is one the client cannot thin out of the preview or hold the bodies
+         * of - it would be drawn ten thousand strong, facing wherever it spawned. */
+        if (!spawned.isEmpty())
+        {
+            ServerNetwork.sendCrowdMembers(world, spawned);
         }
     }
 
