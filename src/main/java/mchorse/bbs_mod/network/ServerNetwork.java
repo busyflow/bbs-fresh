@@ -221,6 +221,20 @@ public class ServerNetwork
             MapType data = (MapType) DataStorageUtils.readFromBytes(bytes);
             int callbackId = packetByteBuf.readInt();
             RepositoryOperation op = RepositoryOperation.values()[packetByteBuf.readInt()];
+
+            /* On the server thread, because these touch the same files that playback reads.
+             * Writing a film opens its file for truncation and only fills it back in once the
+             * whole thing is compressed, so a read arriving in between - a play started right
+             * after a save, which is exactly what duplicating a film and pressing play is - saw
+             * an empty file and failed. Off-thread saves and on-thread loads had no reason to
+             * wait for one another; now they take turns. */
+            server.execute(() -> handleManagerData(player, callbackId, op, data));
+        });
+    }
+
+    private static void handleManagerData(ServerPlayerEntity player, int callbackId, RepositoryOperation op, MapType data)
+    {
+        {
             FilmManager films = BBSMod.getFilms();
 
             if (op == RepositoryOperation.LOAD)
@@ -260,7 +274,7 @@ public class ServerNetwork
             {
                 sendManagerData(player, callbackId, op, new ByteType(films.deleteFolder(data.getString("folder"))));
             }
-        });
+        }
     }
 
     private static void handleActionRecording(MinecraftServer server, ServerPlayerEntity player, PacketByteBuf buf)
@@ -454,7 +468,13 @@ public class ServerNetwork
     {
         PendingPlay pending = PENDING_PLAYS.remove(filmId);
 
-        if (pending == null || path.size() != 0 || !data.isMap())
+        /* A path stands for the whole film when it is empty or names nothing below the film
+         * itself. The editor builds a value's path from its parents upwards and the film is its
+         * own topmost segment, so a whole-film sync arrives as the film's id rather than as
+         * nothing at all - which is what {@link BaseValueGroup#findRecursively} skips past. */
+        boolean wholeFilm = path.size() == 0 || (path.size() == 1 && filmId.equals(path.strings.get(0)));
+
+        if (pending == null || !wholeFilm || !data.isMap())
         {
             return;
         }
@@ -473,13 +493,24 @@ public class ServerNetwork
             return;
         }
 
-        ActionPlayer actionPlayer = BBSMod.getActions().play(player, player.getServerWorld(), film, pending.tick(), PlayerType.FILM_EDITOR);
+        int tick = pending.tick();
+        ActionPlayer actionPlayer = BBSMod.getActions().play(player, player.getServerWorld(), film, tick, PlayerType.FILM_EDITOR);
 
         if (actionPlayer != null)
         {
+            /* The same finish the ordinary restart gives it: the run is walked up from zero so
+             * every clip before the cursor has fired by the time it gets there - a crowd is not
+             * spawned by the tick you happen to start on, it was spawned at the top. */
             actionPlayer.syncing = true;
             actionPlayer.playing = false;
+
+            if (tick != 0)
+            {
+                actionPlayer.goTo(0, tick);
+            }
         }
+
+        sendStopFilm(player, filmId);
     }
 
     private static void handleSyncData(MinecraftServer server, ServerPlayerEntity player, PacketByteBuf buf)
