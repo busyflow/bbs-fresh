@@ -977,8 +977,16 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
             matrices.put(StringUtils.combinePaths(prefix, entry.getKey()), matrix, o, entry.getValue().evaluatedRotation());
         }
 
-        this.collectHandItemMatrix(entity, stack, matrices, prefix, model.getItemsMain(), EquipmentSlot.MAINHAND, MAIN_HAND_ITEM_BONE);
-        this.collectHandItemMatrix(entity, stack, matrices, prefix, model.getItemsOff(), EquipmentSlot.OFFHAND, OFF_HAND_ITEM_BONE);
+        /* Same guard as the bone pass above. A model form can have no model instance - the
+         * asset is missing, or has not finished loading the first time something asks about the
+         * form - and the hand item bones come from that instance, so there is nothing to place
+         * without it. Reading them anyway took the game down on a click: the orbit camera asks
+         * any newly picked replay for its pivot, and that walks straight through here. */
+        if (model != null)
+        {
+            this.collectHandItemMatrix(entity, stack, matrices, prefix, model.getItemsMain(), EquipmentSlot.MAINHAND, MAIN_HAND_ITEM_BONE);
+            this.collectHandItemMatrix(entity, stack, matrices, prefix, model.getItemsOff(), EquipmentSlot.OFFHAND, OFF_HAND_ITEM_BONE);
+        }
 
         int i = 0;
 
@@ -989,7 +997,12 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
 
             if (form != null)
             {
-                Matrix4f matrix = this.bones.get(part.bone.get()).matrix();
+                /* The bone may not be in the cache at all - nothing filled it when there is no
+                 * model, and a part can name a bone the model no longer has. The fallback below
+                 * already covers a missing matrix; this is only about reaching it rather than
+                 * throwing on the way. */
+                MatrixCacheEntry cached = this.bones.get(part.bone.get());
+                Matrix4f matrix = cached == null ? null : cached.matrix();
 
                 stack.push();
 
