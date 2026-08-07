@@ -13,6 +13,10 @@ import mchorse.bbs_mod.ui.forms.UIFormPalette;
 import mchorse.bbs_mod.ui.forms.UINestedEdit;
 import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.ui.framework.elements.UIElement;
+import mchorse.bbs_mod.ui.framework.elements.UIScrollView;
+import mchorse.bbs_mod.ui.framework.elements.UISection;
+import mchorse.bbs_mod.ui.utils.ScrollDirection;
+import mchorse.bbs_mod.ui.utils.UIConstants;
 import mchorse.bbs_mod.ui.framework.elements.buttons.UIButton;
 import mchorse.bbs_mod.ui.framework.elements.buttons.UIIcon;
 import mchorse.bbs_mod.ui.framework.elements.buttons.UIToggle;
@@ -75,7 +79,7 @@ public class UICrowdsEditor extends UIElement
     private final UIFilmPanel filmPanel;
 
     private final UIStringList list;
-    private final UIElement settings;
+    private final UIScrollView settings;
 
     private final UITextbox name;
     private final UIToggle enabled;
@@ -161,7 +165,15 @@ public class UICrowdsEditor extends UIElement
             this.paintInfo
         );
 
-        this.settings = UI.column(3,
+        /* Each group is its own child of the scroll view rather than one nested column, so the
+         * scroll view's vertical stretch reaches every row. Wrapping them in a plain column put
+         * a child between the two that had no size of its own, and everything under it drew at
+         * zero height on top of itself. */
+        this.settings = new UIScrollView(ScrollDirection.VERTICAL);
+        this.settings.scroll.cancelScrolling();
+        this.settings.relative(this).x(94).w(1F, -94).h(1F).column(UIConstants.MARGIN).scroll().vertical().stretch().padding(UIConstants.SCROLL_PADDING);
+
+        this.settings.add(
             this.section("Crowd",
                 this.row("Name", this.name),
                 this.enabled,
@@ -192,17 +204,20 @@ public class UICrowdsEditor extends UIElement
             )
         );
 
+        UIElement buttons = UI.row(2, add, remove);
+
+        buttons.h(20);
+
         UIElement sidebar = new UIElement();
 
-        sidebar.relative(this).w(90).h(1F).column(0).vertical().stretch();
-        sidebar.add(UI.row(2, add, remove), this.list);
+        /* The list takes what the buttons leave rather than a share of the column, so it does
+         * not shrink to a couple of rows. */
+        sidebar.relative(this).w(90).h(1F).column(UIConstants.MARGIN).vertical().stretch().padding(UIConstants.SCROLL_PADDING);
+        sidebar.add(buttons, this.list);
 
-        UIElement form = new UIElement();
+        this.list.h(1F, -26);
 
-        form.relative(this).x(94).w(1F, -94).h(1F).column(4).scroll().padding(6);
-        form.add(this.settings);
-
-        this.add(sidebar, form);
+        this.add(sidebar, this.settings);
     }
 
     /* Editing */
@@ -517,8 +532,13 @@ public class UICrowdsEditor extends UIElement
         return UI.row(4, UI.label(IKey.constant(label)).w(74), element);
     }
 
+    /** The same collapsible section the clip editors group their fields into. */
     private UIElement section(String label, UIElement... elements)
     {
-        return UI.column(3, 0, UI.label(IKey.constant(label)), UI.column(3, 0, elements)).marginTop(4);
+        UISection section = new UISection(IKey.constant(label));
+
+        section.fields.add(elements);
+
+        return section;
     }
 }
