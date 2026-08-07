@@ -45,6 +45,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -378,10 +379,22 @@ public class ServerNetwork
                 {
                     Film film = BBSMod.getFilms().load(filmId);
 
-                    if (film != null)
+                    if (film == null)
                     {
-                        actionPlayer = actions.play(player, player.getServerWorld(), film, tick, PlayerType.FILM_EDITOR);
+                        /* Nothing on disk to play. A film the editor has only just made - a
+                         * duplicate, most often - lives on the client until its data reaches
+                         * here, and pressing play before then used to start nothing at all and
+                         * say nothing about it. Everything the client draws itself still looked
+                         * right, so the only sign was that whatever the action clips do, from
+                         * spawning a crowd to firing a command, quietly did not happen.
+                         *
+                         * Ask for it and start once it arrives. */
+                        awaitFilm(player, filmId, tick);
+
+                        return;
                     }
+
+                    actionPlayer = actions.play(player, player.getServerWorld(), film, tick, PlayerType.FILM_EDITOR);
                 }
                 else
                 {
@@ -410,6 +423,65 @@ public class ServerNetwork
         });
     }
 
+    /**
+     * A play that is waiting on the film's data to arrive from the client, by film id.
+     *
+     * <p>One per film rather than per player: two people cannot be starting the same film in the
+     * same instant, and the entry is dropped as soon as the data lands or the request is
+     * answered with nothing.</p>
+     */
+    private static final Map<String, PendingPlay> PENDING_PLAYS = new HashMap<>();
+
+    private record PendingPlay(ServerPlayerEntity player, int tick)
+    {
+    }
+
+    /** Ask the client for a film we cannot read, and start it at {@code tick} when it comes. */
+    private static void awaitFilm(ServerPlayerEntity player, String filmId, int tick)
+    {
+        PENDING_PLAYS.put(filmId, new PendingPlay(player, tick));
+
+        requestFilmResync(player, filmId);
+    }
+
+    /**
+     * Start a play that was waiting on this film, now that its data is here.
+     *
+     * <p>Only a whole-film sync will do: the editor sends single values as they are edited, and
+     * one of those is not a film to play.</p>
+     */
+    private static void startPendingPlay(MinecraftServer server, String filmId, DataPath path, BaseType data)
+    {
+        PendingPlay pending = PENDING_PLAYS.remove(filmId);
+
+        if (pending == null || path.size() != 0 || !data.isMap())
+        {
+            return;
+        }
+
+        MapType map = data.asMap();
+
+        /* Written before it is played, so it is on disk for the next time and so the rest of the
+         * server sees the same film the client is looking at. */
+        BBSMod.getFilms().save(filmId, map);
+
+        Film film = BBSMod.getFilms().create(filmId, map);
+        ServerPlayerEntity player = pending.player();
+
+        if (film == null || player == null || player.isRemoved())
+        {
+            return;
+        }
+
+        ActionPlayer actionPlayer = BBSMod.getActions().play(player, player.getServerWorld(), film, pending.tick(), PlayerType.FILM_EDITOR);
+
+        if (actionPlayer != null)
+        {
+            actionPlayer.syncing = true;
+            actionPlayer.playing = false;
+        }
+    }
+
     private static void handleSyncData(MinecraftServer server, ServerPlayerEntity player, PacketByteBuf buf)
     {
         if (!PermissionUtils.arePanelsAllowed(server, player))
@@ -431,7 +503,10 @@ public class ServerNetwork
 
             server.execute(() ->
             {
-                BBSMod.getActions().syncData(filmId, new DataPath(path), data);
+                DataPath dataPath = new DataPath(path);
+
+                startPendingPlay(server, filmId, dataPath, data);
+                BBSMod.getActions().syncData(filmId, dataPath, data);
             });
         });
     }
