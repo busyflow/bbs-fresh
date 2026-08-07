@@ -191,7 +191,8 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
     private static final String PANEL_REPLAY_PROPS_ID = "replayProps";
     private static final int FILM_TOP_BAR_BUTTON_SIZE = UIDataTabs.TABS_HEIGHT_PX;
     private static final int FILM_TOP_BAR_SEPARATOR_WIDTH = 8;
-    private static final int FILM_TOP_BAR_ACTIONS_WIDTH = FILM_TOP_BAR_BUTTON_SIZE * 3 + FILM_TOP_BAR_SEPARATOR_WIDTH;
+    /** Three editor buttons and the film menu. The row is fixed width, so this has to count. */
+    private static final int FILM_TOP_BAR_ACTIONS_WIDTH = FILM_TOP_BAR_BUTTON_SIZE * 4 + FILM_TOP_BAR_SEPARATOR_WIDTH;
     private UIElement selectedMainEditorPanel;
     private boolean switchingMainEditor;
     private UIElement topBarActions;
@@ -558,6 +559,14 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
 
         this.cameraEditor.setVisible(cameraVisible);
         this.replayEditor.setVisible(replayVisible);
+
+        /* Every panel that can be selected has to be shown here, not just the two that own
+         * timelines - picking one only hides the others, so a panel this forgets is a button
+         * that blanks the editor and puts nothing in its place. */
+        if (this.crowdsEditor != null)
+        {
+            this.crowdsEditor.setVisible(visible && selected == this.crowdsEditor);
+        }
 
         this.cameraEditor.setTimelineVisible(mainActive && cameraVisible);
         this.cameraEditor.setPropertiesVisible(editAreaActive && cameraVisible);
