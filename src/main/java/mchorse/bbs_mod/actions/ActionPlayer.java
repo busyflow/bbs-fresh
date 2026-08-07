@@ -7,6 +7,7 @@ import mchorse.bbs_mod.actions.types.crowd.CrowdUtils;
 import mchorse.bbs_mod.data.types.BaseType;
 import mchorse.bbs_mod.entity.ActorEntity;
 import mchorse.bbs_mod.film.Film;
+import mchorse.bbs_mod.film.crowds.CrowdReconciler;
 import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.film.replays.ReplayKeyframes;
 import mchorse.bbs_mod.forms.FormUtils;
@@ -45,6 +46,13 @@ public class ActionPlayer
 
     private ServerPlayerEntity serverPlayer;
     private ServerWorld world;
+
+    /**
+     * Keeps the film's crowds standing wherever the film says they should be.
+     *
+     * <p>Per playback rather than per film, since it tracks what this run put into the world.</p>
+     */
+    private final CrowdReconciler crowds = new CrowdReconciler();
     private int duration;
 
     private Map<String, LivingEntity> actors = new HashMap<>();
@@ -266,6 +274,12 @@ public class ActionPlayer
 
     private void applyAction()
     {
+        /* Before anything acts, so that a behaviour clip firing on this tick finds the crowd it
+         * addresses already standing there. This is also why it is here rather than in tick():
+         * scrubbing replays actions through goTo without ticking, and a crowd that only appeared
+         * on a real tick would be missing from every scrubbed frame. */
+        this.crowds.reconcile(this.world, this.film, this.tick);
+
         SuperFakePlayer fakePlayer = SuperFakePlayer.get(this.world);
         List<Replay> list = this.film.replays.getList();
 
@@ -354,6 +368,10 @@ public class ActionPlayer
     public void stop()
     {
         CrowdUtils.removeAllForFilm(this.world, this.film);
+
+        /* Those members are gone, so the reconciler must not go on believing it has them
+         * standing - a run started again against this player would spawn nothing. */
+        this.crowds.forget();
 
         for (LivingEntity value : this.actors.values())
         {

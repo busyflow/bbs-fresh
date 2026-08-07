@@ -376,6 +376,11 @@ public class UIClips extends UIElement
                 IKey typeKey = UIKeys.CAMERA_TIMELINE_CONTEXT_ADD_CLIP_TYPE.format(UIKeys.C_CLIP.get(type));
                 ClipFactoryData data = this.factory.getData(type);
 
+                if (data.hidden)
+                {
+                    continue;
+                }
+
                 add.action(data.icon, typeKey, data.color, () -> this.addClip(type, preview.x, preview.y, preview.z));
             }
 

@@ -1,6 +1,6 @@
 package mchorse.bbs_mod.ui.film.clips.area;
 
-import mchorse.bbs_mod.actions.types.crowd.CrowdSpawnActionClip;
+import mchorse.bbs_mod.film.crowds.Crowd;
 import mchorse.bbs_mod.camera.Camera;
 import mchorse.bbs_mod.camera.CameraUtils;
 import mchorse.bbs_mod.ui.framework.UIContext;
@@ -15,11 +15,11 @@ import org.joml.Vector3d;
 import org.joml.Vector3f;
 
 /**
- * The free-hand brush that paints an {@link CrowdSpawnActionClip}'s ground.
+ * The free-hand brush that paints a {@link Crowd}'s ground.
  *
- * <p>One brush exists at a time and belongs to whichever area clip is open in the editor — arming
- * it takes over left-drag in the viewport, which is why it disarms itself the moment the clip
- * stops being edited. It paints columns, not blocks: a stroke finds the surface under the cursor
+ * <p>One brush exists at a time and belongs to whichever crowd is open in the editor — arming
+ * it takes over left-drag in the viewport, which is why it disarms itself the moment the crowd
+ * stops being the one being edited. It paints columns, not blocks: a stroke finds the surface under the cursor
  * and stamps a disc of surface columns around it, so a hillside gets painted as ground rather
  * than as the one block the ray happened to land on.</p>
  */
@@ -28,7 +28,7 @@ public class AreaBrush
     /** How far above and below the brushed surface a neighbouring column may follow it. */
     private static final int SURFACE_SPAN = 8;
 
-    private static CrowdSpawnActionClip clip;
+    private static Crowd crowd;
     private static boolean erasing;
     private static boolean painting;
     private static boolean strokeErase;
@@ -37,14 +37,14 @@ public class AreaBrush
     private static BlockPos hovered;
     private static int hoveredRadius;
 
-    public static CrowdSpawnActionClip getClip()
+    public static Crowd getCrowd()
     {
-        return clip;
+        return crowd;
     }
 
     public static boolean isArmed()
     {
-        return clip != null;
+        return crowd != null;
     }
 
     public static boolean isErasing()
@@ -67,24 +67,24 @@ public class AreaBrush
         return hoveredRadius;
     }
 
-    public static void arm(CrowdSpawnActionClip target, boolean erase)
+    public static void arm(Crowd target, boolean erase)
     {
-        clip = target;
+        crowd = target;
         erasing = erase;
         painting = false;
     }
 
     public static void disarm()
     {
-        clip = null;
+        crowd = null;
         painting = false;
         hovered = null;
     }
 
-    /** Drop the brush when the clip it belongs to is no longer the one being edited. */
-    public static void disarmUnless(CrowdSpawnActionClip target)
+    /** Drop the brush when the crowd it belongs to is no longer the one being edited. */
+    public static void disarmUnless(Crowd target)
     {
-        if (clip != null && clip != target)
+        if (crowd != null && crowd != target)
         {
             disarm();
         }
@@ -103,7 +103,7 @@ public class AreaBrush
      */
     public static boolean click(UIContext context, Area area, Camera camera)
     {
-        if (clip == null || context.mouseButton > 1)
+        if (crowd == null || context.mouseButton > 1)
         {
             return false;
         }
@@ -126,7 +126,7 @@ public class AreaBrush
      */
     public static void held(UIContext context, Area area, Camera camera, boolean right)
     {
-        if (clip == null)
+        if (crowd == null)
         {
             return;
         }
@@ -144,7 +144,7 @@ public class AreaBrush
     /** Track the column under the cursor so the viewport can show where a stroke would land. */
     public static void hover(UIContext context, Area area, Camera camera)
     {
-        if (clip == null)
+        if (crowd == null)
         {
             hovered = null;
 
@@ -152,7 +152,7 @@ public class AreaBrush
         }
 
         hovered = trace(context, area, camera);
-        hoveredRadius = clip.brushSize.get();
+        hoveredRadius = crowd.brushSize.get();
     }
 
     private static void stamp(UIContext context, Area area, Camera camera, boolean erase)
@@ -165,7 +165,7 @@ public class AreaBrush
         }
 
         World world = MinecraftClient.getInstance().world;
-        int radius = clip.brushSize.get();
+        int radius = crowd.brushSize.get();
         int radiusSquared = radius * radius;
 
         for (int dx = -radius; dx <= radius; dx++)
@@ -182,7 +182,7 @@ public class AreaBrush
 
                 if (erase)
                 {
-                    clip.erase(x, z);
+                    crowd.erase(x, z);
 
                     continue;
                 }
@@ -191,7 +191,7 @@ public class AreaBrush
 
                 if (y != Integer.MIN_VALUE)
                 {
-                    clip.paint(x, y, z);
+                    crowd.paint(x, y, z);
                 }
             }
         }

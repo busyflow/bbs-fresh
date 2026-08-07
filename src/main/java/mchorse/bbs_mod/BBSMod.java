@@ -462,7 +462,7 @@ public class BBSMod implements ModInitializer
             .register(Link.bbs("attack"), AttackActionClip.class, new ClipFactoryData(Icons.DROP, Colors.RED))
             .register(Link.bbs("damage"), DamageActionClip.class, new ClipFactoryData(Icons.SKULL, Colors.CURSOR))
             .register(Link.bbs("swipe"), SwipeActionClip.class, new ClipFactoryData(Icons.LIMB, Colors.ORANGE))
-            .register(Link.bbs("crowd_spawn"), CrowdSpawnActionClip.class, new ClipFactoryData(Icons.CHICKEN, Colors.GREEN))
+            .register(Link.bbs("crowd_spawn"), CrowdSpawnActionClip.class, new ClipFactoryData(Icons.CHICKEN, Colors.GREEN).hidden())
             .register(Link.bbs("crowd_behavior"), CrowdBehaviorActionClip.class, new ClipFactoryData(Icons.ALL_DIRECTIONS, Colors.CYAN))
             .register(Link.bbs("ragdoll"), RagdollActionClip.class, new ClipFactoryData(Icons.LIMB, Colors.ACTIVE));
 

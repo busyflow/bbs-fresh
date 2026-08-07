@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.ui.film.clips.actions;
 
+import mchorse.bbs_mod.film.crowds.Crowd;
 import mchorse.bbs_mod.actions.types.crowd.CrowdBehaviorActionClip;
 import mchorse.bbs_mod.actions.types.crowd.CrowdBehaviorMode;
 import mchorse.bbs_mod.film.Film;
@@ -23,7 +24,7 @@ import java.util.List;
 
 public class UICrowdBehaviorActionClip extends UIActionClip<CrowdBehaviorActionClip>
 {
-    private UITextbox crowdTag;
+    private UIButton crowdTag;
     private UIButton target;
     private UIButton mode;
     private UIToggle pause;
@@ -93,7 +94,8 @@ public class UICrowdBehaviorActionClip extends UIActionClip<CrowdBehaviorActionC
     {
         super.registerUI();
 
-        this.crowdTag = new UITextbox(128, (text) -> this.editor.editMultiple(this.clip.crowdTag, (value) -> value.set(text)));
+        this.crowdTag = new UIButton(IKey.EMPTY, (b) -> this.openCrowdMenu());
+        this.crowdTag.tooltip(IKey.constant("Which of the film's crowds this behaviour drives.\n\nCrowds are made in the Crowds editor, in the top bar."));
         this.target = new UIButton(IKey.EMPTY, (b) -> this.openTargetPicker());
         this.mode = new UIButton(IKey.EMPTY, (b) -> this.openModeMenu());
         this.pause = new UIToggle(IKey.constant("Pause"), (b) -> this.editor.editMultiple(this.clip.pause, (value) -> value.set(b.getValue())));
@@ -194,7 +196,7 @@ public class UICrowdBehaviorActionClip extends UIActionClip<CrowdBehaviorActionC
 
         this.panels.add(
             this.section("Crowd",
-                this.row("Tag", this.crowdTag),
+                this.row("Crowd", this.crowdTag),
                 this.row("Target", this.target),
                 this.row("Preset", this.mode),
                 this.row("Seed", this.seed)
@@ -267,7 +269,7 @@ public class UICrowdBehaviorActionClip extends UIActionClip<CrowdBehaviorActionC
     {
         super.fillData();
 
-        this.crowdTag.setText(this.clip.crowdTag.get());
+        this.refreshCrowdLabel();
         this.refreshTargetLabel();
         this.refreshModeLabel();
         this.pause.setValue(this.clip.pause.get());
@@ -376,6 +378,46 @@ public class UICrowdBehaviorActionClip extends UIActionClip<CrowdBehaviorActionC
                 menu.action(Icons.USER, IKey.constant(replay.getName()), () -> this.applyTarget(index));
             }
         });
+    }
+
+    /**
+     * Pick the crowd from the ones the film has.
+     *
+     * <p>This used to be a text field holding a tag that had to match the spawn clip's by hand.
+     * A typo produced no crowd, no behaviour and no complaint - the clip simply addressed nobody
+     * and there was nothing on screen to say so. There is nothing to mistype now.</p>
+     */
+    private void openCrowdMenu()
+    {
+        Film film = this.editor.getFilm();
+
+        if (film == null)
+        {
+            return;
+        }
+
+        this.getContext().replaceContextMenu((menu) ->
+        {
+            for (Crowd crowd : film.crowds.getList())
+            {
+                menu.action(Icons.CHICKEN, IKey.constant(crowd.getDisplayName()), () ->
+                {
+                    this.editor.editMultiple(this.clip.crowdTag, (value) -> value.set(crowd.crowdTag.get()));
+                    this.refreshCrowdLabel();
+                });
+            }
+        });
+    }
+
+    private void refreshCrowdLabel()
+    {
+        Film film = this.editor.getFilm();
+        String tag = this.clip.crowdTag.get();
+        Crowd crowd = film == null ? null : film.crowds.byTag(tag);
+
+        /* A behaviour pointing at a crowd the film no longer has says so, rather than looking
+         * settled while driving nobody. */
+        this.crowdTag.label = IKey.constant(crowd != null ? crowd.getDisplayName() : "(missing: " + tag + ")");
     }
 
     private void openModeMenu()

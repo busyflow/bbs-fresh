@@ -14,7 +14,8 @@ import mchorse.bbs_mod.cubic.physics.RagdollControl;
 import mchorse.bbs_mod.ui.film.clips.area.AreaBrush;
 import net.minecraft.util.math.BlockPos;
 import mchorse.bbs_mod.actions.types.crowd.CrowdBehaviorActionClip;
-import mchorse.bbs_mod.actions.types.crowd.CrowdSpawnActionClip;
+import mchorse.bbs_mod.film.crowds.Crowd;
+import mchorse.bbs_mod.ui.film.crowds.UICrowdsEditor;
 import mchorse.bbs_mod.actions.types.crowd.CrowdFormation;
 import mchorse.bbs_mod.actions.types.crowd.CrowdUtils;
 import mchorse.bbs_mod.camera.Camera;
@@ -144,12 +145,14 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
     /* Main editors */
     public UIClipsPanel cameraEditor;
     public UIReplaysEditor replayEditor;
+    public UICrowdsEditor crowdsEditor;
     public UIClipsPanel actionEditor;
 
     /* Icon bar buttons */
     public UIIcon openFilmMenu;
     public UIIcon openCameraEditor;
     public UIIcon openReplayEditor;
+    public UIIcon openCrowdsEditor;
 
     private UICopyPasteController layoutPresetsController;
 
@@ -230,6 +233,9 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         this.actionEditor.setVisible(false);
         this.replayEditor.attachActionTimeline(this.actionEditor);
 
+        this.crowdsEditor = new UICrowdsEditor(this);
+        this.crowdsEditor.full(this.main).setVisible(false);
+
         this.selectedMainEditorPanel = this.cameraEditor;
 
         /* Film panel keeps common CRUD actions inside film settings menu instead of the sidebar. */
@@ -243,6 +249,7 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         });
         this.openCameraEditor = new UIIcon(Icons.FRUSTUM, (b) -> this.showPanel(this.cameraEditor));
         this.openReplayEditor = new UIIcon(Icons.SCENE, (b) -> this.showPanel(this.replayEditor));
+        this.openCrowdsEditor = new UIIcon(Icons.CHICKEN, (b) -> this.showPanel(this.crowdsEditor));
 
         this.layoutPresetsController = new UICopyPasteController(PresetManager.LAYOUTS, "_CopyFilmLayout")
             .supplier(this::getFilmLayoutPresetData)
@@ -253,17 +260,18 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         this.openFilmMenu.wh(FILM_TOP_BAR_BUTTON_SIZE, FILM_TOP_BAR_BUTTON_SIZE).tooltip(UIKeys.FILM_OPTIONS, Direction.BOTTOM);
         this.openCameraEditor.wh(FILM_TOP_BAR_BUTTON_SIZE, FILM_TOP_BAR_BUTTON_SIZE).tooltip(UIKeys.FILM_OPEN_CAMERA_EDITOR, Direction.BOTTOM);
         this.openReplayEditor.wh(FILM_TOP_BAR_BUTTON_SIZE, FILM_TOP_BAR_BUTTON_SIZE).tooltip(UIKeys.FILM_OPEN_REPLAY_EDITOR, Direction.BOTTOM);
+        this.openCrowdsEditor.wh(FILM_TOP_BAR_BUTTON_SIZE, FILM_TOP_BAR_BUTTON_SIZE).tooltip(IKey.constant("Crowds"), Direction.BOTTOM);
 
         this.topBarActions = new UIElement();
         this.topBarActions.relative(this.tabBar).x(1F, -FILM_TOP_BAR_ACTIONS_WIDTH).w(FILM_TOP_BAR_ACTIONS_WIDTH).h(UIDataTabs.TABS_HEIGHT_PX).row(0).resize();
         this.topBarSeparator = new UIElement();
         this.topBarSeparator.wh(FILM_TOP_BAR_SEPARATOR_WIDTH, UIDataTabs.TABS_HEIGHT_PX);
-        this.topBarActions.add(new UIRenderable(this::renderTopBarActions), this.openCameraEditor, this.openReplayEditor, this.topBarSeparator, this.openFilmMenu);
+        this.topBarActions.add(new UIRenderable(this::renderTopBarActions), this.openCameraEditor, this.openReplayEditor, this.openCrowdsEditor, this.topBarSeparator, this.openFilmMenu);
         this.tabBar.add(this.topBarActions);
 
         /* Setup elements */
 
-        this.main.add(this.cameraEditor, this.replayEditor);
+        this.main.add(this.cameraEditor, this.replayEditor, this.crowdsEditor);
         this.add(this.controller);
         this.overlay.namesList.setFileIcon(Icons.FILM);
 
@@ -347,6 +355,7 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
 
         this.panels.add(this.cameraEditor);
         this.panels.add(this.replayEditor);
+        this.panels.add(this.crowdsEditor);
 
         this.secretPlay = new UIElement();
         this.secretPlay.keys().register(Keys.PLAUSE, () -> this.preview.plause.clickItself()).active(() -> !this.isFlying() && !this.canBeSeen() && this.data != null).category(editor);
@@ -354,6 +363,7 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         this.setUndoId("film_panel");
         this.cameraEditor.setUndoId("camera_editor");
         this.replayEditor.setUndoId("replay_editor");
+        this.crowdsEditor.setUndoId("crowds_editor");
         this.actionEditor.setUndoId("action_editor");
 
         UIElement element = new UIElement()
@@ -1805,6 +1815,7 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         this.runner.setWork(data == null ? null : data.camera);
         this.cameraEditor.setClips(data == null ? null : data.camera);
         this.replayEditor.setFilm(data);
+        this.crowdsEditor.setFilm(data);
         this.cameraEditor.pickClip(null);
 
         this.fillData();
@@ -2315,17 +2326,19 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
      */
     private void renderArea(WorldRenderContext context)
     {
-        if (this.actionEditor == null || !this.actionEditor.isVisible() || !(this.actionEditor.getClip() instanceof CrowdSpawnActionClip clip))
+        Crowd crowd = UICrowdsEditor.getSelected();
+
+        if (this.crowdsEditor == null || !this.crowdsEditor.isVisible() || crowd == null)
         {
             return;
         }
 
-        if (CrowdFormation.get(clip.formation.get()) != CrowdFormation.PAINT)
+        if (crowd.getFormation() != CrowdFormation.PAINT)
         {
             return;
         }
 
-        Long2IntOpenHashMap cells = clip.getCells();
+        Long2IntOpenHashMap cells = crowd.getCells();
         Vec3d camera = context.camera().getPos();
         MatrixStack stack = context.matrixStack();
         BufferBuilder builder = Tessellator.getInstance().getBuffer();
@@ -2420,32 +2433,37 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
      */
     private void renderCrowdRadius(WorldRenderContext context)
     {
-        if (this.data == null || this.replayEditor == null || this.actionEditor == null || !this.actionEditor.isVisible())
+        if (this.data == null)
         {
             return;
         }
 
-        Clip actionClip = this.actionEditor.getClip();
+        Crowd crowd = UICrowdsEditor.getSelected();
         double outer;
         double inner = 0D;
+        Replay replay;
 
-        if (actionClip instanceof CrowdSpawnActionClip clip)
+        if (this.crowdsEditor != null && this.crowdsEditor.isVisible() && crowd != null)
         {
-            CrowdFormation formation = CrowdFormation.get(clip.formation.get());
+            CrowdFormation formation = crowd.getFormation();
 
-            outer = CrowdUtils.formationRadius(formation, clip.count.get(), clip.spacing.get(), clip.holeRadius.get());
-            inner = CrowdUtils.formationHole(formation, clip.holeRadius.get());
+            outer = CrowdUtils.formationRadius(formation, crowd.count.get(), crowd.spacing.get(), crowd.holeRadius.get());
+            inner = CrowdUtils.formationHole(formation, crowd.holeRadius.get());
+
+            /* A crowd names its own anchor now, rather than borrowing whichever replay the
+             * editor happened to have open. */
+            replay = CrowdUtils.getReplay(this.data, crowd.anchor.get());
         }
-        else if (actionClip instanceof CrowdBehaviorActionClip clip)
+        else if (this.replayEditor != null && this.actionEditor != null && this.actionEditor.isVisible()
+            && this.actionEditor.getClip() instanceof CrowdBehaviorActionClip clip)
         {
             outer = clip.wanderRadius.get();
+            replay = this.replayEditor.getReplay();
         }
         else
         {
             return;
         }
-
-        Replay replay = this.replayEditor.getReplay();
 
         if (replay == null)
         {
