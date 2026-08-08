@@ -37,6 +37,17 @@ public class CreativeStatusBars
     }
 
     /**
+     * The experience bar, which vanilla gates on its own answer rather than on the status bars.
+     *
+     * <p>Kept separate here for the same reason: asking for the bar and the level number is not
+     * asking for hearts, and a shot that wants one rarely wants the other.</p>
+     */
+    public static boolean showsExperience()
+    {
+        return isCreative() && BBSSettings.creativeShowXpBar.get();
+    }
+
+    /**
      * Creative only, deliberately not spectator: a spectator has no body to be hurt or fed, and
      * the bars would be reporting on someone who is not there.
      */

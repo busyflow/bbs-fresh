@@ -24,4 +24,14 @@ public class ClientPlayerInteractionManagerMixin
             info.setReturnValue(true);
         }
     }
+
+    /** The experience bar and the level number above it are both behind this one answer. */
+    @Inject(method = "hasExperienceBar", at = @At("HEAD"), cancellable = true)
+    private void bbs$showExperienceBarInCreative(CallbackInfoReturnable<Boolean> info)
+    {
+        if (CreativeStatusBars.showsExperience())
+        {
+            info.setReturnValue(true);
+        }
+    }
 }
