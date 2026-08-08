@@ -30,6 +30,21 @@ public class LivingEntityCrowdBodyMixin implements CrowdDrivenEntity
     @Unique
     private int bbs$crowdLookTick = Integer.MIN_VALUE;
 
+    @Unique
+    private int bbs$crowdIndex = Integer.MIN_VALUE;
+
+    @Override
+    public int bbs$getCrowdIndex()
+    {
+        return this.bbs$crowdIndex;
+    }
+
+    @Override
+    public void bbs$setCrowdIndex(int index)
+    {
+        this.bbs$crowdIndex = index;
+    }
+
     @Override
     public int bbs$getCrowdLookTick()
     {

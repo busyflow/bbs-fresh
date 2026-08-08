@@ -23,4 +23,16 @@ public interface CrowdDrivenEntity
     int bbs$getCrowdLookTick();
 
     void bbs$setCrowdLookTick(int tick);
+
+    /**
+     * This member's number in its crowd, or {@link Integer#MIN_VALUE} before it has been read.
+     *
+     * <p>The number itself lives in a command tag, which means finding it costs a walk of the
+     * entity's tags, a substring and a parse. It is wanted several times per member per tick -
+     * to place it, to seed its jump, to pick its texture - and it never changes once spawned,
+     * so it is worked out once and kept here.</p>
+     */
+    int bbs$getCrowdIndex();
+
+    void bbs$setCrowdIndex(int index);
 }

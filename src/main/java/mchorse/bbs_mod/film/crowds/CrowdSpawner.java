@@ -6,11 +6,14 @@ import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.actions.types.crowd.CrowdFormation;
 import mchorse.bbs_mod.actions.types.crowd.CrowdPaintArea;
+import mchorse.bbs_mod.actions.crowd.CrowdLookEvaluator;
 import mchorse.bbs_mod.actions.types.crowd.CrowdUtils;
 import mchorse.bbs_mod.entity.ActorEntity;
 import mchorse.bbs_mod.film.Film;
 import mchorse.bbs_mod.film.FilmExportState;
+import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.forms.FormUtils;
+import mchorse.bbs_mod.forms.forms.CrowdForm;
 import mchorse.bbs_mod.forms.forms.Form;
 import mchorse.bbs_mod.network.ServerNetwork;
 import mchorse.bbs_mod.resources.Link;
@@ -28,6 +31,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.Heightmap;
 import net.minecraft.world.chunk.ChunkStatus;
@@ -55,6 +59,15 @@ public class CrowdSpawner
      *         over ungenerated chunks or with nowhere safe to stand are skipped.
      */
     public static int spawn(ServerWorld world, Film film, Crowd crowd, Vec3d center)
+    {
+        return spawn(world, film, crowd, center, 0);
+    }
+
+    /**
+     * @param tick the film tick being spawned at, so members arrive already facing what the look
+     *             keyframes say they should be facing at that moment
+     */
+    public static int spawn(ServerWorld world, Film film, Crowd crowd, Vec3d center, int tick)
     {
         String tag = CrowdUtils.crowdTag(crowd.crowdTag.get());
         boolean useActor = crowd.useActorForm.get();
@@ -111,6 +124,13 @@ public class CrowdSpawner
         int preview = BBSSettings.crowdPreviewCount.get();
         int spawnCount = FilmExportState.isAnyExporting() || preview <= 0 ? count : Math.min(preview, count);
         IntList spawned = new IntArrayList(spawnCount);
+
+        /* Where this crowd is looking at the tick it appears, so a member can be placed already
+         * turned. Spawning everyone facing their formation angle and letting the look keyframes
+         * turn them on the next tick is a crowd that visibly swings round the instant it appears -
+         * and on the first frame of a render, that swing is in the shot. */
+        CrowdLookEvaluator.Sample look = lookSample(film, crowd, tick);
+        float[] rotation = new float[2];
 
         for (int j = 0; j < spawnCount; j++)
         {
@@ -169,8 +189,17 @@ public class CrowdSpawner
             }
 
             float yaw = crowd.randomYaw.get() ? (float) ((i * 137.507764D) % 360D) : 0F;
+            float pitch = 0F;
 
-            entity.refreshPositionAndAngles(spawn.x, spawn.y, spawn.z, yaw, 0F);
+            /* Ask from the eyes rather than the feet, the same as the runtime does, or the crowd
+             * arrives pitched at the target's shoes and corrects itself a tick later. */
+            if (look != null && CrowdLookEvaluator.rotation(spawn.x, spawn.y + entity.getStandingEyeHeight(), spawn.z, look, rotation))
+            {
+                yaw = rotation[0];
+                pitch = rotation[1];
+            }
+
+            entity.refreshPositionAndAngles(spawn.x, spawn.y, spawn.z, yaw, pitch);
             entity.prevX = spawn.x;
             entity.prevY = spawn.y;
             entity.prevZ = spawn.z;
@@ -178,7 +207,7 @@ public class CrowdSpawner
             entity.lastRenderY = spawn.y;
             entity.lastRenderZ = spawn.z;
             entity.prevYaw = yaw;
-            entity.prevPitch = 0F;
+            entity.prevPitch = pitch;
             entity.setHeadYaw(yaw);
             entity.prevHeadYaw = yaw;
             entity.setBodyYaw(yaw);
@@ -217,6 +246,50 @@ public class CrowdSpawner
     private static Form createActorForm(Crowd crowd)
     {
         return FormUtils.copy(crowd.actorForm.get());
+    }
+
+    /**
+     * The look this crowd's driving replay asks for at the spawn tick, or {@code null} when
+     * nothing looks at anything - in which case members keep their formation facing.
+     *
+     * <p>The crowd is addressed by tag and the keyframes live on a replay, so the replay driving
+     * it has to be found the same way {@code CrowdKeyframeRuntime} finds it, from the other end.</p>
+     */
+    private static CrowdLookEvaluator.Sample lookSample(Film film, Crowd crowd, int tick)
+    {
+        if (film == null)
+        {
+            return null;
+        }
+
+        String tag = crowdTag(crowd);
+
+        for (Replay replay : film.replays.getList())
+        {
+            if (!replay.enabled.get() || !(replay.form.get() instanceof CrowdForm form))
+            {
+                continue;
+            }
+
+            if (!tag.equals(CrowdUtils.crowdTag(form.crowd.get())))
+            {
+                continue;
+            }
+
+            CrowdLookEvaluator.Sample sample = CrowdLookEvaluator.sample(film, replay, replay.getTick(tick));
+
+            if (sample != null)
+            {
+                return sample;
+            }
+        }
+
+        return null;
+    }
+
+    private static String crowdTag(Crowd crowd)
+    {
+        return CrowdUtils.crowdTag(crowd.crowdTag.get());
     }
 
     private static Vec3d findSpawnPoint(ServerWorld world, Crowd crowd, LivingEntity entity, Vec3d center, CrowdFormation formation, CrowdPaintArea area, int index, int count, double spacing, Map<Long, Double> surfaceCache)
@@ -319,18 +392,26 @@ public class CrowdSpawner
         }
 
         int height = Math.max(1, (int) Math.ceil(entity.getHeight()));
-        double[] xs = new double[] {spawn.x, spawn.x - halfWidth, spawn.x + halfWidth};
-        double[] zs = new double[] {spawn.z, spawn.z - halfWidth, spawn.z + halfWidth};
+
+        /* The nine columns are only three distinct blocks wide in either direction most of the
+         * time, and the probe runs up to sixteen times per member across a crowd of five figures.
+         * Floor them once, drop the duplicates and walk with a mutable position - the version that
+         * built a BlockPos per probe allocated more objects placing a crowd than the crowd had
+         * members by two orders of magnitude. */
+        int[] xs = distinctFloored(spawn.x, halfWidth);
+        int[] zs = distinctFloored(spawn.z, halfWidth);
+        BlockPos.Mutable pos = new BlockPos.Mutable();
 
         for (int dy = 0; dy < height; dy++)
         {
-            double y = spawn.y + dy;
+            int y = MathHelper.floor(spawn.y) + dy;
 
-            for (double px : xs)
+            for (int px : xs)
             {
-                for (double pz : zs)
+                for (int pz : zs)
                 {
-                    BlockPos pos = BlockPos.ofFloored(px, y, pz);
+                    pos.set(px, y, pz);
+
                     BlockState state = world.getBlockState(pos);
 
                     if (!state.getCollisionShape(world, pos).isEmpty())
@@ -342,6 +423,21 @@ public class CrowdSpawner
         }
 
         return true;
+    }
+
+    /** The distinct block coordinates the centre and both edges of the footprint fall in. */
+    private static int[] distinctFloored(double centre, double halfWidth)
+    {
+        int mid = MathHelper.floor(centre);
+        int low = MathHelper.floor(centre - halfWidth);
+        int high = MathHelper.floor(centre + halfWidth);
+
+        if (low == high)
+        {
+            return new int[] {mid};
+        }
+
+        return low == mid || high == mid ? new int[] {low, high} : new int[] {low, mid, high};
     }
 
     private static Double findSurfaceY(ServerWorld world, Vec3d center, double x, double z, Map<Long, Double> surfaceCache)
@@ -395,14 +491,18 @@ public class CrowdSpawner
         /* Start from the heightmap when it falls inside the band - that skips the whole
          * scan for open sky, which is the common case. */
         int start = Math.min(maxY, world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, bx, bz));
+        BlockPos.Mutable pos = new BlockPos.Mutable();
 
         for (int y = start; y >= minY; y--)
         {
-            BlockPos feet = new BlockPos(bx, y, bz);
-            BlockPos below = feet.down();
-            BlockState belowState = world.getBlockState(below);
+            BlockState belowState = world.getBlockState(pos.set(bx, y - 1, bz));
 
-            if (belowState.isSideSolidFullSquare(world, below, Direction.UP) && world.isAir(feet) && world.isAir(feet.up()))
+            if (!belowState.isSideSolidFullSquare(world, pos, Direction.UP))
+            {
+                continue;
+            }
+
+            if (world.isAir(pos.set(bx, y, bz)) && world.isAir(pos.set(bx, y + 1, bz)))
             {
                 return (double) y;
             }

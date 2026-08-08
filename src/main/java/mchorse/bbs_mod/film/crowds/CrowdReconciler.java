@@ -80,7 +80,7 @@ public class CrowdReconciler
                 this.despawn(world, film, crowd, id);
             }
 
-            CrowdSpawner.spawn(world, film, crowd, this.center(film, crowd, tick));
+            CrowdSpawner.spawn(world, film, crowd, this.center(film, crowd, tick), tick);
             this.spawned.put(id, signature);
         }
 

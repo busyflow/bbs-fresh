@@ -1,7 +1,5 @@
 package mchorse.bbs_mod.actions.types.crowd;
 
-import it.unimi.dsi.fastutil.objects.Object2IntMap;
-import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import mchorse.bbs_mod.film.Film;
 import mchorse.bbs_mod.film.replays.Replay;
 import net.minecraft.entity.Entity;
@@ -16,7 +14,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -92,33 +89,42 @@ public class CrowdUtils
      */
     public static List<LivingEntity> getCrowd(ServerWorld world, Film film, String crowdTag, Vec3d center, double range)
     {
+        Predicate<LivingEntity> member = memberTest(film, crowdTag);
         List<LivingEntity> entities = range <= 0D
-            ? collectTagged(world, film, crowdTag)
+            ? collectTagged(world, member)
             : world.getEntitiesByClass(LivingEntity.class,
                 Box.of(center, Math.max(8D, range) * 2D, Math.max(16D, range), Math.max(8D, range) * 2D),
-                (entity) -> hasTags(entity, film, crowdTag));
+                member);
 
-        /* entityIndex walks the entity's command tags, so read it once per member and sort on
-         * the cached number - a comparator that recomputed it would do that walk on every one
-         * of the n log n comparisons, which is what a five-figure crowd notices.
-         *
-         * Cached against the primitive: a boxing map allocates an Integer per member as it is
-         * filled and unboxes on every one of those comparisons, and entities do not override
-         * equality, so the open map already compares them by identity. */
-        Object2IntMap<LivingEntity> indices = new Object2IntOpenHashMap<>(entities.size());
-
-        for (int i = 0; i < entities.size(); i++)
-        {
-            LivingEntity entity = entities.get(i);
-
-            indices.put(entity, entityIndex(entity));
-        }
-
+        /* entityIndex is a field read off the member now (it caches the tag it was parsed from),
+         * so the comparator can call it directly - the map that used to hold the numbers for the
+         * sort was itself the allocation a five-figure crowd noticed. */
         entities.sort(Comparator
-            .comparingInt((LivingEntity entity) -> indices.getInt(entity))
+            .comparingInt(CrowdUtils::entityIndex)
             .thenComparingInt(Entity::getId));
 
         return entities;
+    }
+
+    /**
+     * A membership test with the film's tags already resolved.
+     *
+     * <p>Worth its own method because the obvious spelling - calling {@link #hasTags} per entity -
+     * re-resolves the film's run tag through a synchronised map and re-trims the crowd tag for
+     * every entity in the world, and the scan behind this visits every one of them. At five
+     * figures that lookup was a bigger cost than the scan it was guarding.</p>
+     */
+    private static Predicate<LivingEntity> memberTest(Film film, String crowdTag)
+    {
+        String runTag = getRunTag(film);
+        String tag = crowdTag(crowdTag);
+
+        return (entity) ->
+        {
+            Set<String> tags = entity.getCommandTags();
+
+            return tags.contains(INTERNAL_TAG) && tags.contains(runTag) && tags.contains(tag);
+        };
     }
 
     /**
@@ -141,20 +147,9 @@ public class CrowdUtils
         return found;
     }
 
-    private static List<LivingEntity> collectTagged(ServerWorld world, Film film, String crowdTag)
-    {
-        return collectTagged(world, (entity) -> hasTags(entity, film, crowdTag));
-    }
-
     public static void removeCrowd(ServerWorld world, Film film, String crowdTag)
     {
-        String tag = crowdTag(crowdTag);
-        String runTag = getRunTag(film);
-
-        for (LivingEntity mob : collectTagged(world, (entity) ->
-            entity.getCommandTags().contains(INTERNAL_TAG)
-                && entity.getCommandTags().contains(runTag)
-                && entity.getCommandTags().contains(tag)))
+        for (LivingEntity mob : collectTagged(world, memberTest(film, crowdTag)))
         {
             mob.discard();
         }
@@ -165,7 +160,11 @@ public class CrowdUtils
         String runTag = getRunTag(film);
 
         for (LivingEntity mob : collectTagged(world, (entity) ->
-            entity.getCommandTags().contains(INTERNAL_TAG) && entity.getCommandTags().contains(runTag)))
+        {
+            Set<String> tags = entity.getCommandTags();
+
+            return tags.contains(INTERNAL_TAG) && tags.contains(runTag);
+        }))
         {
             mob.discard();
         }
@@ -429,7 +428,36 @@ public class CrowdUtils
         return formation == CrowdFormation.DONUT ? Math.max(0D, hole) : 0D;
     }
 
+    /**
+     * This member's number in its crowd.
+     *
+     * <p>Read from the command tag once and then kept on the entity. A member's number is fixed
+     * at the moment it is spawned, and this is asked several times per member per tick - so at
+     * five figures the tag walk, the substring and the parse were a real part of a crowd's tick
+     * all by themselves.</p>
+     */
     public static int entityIndex(Entity entity)
+    {
+        if (!(entity instanceof CrowdDrivenEntity driven))
+        {
+            return readIndex(entity);
+        }
+
+        int cached = driven.bbs$getCrowdIndex();
+
+        if (cached != Integer.MIN_VALUE)
+        {
+            return cached;
+        }
+
+        int index = readIndex(entity);
+
+        driven.bbs$setCrowdIndex(index);
+
+        return index;
+    }
+
+    private static int readIndex(Entity entity)
     {
         for (String tag : entity.getCommandTags())
         {
