@@ -84,7 +84,7 @@ public class CrowdSpawner
         CrowdFormation formation = crowd.getFormation();
         int count = crowd.count.get();
         double spacing = crowd.spacing.get();
-        List<Link> textures = crowd.randomTextures.get() ? collectTextures(crowd.randomTextureFolder.get()) : List.of();
+
         Map<Long, Double> surfaceCache = crowd.spawnOnBlock.get() ? new HashMap<>() : null;
         EntityData entityData = null;
         CrowdPaintArea area = null;
@@ -123,7 +123,7 @@ public class CrowdSpawner
 
             if (useActor)
             {
-                Form form = createActorForm(crowd, textures, i);
+                Form form = createActorForm(crowd);
 
                 if (form == null)
                 {
@@ -206,51 +206,17 @@ public class CrowdSpawner
         return spawned.size();
     }
 
-    private static Form createActorForm(Crowd crowd, List<Link> textures, int index)
+    /**
+     * The member's form, as authored. What it wears is not decided here.
+     *
+     * <p>Spawning used to hand each member a random texture from a folder, which fixed a crowd's
+     * appearance at the moment it appeared and left no way to change it later. Texture is a
+     * keyframe now - one look for the whole crowd, or random within it when the keyframe asks -
+     * so deciding it here as well would only be something for the first keyframe to undo.</p>
+     */
+    private static Form createActorForm(Crowd crowd)
     {
-        Form form = FormUtils.copy(crowd.actorForm.get());
-
-        if (form == null)
-        {
-            return null;
-        }
-
-        if (!textures.isEmpty())
-        {
-            BaseValue property = FormUtils.getProperty(form, "texture");
-
-            if (property instanceof ValueLink valueLink)
-            {
-                valueLink.set(textures.get(Math.floorMod(index * 31 + form.hashCode(), textures.size())));
-            }
-        }
-
-        return form;
-    }
-
-    private static List<Link> collectTextures(Link folder)
-    {
-        List<Link> textures = new ArrayList<>();
-
-        if (folder == null || folder.source.isEmpty())
-        {
-            return textures;
-        }
-
-        try
-        {
-            for (Link link : BBSMod.getProvider().getLinksFromPath(folder, false))
-            {
-                if (!link.path.endsWith("/") && link.path.endsWith(".png"))
-                {
-                    textures.add(link);
-                }
-            }
-        }
-        catch (Exception e)
-        {}
-
-        return textures;
+        return FormUtils.copy(crowd.actorForm.get());
     }
 
     private static Vec3d findSpawnPoint(ServerWorld world, Crowd crowd, LivingEntity entity, Vec3d center, CrowdFormation formation, CrowdPaintArea area, int index, int count, double spacing, Map<Long, Double> surfaceCache)

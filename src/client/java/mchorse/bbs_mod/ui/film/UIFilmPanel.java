@@ -2353,7 +2353,10 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
     {
         Crowd crowd = UICrowdsEditor.getSelected();
 
-        if (this.crowdsEditor == null || !this.crowdsEditor.isVisible() || crowd == null)
+        /* Not gated on the Crowds editor being open: a crowd is just as much "the one being
+         * edited" when it is reached through the crowd form in the replay editor, and the paint
+         * outline is the whole point of painting. */
+        if (crowd == null)
         {
             return;
         }
@@ -2468,7 +2471,7 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         double inner = 0D;
         Replay replay;
 
-        if (this.crowdsEditor != null && this.crowdsEditor.isVisible() && crowd != null)
+        if (crowd != null)
         {
             CrowdFormation formation = crowd.getFormation();
 
