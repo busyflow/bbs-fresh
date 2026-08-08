@@ -11,6 +11,7 @@ import mchorse.bbs_mod.utils.clips.ClipContext;
 import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.utils.keyframes.Keyframe;
 import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
+import mchorse.bbs_mod.utils.keyframes.factories.KeyframeFactories;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -53,10 +54,23 @@ public class CurveClip extends CameraClip
         return context.clipData.get("curve_color_data", HashMap::new);
     }
 
+    /**
+     * The world's own controls, laid out under the clock they belong with.
+     *
+     * <p>Present from the start rather than added one at a time from a menu. A curve nobody knows
+     * is there is a curve nobody uses, and an empty channel says nothing - it is skipped when the
+     * clip is applied, so a track with no keyframes on it leaves the world exactly as it found
+     * it. The cost of showing them is a row each.</p>
+     */
     public CurveClip()
     {
         this.add(this.channels);
-        this.channels.addChannel("sun_rotation");
+
+        this.channels.addChannel(SUN_TIME);
+        this.channels.addChannel(SUN_DIRECTION);
+        this.channels.addChannel(WEATHER_STATE);
+        this.channels.addChannel(CHROMA_SKY);
+        this.channels.addChannel(CHROMA_SKY_COLOR, KeyframeFactories.COLOR);
     }
 
     @Override
