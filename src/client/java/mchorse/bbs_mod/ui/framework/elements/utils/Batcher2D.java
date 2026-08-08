@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.ui.framework.elements.utils;
 
+import mchorse.bbs_mod.client.BBSUIFont;
 import com.mojang.blaze3d.systems.RenderSystem;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.BBSSettings;
@@ -30,9 +31,16 @@ public class Batcher2D
     private DrawContext context;
     private FontRenderer font;
 
+    /**
+     * The renderer every piece of BBS interface text is drawn with.
+     *
+     * <p>The one place the interface font is chosen, which is what keeps it to the interface. The
+     * game's own text - signs, nameplates, the chat, vanilla screens - never comes through here
+     * and is left with the game's font.</p>
+     */
     public static FontRenderer getDefaultTextRenderer()
     {
-        fontRenderer.setRenderer(MinecraftClient.getInstance().textRenderer);
+        fontRenderer.setRenderer(BBSUIFont.get());
 
         return fontRenderer;
     }

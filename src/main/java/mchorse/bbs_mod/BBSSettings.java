@@ -33,6 +33,8 @@ public class BBSSettings {
 	public static ValueBoolean creativeShowHearts;
 	public static ValueBoolean creativeShowHunger;
 	public static ValueBoolean creativeShowXpBar;
+	public static ValueBoolean uiFont;
+	public static ValueFloat uiFontScale;
 
 	public static final String DEFAULT_FFMPEG_ARGUMENTS = "-f rawvideo -pix_fmt bgr24 -s %WIDTH%x%HEIGHT% -r %FPS% -i - -vf %FILTERS% -c:v libx264 -preset ultrafast -tune zerolatency -qp 18 -pix_fmt yuv420p %NAME%.mp4";
 	public static final String DEFAULT_AUDIO_FFMPEG_ARGUMENTS = "-f rawvideo -pix_fmt bgr24 -s %WIDTH%x%HEIGHT% -r %FPS% -i - -i %AUDIO_TRACK% -vf %FILTERS% -c:v libx264 -preset ultrafast -tune zerolatency -qp 18 -pix_fmt yuv420p -c:a aac -b:a 128k -shortest %NAME%.mp4";
@@ -840,5 +842,7 @@ public class BBSSettings {
 		creativeShowHearts = builder.getBoolean("creative_show_hearts", false);
 		creativeShowHunger = builder.getBoolean("creative_show_hunger", false);
 		creativeShowXpBar = builder.getBoolean("creative_show_xp_bar", false);
+		uiFont = builder.getBoolean("ui_font", true);
+		uiFontScale = builder.getFloat("ui_font_scale", 1F, 0.5F, 4F);
 	}
 }
