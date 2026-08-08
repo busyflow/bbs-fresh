@@ -15,7 +15,7 @@ import mchorse.bbs_mod.ui.film.clips.area.AreaBrush;
 import net.minecraft.util.math.BlockPos;
 import mchorse.bbs_mod.actions.types.crowd.CrowdBehaviorActionClip;
 import mchorse.bbs_mod.film.crowds.Crowd;
-import mchorse.bbs_mod.ui.film.crowds.UICrowdsEditor;
+import mchorse.bbs_mod.ui.film.crowds.CrowdSelection;
 import mchorse.bbs_mod.actions.types.crowd.CrowdFormation;
 import mchorse.bbs_mod.actions.types.crowd.CrowdUtils;
 import mchorse.bbs_mod.camera.Camera;
@@ -145,14 +145,12 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
     /* Main editors */
     public UIClipsPanel cameraEditor;
     public UIReplaysEditor replayEditor;
-    public UICrowdsEditor crowdsEditor;
     public UIClipsPanel actionEditor;
 
     /* Icon bar buttons */
     public UIIcon openFilmMenu;
     public UIIcon openCameraEditor;
     public UIIcon openReplayEditor;
-    public UIIcon openCrowdsEditor;
 
     private UICopyPasteController layoutPresetsController;
 
@@ -192,7 +190,7 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
     private static final int FILM_TOP_BAR_BUTTON_SIZE = UIDataTabs.TABS_HEIGHT_PX;
     private static final int FILM_TOP_BAR_SEPARATOR_WIDTH = 8;
     /** Three editor buttons and the film menu. The row is fixed width, so this has to count. */
-    private static final int FILM_TOP_BAR_ACTIONS_WIDTH = FILM_TOP_BAR_BUTTON_SIZE * 4 + FILM_TOP_BAR_SEPARATOR_WIDTH;
+    private static final int FILM_TOP_BAR_ACTIONS_WIDTH = FILM_TOP_BAR_BUTTON_SIZE * 3 + FILM_TOP_BAR_SEPARATOR_WIDTH;
     private UIElement selectedMainEditorPanel;
     private boolean switchingMainEditor;
     private UIElement topBarActions;
@@ -234,8 +232,6 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         this.actionEditor.setVisible(false);
         this.replayEditor.attachActionTimeline(this.actionEditor);
 
-        this.crowdsEditor = new UICrowdsEditor(this);
-        this.crowdsEditor.full(this.main).setVisible(false);
 
         this.selectedMainEditorPanel = this.cameraEditor;
 
@@ -250,7 +246,6 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         });
         this.openCameraEditor = new UIIcon(Icons.FRUSTUM, (b) -> this.showPanel(this.cameraEditor));
         this.openReplayEditor = new UIIcon(Icons.SCENE, (b) -> this.showPanel(this.replayEditor));
-        this.openCrowdsEditor = new UIIcon(Icons.CHICKEN, (b) -> this.showPanel(this.crowdsEditor));
 
         this.layoutPresetsController = new UICopyPasteController(PresetManager.LAYOUTS, "_CopyFilmLayout")
             .supplier(this::getFilmLayoutPresetData)
@@ -261,18 +256,17 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         this.openFilmMenu.wh(FILM_TOP_BAR_BUTTON_SIZE, FILM_TOP_BAR_BUTTON_SIZE).tooltip(UIKeys.FILM_OPTIONS, Direction.BOTTOM);
         this.openCameraEditor.wh(FILM_TOP_BAR_BUTTON_SIZE, FILM_TOP_BAR_BUTTON_SIZE).tooltip(UIKeys.FILM_OPEN_CAMERA_EDITOR, Direction.BOTTOM);
         this.openReplayEditor.wh(FILM_TOP_BAR_BUTTON_SIZE, FILM_TOP_BAR_BUTTON_SIZE).tooltip(UIKeys.FILM_OPEN_REPLAY_EDITOR, Direction.BOTTOM);
-        this.openCrowdsEditor.wh(FILM_TOP_BAR_BUTTON_SIZE, FILM_TOP_BAR_BUTTON_SIZE).tooltip(IKey.constant("Crowds"), Direction.BOTTOM);
 
         this.topBarActions = new UIElement();
         this.topBarActions.relative(this.tabBar).x(1F, -FILM_TOP_BAR_ACTIONS_WIDTH).w(FILM_TOP_BAR_ACTIONS_WIDTH).h(UIDataTabs.TABS_HEIGHT_PX).row(0).resize();
         this.topBarSeparator = new UIElement();
         this.topBarSeparator.wh(FILM_TOP_BAR_SEPARATOR_WIDTH, UIDataTabs.TABS_HEIGHT_PX);
-        this.topBarActions.add(new UIRenderable(this::renderTopBarActions), this.openCameraEditor, this.openReplayEditor, this.openCrowdsEditor, this.topBarSeparator, this.openFilmMenu);
+        this.topBarActions.add(new UIRenderable(this::renderTopBarActions), this.openCameraEditor, this.openReplayEditor, this.topBarSeparator, this.openFilmMenu);
         this.tabBar.add(this.topBarActions);
 
         /* Setup elements */
 
-        this.main.add(this.cameraEditor, this.replayEditor, this.crowdsEditor);
+        this.main.add(this.cameraEditor, this.replayEditor);
         this.add(this.controller);
         this.overlay.namesList.setFileIcon(Icons.FILM);
 
@@ -356,7 +350,6 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
 
         this.panels.add(this.cameraEditor);
         this.panels.add(this.replayEditor);
-        this.panels.add(this.crowdsEditor);
 
         this.secretPlay = new UIElement();
         this.secretPlay.keys().register(Keys.PLAUSE, () -> this.preview.plause.clickItself()).active(() -> !this.isFlying() && !this.canBeSeen() && this.data != null).category(editor);
@@ -364,7 +357,6 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         this.setUndoId("film_panel");
         this.cameraEditor.setUndoId("camera_editor");
         this.replayEditor.setUndoId("replay_editor");
-        this.crowdsEditor.setUndoId("crowds_editor");
         this.actionEditor.setUndoId("action_editor");
 
         UIElement element = new UIElement()
@@ -559,14 +551,6 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
 
         this.cameraEditor.setVisible(cameraVisible);
         this.replayEditor.setVisible(replayVisible);
-
-        /* Every panel that can be selected has to be shown here, not just the two that own
-         * timelines - picking one only hides the others, so a panel this forgets is a button
-         * that blanks the editor and puts nothing in its place. */
-        if (this.crowdsEditor != null)
-        {
-            this.crowdsEditor.setVisible(visible && selected == this.crowdsEditor);
-        }
 
         this.cameraEditor.setTimelineVisible(mainActive && cameraVisible);
         this.cameraEditor.setPropertiesVisible(editAreaActive && cameraVisible);
@@ -1840,7 +1824,6 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         this.runner.setWork(data == null ? null : data.camera);
         this.cameraEditor.setClips(data == null ? null : data.camera);
         this.replayEditor.setFilm(data);
-        this.crowdsEditor.setFilm(data);
         this.cameraEditor.pickClip(null);
 
         this.fillData();
@@ -2351,7 +2334,7 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
      */
     private void renderArea(WorldRenderContext context)
     {
-        Crowd crowd = UICrowdsEditor.getSelected();
+        Crowd crowd = CrowdSelection.get();
 
         /* Not gated on the Crowds editor being open: a crowd is just as much "the one being
          * edited" when it is reached through the crowd form in the replay editor, and the paint
@@ -2466,7 +2449,7 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
             return;
         }
 
-        Crowd crowd = UICrowdsEditor.getSelected();
+        Crowd crowd = CrowdSelection.get();
         double outer;
         double inner = 0D;
         Replay replay;

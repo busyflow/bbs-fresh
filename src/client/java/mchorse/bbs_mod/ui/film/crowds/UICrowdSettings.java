@@ -82,6 +82,7 @@ public class UICrowdSettings extends UIElement
     private final UIToggle skipUnsafe;
 
     private final UIElement paintSection;
+    private final UIElement whereSection;
     private final UITrackpad brushSize;
     private final UIButton paint;
     private final UIButton erase;
@@ -126,6 +127,12 @@ public class UICrowdSettings extends UIElement
         this.removeSelection.color(Colors.NEGATIVE);
         this.paintInfo = UI.label(IKey.EMPTY);
 
+        this.whereSection = this.section("Where",
+            this.row("Formation", this.formation),
+            this.row("Spacing", this.spacing),
+            this.row("Donut hole", this.holeRadius)
+        );
+
         this.paintSection = this.section("Painted area",
             this.row("Brush size", this.brushSize),
             UI.row(2, this.paint, this.erase),
@@ -147,11 +154,7 @@ public class UICrowdSettings extends UIElement
                 this.row("Duration", this.duration),
                 this.row("Anchor", this.anchor)
             ),
-            this.section("Where",
-                this.row("Formation", this.formation),
-                this.row("Spacing", this.spacing),
-                this.row("Donut hole", this.holeRadius)
-            ),
+            this.whereSection,
             this.paintSection,
             this.section("Placement",
                 UI.row(1, this.spawnOnBlock, this.skipUnsafe),
@@ -236,7 +239,10 @@ public class UICrowdSettings extends UIElement
                 AreaBrush.disarm();
             }
 
-            this.paintSection.setVisible(painting);
+            /* Taken out of the column rather than hidden in place. An invisible child still
+             * occupies its row, which left a blank band the height of the whole paint section
+             * sitting between the sections either side of it. */
+            this.setPaintVisible(painting);
 
             boolean armed = AreaBrush.getCrowd() == this.crowd;
 
@@ -248,6 +254,29 @@ public class UICrowdSettings extends UIElement
         }
 
         super.render(context);
+    }
+
+    /** Paint only means something for painted ground, so the section is only there for it. */
+    private void setPaintVisible(boolean visible)
+    {
+        boolean present = this.paintSection.getParent() != null;
+
+        if (visible == present)
+        {
+            return;
+        }
+
+        if (visible)
+        {
+            /* Back where it was authored - after "Where", before "Placement". */
+            this.addAfter(this.whereSection, this.paintSection);
+        }
+        else
+        {
+            this.paintSection.removeFromParent();
+        }
+
+        this.resize();
     }
 
     private void toggleBrush(boolean erasing)
