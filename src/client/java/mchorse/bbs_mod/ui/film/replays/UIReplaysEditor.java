@@ -1232,8 +1232,21 @@ public class UIReplaysEditor extends UIElement
         return this.actionsMode;
     }
 
+    /**
+     * Handed to the film panel so the button and the keyboard shortcut do the same thing.
+     *
+     * <p>Coming out of the actions returns you to the editor you opened them from, and only the
+     * film panel knows which that was.</p>
+     */
     private void toggleActionsMode()
     {
+        if (this.filmPanel != null)
+        {
+            this.filmPanel.toggleActionsEditor();
+
+            return;
+        }
+
         this.setActionsMode(!this.actionsMode);
     }
 

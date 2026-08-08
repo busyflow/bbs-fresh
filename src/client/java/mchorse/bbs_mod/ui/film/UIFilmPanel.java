@@ -173,6 +173,13 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
     private final FilmEditorUserActivity filmUserActivity = new FilmEditorUserActivity();
 
     private List<UIElement> panels = new ArrayList<>();
+    /**
+     * The editor to come back to when the action timeline is closed.
+     *
+     * <p>The actions are reached through the replay editor whichever editor you were in, so
+     * without this, leaving them always left you on the replay editor.</p>
+     */
+    private UIElement actionsReturnPanel;
     private UIElement secretPlay;
 
     private boolean newFilm;
@@ -1098,10 +1105,30 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         return -1;
     }
 
+    /**
+     * Cycle between the camera and replay editors, and only those two.
+     *
+     * <p>The action timeline is not one of them - it is a mode the replay editor is in - so
+     * leaving it is a step of its own rather than a stop on the way round. Cycling out of the
+     * actions and back used to land in the actions again, because the replay editor was still in
+     * that mode when its turn came round, and the key that is supposed to move between the two
+     * editors could not reach one of them.</p>
+     */
     private void cycleMainEditor()
     {
         if (this.switchingMainEditor || this.panels.isEmpty())
         {
+            return;
+        }
+
+        /* In the actions, the first press is the way out of them - back to whichever editor was
+         * showing when they were opened. The next press cycles as usual. */
+        if (this.replayEditor != null && this.replayEditor.isActionsMode())
+        {
+            this.replayEditor.setActionsMode(false);
+            this.showPanel(this.actionsReturnPanel == null ? this.replayEditor : this.actionsReturnPanel);
+            UIUtils.playClick();
+
             return;
         }
 
@@ -1112,10 +1139,28 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         UIUtils.playClick();
     }
 
-    private void toggleActionsEditor()
+    /**
+     * Step in and out of the action timeline, and come back where you started.
+     *
+     * <p>The actions live on the replay editor, so opening them from the camera editor has to
+     * move you. Which editor you were in is remembered so that closing them again puts you back
+     * there, rather than leaving you on the replay editor you never asked to be on.</p>
+     */
+    public void toggleActionsEditor()
     {
-        this.showPanel(this.replayEditor);
-        this.replayEditor.setActionsMode(!this.replayEditor.isActionsMode());
+        if (this.replayEditor.isActionsMode())
+        {
+            this.replayEditor.setActionsMode(false);
+            this.showPanel(this.actionsReturnPanel == null ? this.replayEditor : this.actionsReturnPanel);
+        }
+        else
+        {
+            this.actionsReturnPanel = this.selectedMainEditorPanel;
+
+            this.showPanel(this.replayEditor);
+            this.replayEditor.setActionsMode(true);
+        }
+
         UIUtils.playClick();
     }
 
