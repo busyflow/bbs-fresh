@@ -27,10 +27,13 @@ public class CrowdWalk
     public float ease = 0.75F;
 
     /**
-     * How far apart in time members set off, as a share of the trip. 0 moves the crowd as one
-     * rigid block. Higher values let the near edge leave first and the far edge trail, which
-     * reads as a crowd rather than a sliding formation. Everyone still arrives exactly on the
-     * target keyframe.
+     * How ragged the crowd is about setting off, over a few ticks at most. 0 moves them as one
+     * rigid block; 1 spreads them across three ticks, so some are a step behind the rest for the
+     * whole walk and arrive a step late.
+     *
+     * <p>Deliberately a small number of ticks rather than a share of the trip. As a share, a long
+     * walk left some members standing while the rest were already away, and the same setting
+     * looked like a different crowd depending only on how far apart the waypoints were.</p>
      */
     public float stagger = 0.3F;
 

@@ -63,7 +63,7 @@ public class UICrowdWalkKeyframeFactory extends UIKeyframeFactory<CrowdWalk>
         this.showPoint = new UIToggle(IKey.constant("Show timeline points"), b -> this.edit(p -> p.showPoint = b.getValue()));
 
         this.ease.tooltip(IKey.constant("0 walks at one speed. 1 starts and stops from a standstill."));
-        this.stagger.tooltip(IKey.constant("How far apart members set off. Everyone still arrives on this keyframe."));
+        this.stagger.tooltip(IKey.constant("How ragged the crowd is about setting off.\n\n0 moves them as one block. 1 spreads them over about three ticks, so some are a step behind for the whole walk and arrive a step late."));
         this.spread.tooltip(IKey.constant("How much the formation loosens halfway. Exact shape at both ends."));
 
         this.transform.callbacks(

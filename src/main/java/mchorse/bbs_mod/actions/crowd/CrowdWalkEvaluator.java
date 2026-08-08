@@ -31,6 +31,17 @@ public final class CrowdWalkEvaluator
     /** How far ahead the route is sampled to work out which way a member is heading. */
     private static final float FACING_STEP = 1F;
 
+    /**
+     * The most a member can be behind the crowd, at full stagger.
+     *
+     * <p>A handful of ticks, not a share of the trip. Scaling it to the trip meant a long walk
+     * spread the crowd over most of a second and left some still standing while the rest were
+     * away - and the same stagger looked like a different crowd depending only on how far apart
+     * the waypoints happened to be. A crowd setting off is a ragged instant, not a rolling
+     * start.</p>
+     */
+    private static final float MAX_STAGGER_TICKS = 3F;
+
     private CrowdWalkEvaluator()
     {}
 
@@ -51,7 +62,7 @@ public final class CrowdWalkEvaluator
         CrowdWalk to = value(list, Math.min(i + 1, size - 1));
         float startTick = list.get(i).getTick();
         float targetTick = list.get(Math.min(i + 1, size - 1)).getTick();
-        float span = Math.max(1F, targetTick - startTick);
+
 
         Vec3d first = value(list, 0).position();
         Vec3d centre = positionAt(channel, tick);
@@ -64,7 +75,7 @@ public final class CrowdWalkEvaluator
             && tick < list.get(size - 1).getTick()
             && centre.squaredDistanceTo(ahead) > EPSILON;
 
-        return new Frame(channel, list, from, to, first, centre, direction, tick, span, moving,
+        return new Frame(channel, list, from, to, first, centre, direction, tick, moving,
             startTick, targetTick);
     }
 
@@ -248,7 +259,7 @@ public final class CrowdWalkEvaluator
             return frame.tick;
         }
 
-        return frame.tick - (float) (stagger * offset(index) * frame.span);
+        return frame.tick - (float) (stagger * offset(index) * MAX_STAGGER_TICKS);
     }
 
     /** How far through its current segment a member is, for spread to breathe on. */
@@ -353,7 +364,7 @@ public final class CrowdWalkEvaluator
 
     public record Frame(KeyframeChannel<CrowdWalk> channel, List<Keyframe<CrowdWalk>> list,
                         CrowdWalk from, CrowdWalk to, Vec3d first,
-                        Vec3d centre, Vec3d forward, float tick, float span, boolean moving,
+                        Vec3d centre, Vec3d forward, float tick, boolean moving,
                         float startTick, float targetTick)
     {
         /** The waypoint whose settings govern this stretch of the route. */
