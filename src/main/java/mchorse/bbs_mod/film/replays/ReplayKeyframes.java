@@ -1,6 +1,9 @@
 package mchorse.bbs_mod.film.replays;
 
+import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.forms.entities.IEntity;
+import mchorse.bbs_mod.actions.crowd.CrowdWalk;
+import mchorse.bbs_mod.actions.crowd.CrowdTexture;
 import mchorse.bbs_mod.settings.values.base.BaseValue;
 import mchorse.bbs_mod.settings.values.core.ValueGroup;
 import mchorse.bbs_mod.utils.interps.IInterp;
@@ -48,6 +51,7 @@ public class ReplayKeyframes extends ValueGroup
     public static final double GRAVITY_PROBE = 0.0784D;
 
     public static final List<String> CURATED_CHANNELS = Arrays.asList("x", "y", "z", "pitch", "yaw", "headYaw", "bodyYaw", "sneaking", "sprinting", "item_main_hand", "item_off_hand", "item_head", "item_chest", "item_legs", "item_feet", "selected_slot", "stick_lx", "stick_ly", "stick_rx", "stick_ry", "trigger_l", "trigger_r", "extra1_x", "extra1_y", "extra2_x", "extra2_y", "grounded", "damage", "vX", "vY", "vZ", RIGHT_HAND_POSE, LEFT_HAND_POSE);
+    public static final List<String> CROWD_CHANNELS = Arrays.asList("crowd_look_target", "crowd_jump", "crowd_motion_path", "crowd_texture", "crowd_color");
 
     public final KeyframeChannel<Double> x = new KeyframeChannel<>("x", KeyframeFactories.DOUBLE);
     public final KeyframeChannel<Double> y = new KeyframeChannel<>("y", KeyframeFactories.DOUBLE);
@@ -90,6 +94,12 @@ public class ReplayKeyframes extends ValueGroup
     public final KeyframeChannel<ItemStack> armorLegs = new KeyframeChannel<>("item_legs", KeyframeFactories.ITEM_STACK);
     public final KeyframeChannel<ItemStack> armorFeet = new KeyframeChannel<>("item_feet", KeyframeFactories.ITEM_STACK);
     public final KeyframeChannel<Integer> selectedSlot = new KeyframeChannel<>("selected_slot", KeyframeFactories.INTEGER);
+    public final KeyframeChannel<String> crowdLookTarget = new KeyframeChannel<>("crowd_look_target", KeyframeFactories.CROWD_LOOK_TARGET);
+    public final KeyframeChannel<Double> crowdJump = new KeyframeChannel<>("crowd_jump", KeyframeFactories.CROWD_JUMP);
+    public final KeyframeChannel<CrowdWalk> crowdWalk = new KeyframeChannel<>("crowd_motion_path", KeyframeFactories.CROWD_WALK);
+    public final KeyframeChannel<CrowdTexture> crowdTexture = new KeyframeChannel<>("crowd_texture", KeyframeFactories.CROWD_TEXTURE);
+    /** Tints every member together. A crowd is lit and coloured as one thing, never per member. */
+    public final KeyframeChannel<Color> crowdColor = new KeyframeChannel<>("crowd_color", KeyframeFactories.COLOR);
 
     public ReplayKeyframes(String id)
     {
@@ -130,6 +140,11 @@ public class ReplayKeyframes extends ValueGroup
         this.add(this.armorLegs);
         this.add(this.armorFeet);
         this.add(this.selectedSlot);
+        this.add(this.crowdLookTarget);
+        this.add(this.crowdJump);
+        this.add(this.crowdWalk);
+        this.add(this.crowdTexture);
+        this.add(this.crowdColor);
     }
 
     public List<KeyframeChannel<?>> getChannels()

@@ -7,6 +7,7 @@ import mchorse.bbs_mod.actions.types.crowd.CrowdUtils;
 import mchorse.bbs_mod.data.types.BaseType;
 import mchorse.bbs_mod.entity.ActorEntity;
 import mchorse.bbs_mod.film.Film;
+import mchorse.bbs_mod.film.crowds.CrowdKeyframeRuntime;
 import mchorse.bbs_mod.film.crowds.CrowdReconciler;
 import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.film.replays.ReplayKeyframes;
@@ -279,6 +280,11 @@ public class ActionPlayer
          * scrubbing replays actions through goTo without ticking, and a crowd that only appeared
          * on a real tick would be missing from every scrubbed frame. */
         this.crowds.reconcile(this.world, this.film, this.tick);
+
+        /* After the crowd is standing there and before the behaviour clips run, so a keyframed
+         * walk or look is what the members end the tick with rather than something a behaviour
+         * clip overwrites. */
+        CrowdKeyframeRuntime.apply(this.world, this.film, this.tick);
 
         SuperFakePlayer fakePlayer = SuperFakePlayer.get(this.world);
         List<Replay> list = this.film.replays.getList();
