@@ -11,57 +11,51 @@ import net.minecraft.util.math.MathHelper;
  */
 public final class CrowdJumpEvaluator
 {
-    public static final int DURATION = 12;
-    public static final double HEIGHT = 0.9D;
+    public static final int DURATION = CrowdJump.DURATION;
+    public static final double HEIGHT = CrowdJump.HEIGHT;
+
+    /* Salts, so a member's height and jump length are drawn from the same generator as its
+     * timing without being the same number as any tick's roll. */
+    private static final int HEIGHT_SALT = Integer.MIN_VALUE + 1;
+    private static final int LENGTH_SALT = Integer.MIN_VALUE + 2;
 
     private CrowdJumpEvaluator()
     {}
 
     public static Frame frame(Replay replay, float filmTick)
     {
-        return frame(replay, filmTick, 0D);
-    }
-
-    public static Frame frame(Replay replay, float filmTick, double ambientRate)
-    {
-        if (replay == null)
-        {
-            return null;
-        }
-
-        boolean keyframed = !replay.keyframes.crowdJump.isEmpty();
-        double fallbackRate = MathHelper.clamp(ambientRate, 0D, 10D);
-
-        if (!keyframed && fallbackRate <= 0D)
+        if (replay == null || replay.keyframes.crowdJump.isEmpty())
         {
             return null;
         }
 
         int currentTick = MathHelper.floor(filmTick);
-        int firstTick = currentTick - DURATION;
-        double[] chances = new double[DURATION + 1];
+        int firstTick = currentTick - CrowdJump.MAX_DURATION;
+        double[] chances = new double[CrowdJump.MAX_DURATION + 1];
         boolean potential = false;
+        boolean random = false;
 
         for (int i = 0; i < chances.length; i++)
         {
-            int sampleTick = firstTick + i;
-            float localTick = localTick(replay, sampleTick);
-            double rate = keyframed
-                ? MathHelper.clamp(replay.keyframes.crowdJump.interpolate(localTick), 0D, 10D)
-                : fallbackRate;
-            double chance = chanceForRate(rate);
+            float localTick = localTick(replay, firstTick + i);
+            CrowdJump jump = replay.keyframes.crowdJump.interpolate(localTick);
+
+            if (jump == null)
+            {
+                continue;
+            }
+
+            double chance = jump.chance();
 
             chances[i] = chance;
             potential |= chance > 0D;
+            /* Whether the crowd is varied is read from the tick being drawn, not from the whole
+             * window - the older entries are only there to find jumps already under way. */
+            random = jump.random;
         }
 
         return new Frame(replay.getId().hashCode(), replay.looping.get(), firstTick,
-            filmTick, chances, potential);
-    }
-
-    static double chanceForRate(double rate)
-    {
-        return rate <= 0D ? 0D : 1D - Math.exp(-Math.min(10D, rate) / 20D);
+            filmTick, chances, potential, random);
     }
 
     private static float localTick(Replay replay, float filmTick)
@@ -86,9 +80,10 @@ public final class CrowdJumpEvaluator
         private final float filmTick;
         private final double[] chances;
         private final boolean potential;
+        private final boolean random;
 
         private Frame(int replayHash, int loop, int firstTick, float filmTick,
-            double[] chances, boolean potential)
+            double[] chances, boolean potential, boolean random)
         {
             this.replayHash = replayHash;
             this.loop = loop;
@@ -96,6 +91,7 @@ public final class CrowdJumpEvaluator
             this.filmTick = filmTick;
             this.chances = chances;
             this.potential = potential;
+            this.random = random;
         }
 
         public boolean hasPotential()
@@ -110,13 +106,24 @@ public final class CrowdJumpEvaluator
                 return 0D;
             }
 
+            double scale = 1D;
+            int duration = DURATION;
+
+            if (this.random)
+            {
+                scale = 0.7D + randomFor(this.replayHash, memberIndex, HEIGHT_SALT) * 0.6D;
+                duration = (int) Math.round(DURATION
+                    * (0.8D + randomFor(this.replayHash, memberIndex, LENGTH_SALT) * 0.55D));
+            }
+
             int start = Integer.MIN_VALUE;
 
             for (int i = 0; i < this.chances.length; i++)
             {
                 int tick = this.firstTick + i;
 
-                if (start != Integer.MIN_VALUE && tick - start >= DURATION)
+                /* Landed, so this member is free to leave the ground again. */
+                if (start != Integer.MIN_VALUE && tick - start >= duration)
                 {
                     start = Integer.MIN_VALUE;
                 }
@@ -135,18 +142,18 @@ public final class CrowdJumpEvaluator
 
             double elapsed = this.filmTick - start;
 
-            if (elapsed < 0D || elapsed >= DURATION)
+            if (elapsed < 0D || elapsed >= duration)
             {
                 return 0D;
             }
 
-            double progress = elapsed / DURATION;
+            double progress = elapsed / duration;
             double wave = Math.sin(Math.PI * progress);
 
-            /* sinÃ‚Â² has zero vertical velocity at take-off and landing. It keeps
-             * both the live tier and visual LOD tier on the exact same smooth,
-             * deterministic arc without the parabola's abrupt endpoint snap. */
-            return HEIGHT * wave * wave;
+            /* sin squared has zero vertical velocity at take-off and landing. It keeps both the
+             * live tier and the visual LOD tier on the exact same smooth, deterministic arc
+             * without the parabola's abrupt endpoint snap. */
+            return HEIGHT * scale * wave * wave;
         }
 
         private int randomTick(int tick)

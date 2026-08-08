@@ -86,6 +86,7 @@ public class UICrowdSettings extends UIElement
     private final UIButton paint;
     private final UIButton erase;
     private final UIButton removeSelection;
+    private final UIToggle showOutline;
     private final UILabel paintInfo;
 
     public UICrowdSettings(Runnable onEdit)
@@ -122,6 +123,8 @@ public class UICrowdSettings extends UIElement
         this.erase = new UIButton(IKey.constant("Erase"), (b) -> this.toggleBrush(true));
         this.removeSelection = new UIButton(IKey.constant("Remove selection"), (b) -> this.edit(Crowd::clearCells));
         this.removeSelection.color(Colors.NEGATIVE);
+        this.showOutline = new UIToggle(IKey.constant("Show outline"), (b) -> this.edit((crowd) -> crowd.showOutline.set(b.getValue())));
+        this.showOutline.tooltip(IKey.constant("Draw the painted ground's edge in the viewport.\n\nOff hides it without unpainting anything - for looking at the shot, or for painting a second crowd over the same ground."));
         this.paintInfo = UI.label(IKey.EMPTY);
 
         this.whereSection = this.section("Where",
@@ -134,6 +137,7 @@ public class UICrowdSettings extends UIElement
             this.row("Brush size", this.brushSize),
             UI.row(2, this.paint, this.erase),
             this.removeSelection,
+            this.showOutline,
             this.paintInfo
         );
 
@@ -220,6 +224,7 @@ public class UICrowdSettings extends UIElement
         this.spawnOnBlock.setValue(crowd.spawnOnBlock.get());
         this.skipUnsafe.setValue(crowd.skipUnsafe.get());
         this.brushSize.setValue(crowd.brushSize.get());
+        this.showOutline.setValue(crowd.showOutline.get());
     }
 
     @Override

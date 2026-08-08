@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.film.replays;
 
+import mchorse.bbs_mod.actions.crowd.CrowdJump;
 import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.forms.entities.IEntity;
 import mchorse.bbs_mod.actions.crowd.CrowdWalk;
@@ -95,7 +96,7 @@ public class ReplayKeyframes extends ValueGroup
     public final KeyframeChannel<ItemStack> armorFeet = new KeyframeChannel<>("item_feet", KeyframeFactories.ITEM_STACK);
     public final KeyframeChannel<Integer> selectedSlot = new KeyframeChannel<>("selected_slot", KeyframeFactories.INTEGER);
     public final KeyframeChannel<String> crowdLookTarget = new KeyframeChannel<>("crowd_look_target", KeyframeFactories.CROWD_LOOK_TARGET);
-    public final KeyframeChannel<Double> crowdJump = new KeyframeChannel<>("crowd_jump", KeyframeFactories.CROWD_JUMP);
+    public final KeyframeChannel<CrowdJump> crowdJump = new KeyframeChannel<>("crowd_jump", KeyframeFactories.CROWD_JUMP);
     public final KeyframeChannel<CrowdWalk> crowdWalk = new KeyframeChannel<>("crowd_motion_path", KeyframeFactories.CROWD_WALK);
     public final KeyframeChannel<CrowdTexture> crowdTexture = new KeyframeChannel<>("crowd_texture", KeyframeFactories.CROWD_TEXTURE);
     /** Tints every member together. A crowd is lit and coloured as one thing, never per member. */

@@ -5,6 +5,8 @@ import mchorse.bbs_mod.actions.crowd.CrowdLookEvaluator;
 import mchorse.bbs_mod.actions.crowd.CrowdTexture;
 import mchorse.bbs_mod.actions.crowd.CrowdWalkEvaluator;
 import mchorse.bbs_mod.actions.types.crowd.CrowdDrivenEntity;
+import mchorse.bbs_mod.actions.types.crowd.CrowdFormation;
+import mchorse.bbs_mod.actions.types.crowd.CrowdPaintArea;
 import mchorse.bbs_mod.actions.types.crowd.CrowdUtils;
 import mchorse.bbs_mod.entity.ActorEntity;
 import mchorse.bbs_mod.film.Film;
@@ -19,6 +21,8 @@ import mchorse.bbs_mod.settings.values.core.ValueLink;
 import mchorse.bbs_mod.utils.colors.Color;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.world.Heightmap;
+import net.minecraft.world.chunk.ChunkStatus;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 
@@ -73,7 +77,7 @@ public class CrowdKeyframeRuntime
                 continue;
             }
 
-            applyWalk(replay, members, tick);
+            applyWalk(world, film, replay, crowd, members, tick);
             applyJump(replay, members, tick);
             applyLook(film, replay, members, tick);
             applyTexture(replay, members, tick);
@@ -88,7 +92,8 @@ public class CrowdKeyframeRuntime
      * this tick, down to the stagger that makes the near edge leave first, so asking the
      * navigator to make its own way there would fight the curve the shot was authored on.</p>
      */
-    private static void applyWalk(Replay replay, List<LivingEntity> members, int tick)
+    private static void applyWalk(ServerWorld world, Film film, Replay replay, Crowd crowd,
+        List<LivingEntity> members, int tick)
     {
         CrowdWalkEvaluator.Frame frame = CrowdWalkEvaluator.frame(replay, tick);
 
@@ -97,21 +102,43 @@ public class CrowdKeyframeRuntime
             return;
         }
 
+        Vec3d anchor = crowdAnchor(film, crowd);
+        CrowdFormation formation = crowd.getFormation();
+        CrowdPaintArea paint = formation == CrowdFormation.PAINT ? new CrowdPaintArea(crowd.getCells()) : null;
+        int count = crowd.count.get();
+        double spacing = crowd.spacing.get();
+        double[] position = new double[3];
+
         for (LivingEntity member : members)
         {
             int index = CrowdUtils.entityIndex(member);
-            Vec3d start = member.getPos();
-            Vec3d position = CrowdWalkEvaluator.member(frame, index, start);
+            Vec3d base = memberBase(crowd, paint, formation, anchor, index, count, spacing);
 
-            if (position == null)
+            if (base == null)
             {
                 continue;
             }
 
-            double dx = position.x - start.x;
-            double dz = position.z - start.z;
+            /* The local formation position is immutable for this playback. Feeding the current
+             * entity position back in here made every frame's offset become the next frame's
+             * starting offset, which compounded into launches across the map. */
+            CrowdWalkEvaluator.memberPosition(frame, index, base.x, base.y, base.z, position);
 
-            member.refreshPositionAndAngles(position.x, position.y, position.z, member.getYaw(), member.getPitch());
+            if (frame.path().terrainFollow)
+            {
+                position[1] = groundY(world, position[0], position[2], position[1]);
+            }
+
+            double dx = position[0] - member.getX();
+            double dz = position[2] - member.getZ();
+
+            /* setPos lets the normal entity tracker interpolate the short per-tick steps. A
+             * teleport-style refresh here is both visibly harsh and can create fall damage
+             * after the entity briefly believes it has travelled vertically. */
+            member.setPos(position[0], position[1], position[2]);
+            member.setVelocity(Vec3d.ZERO);
+            member.fallDistance = 0F;
+            member.setOnGround(true);
 
             /* Facing follows travel unless a look keyframe overrides it below, so a walking
              * crowd does not moonwalk to its destination. */
@@ -124,6 +151,40 @@ public class CrowdKeyframeRuntime
                 member.setHeadYaw(yaw);
             }
         }
+    }
+
+    private static Vec3d crowdAnchor(Film film, Crowd crowd)
+    {
+        Replay anchor = CrowdUtils.getReplay(film, crowd.anchor.get());
+
+        return anchor == null ? Vec3d.ZERO : CrowdUtils.replayPosition(anchor, crowd.start.get());
+    }
+
+    private static Vec3d memberBase(Crowd crowd, CrowdPaintArea paint, CrowdFormation formation,
+        Vec3d anchor, int index, int count, double spacing)
+    {
+        if (paint != null)
+        {
+            return paint.point(index, count, 0);
+        }
+
+        Vec3d offset = CrowdUtils.formationPoint(formation, index, count, spacing, crowd.holeRadius.get());
+
+        return anchor.add(offset);
+    }
+
+    /** Keep the crowd's feet on the surface without loading or generating a new chunk. */
+    private static double groundY(ServerWorld world, double x, double z, double fallback)
+    {
+        int blockX = MathHelper.floor(x);
+        int blockZ = MathHelper.floor(z);
+
+        if (world.getChunk(blockX >> 4, blockZ >> 4, ChunkStatus.FULL, false) == null)
+        {
+            return fallback;
+        }
+
+        return world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, blockX, blockZ);
     }
 
     private static void applyJump(Replay replay, List<LivingEntity> members, int tick)

@@ -97,6 +97,7 @@ public class Crowd extends ValueGroup
      * one is absolute world space, not an offset from the anchor - it is drawn onto the world. */
     public final ValueAreaCells cells = new ValueAreaCells("cells");
     public final ValueInt brushSize = new ValueInt("brush_size", 4, 1, 64);
+    public final ValueBoolean showOutline = new ValueBoolean("show_outline", true);
 
     public Crowd(String id)
     {
@@ -126,6 +127,7 @@ public class Crowd extends ValueGroup
 
         this.add(this.cells);
         this.add(this.brushSize);
+        this.add(this.showOutline);
     }
 
     public Long2IntOpenHashMap getCells()

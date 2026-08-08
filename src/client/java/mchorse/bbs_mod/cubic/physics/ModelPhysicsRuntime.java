@@ -78,8 +78,8 @@ public final class ModelPhysicsRuntime
      */
     private static final WeakHashMap<IEntity, Map<String, InstanceState>> STATES = new WeakHashMap<>();
 
-    private static final int BODY_SUBSTEPS_PER_TICK = 3;
-    private static final int BODY_MAX_STEPS = 30;
+    private static final int BODY_SUBSTEPS_PER_TICK = 5;
+    private static final int BODY_MAX_STEPS = 50;
     private static final float BODY_BASE_GRAVITY = 0.08F;
     private static final float BODY_COLLISION_FRICTION = 0.7F;
 
@@ -356,7 +356,7 @@ public final class ModelPhysicsRuntime
                 state.pos[i].add(velocity).y -= gravity;
             }
 
-            for (int pass = 0; pass < 3; pass++)
+            for (int pass = 0; pass < 6; pass++)
             {
                 constrainBodyLength(state);
 
@@ -365,8 +365,6 @@ public final class ModelPhysicsRuntime
                     ModelPhysicsWorldCollisions.resolve(world, state.pos, state.prev, 0, state.pos.length, radius, BODY_COLLISION_FRICTION);
                 }
             }
-
-            constrainBodyLength(state);
         }
 
         copyBody(state.pos, state.settled);

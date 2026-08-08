@@ -2339,15 +2339,17 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
     {
         Crowd crowd = CrowdSelection.get();
 
-        /* Not gated on the Crowds editor being open: a crowd is just as much "the one being
-         * edited" when it is reached through the crowd form in the replay editor, and the paint
-         * outline is the whole point of painting. */
-        if (crowd == null)
+        /* Only the crowd whose replay is selected. The outline belongs to the thing being
+         * edited, so it goes away with the selection - left up while another replay is being
+         * worked on it is just a fence across the shot. */
+        if (crowd == null || crowd.getFormation() != CrowdFormation.PAINT)
         {
             return;
         }
 
-        if (crowd.getFormation() != CrowdFormation.PAINT)
+        /* Hidden by choice, but never while the brush is in hand: painting at ground you cannot
+         * see the edge of is the one time the outline is load-bearing. */
+        if (!crowd.showOutline.get() && !AreaBrush.isArmed())
         {
             return;
         }

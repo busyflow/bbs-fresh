@@ -73,6 +73,7 @@ public class UICrowdReplayProperties extends UIScrollView
         if (this.form == null)
         {
             this.settings.setCrowd(null);
+            CrowdSelection.set(null);
 
             return false;
         }

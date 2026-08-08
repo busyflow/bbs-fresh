@@ -41,13 +41,13 @@ final class ChainSolver
      * — identical on every playback and in export — while the in-between shapes are still actually
      * simulated rather than interpolated from coarse 20 Hz snapshots. More = smoother but more solver work.
      */
-    private static final int SUBSTEPS_PER_TICK = 3;
+    private static final int SUBSTEPS_PER_TICK = 5;
 
     /** Sub-step length in ticks, derived from {@link #SUBSTEPS_PER_TICK}. */
     private static final float PHYSICS_STEP = 1F / SUBSTEPS_PER_TICK;
 
     /** Hard cap on sub-steps simulated in one {@link #step} call, so a long catch-up can't stall a frame. */
-    private static final int PHYSICS_MAX_STEPS = 30;
+    private static final int PHYSICS_MAX_STEPS = 50;
 
     /**
      * Largest forward tick gap still simulated by stepping in place from the current pose. A bigger jump
@@ -406,9 +406,16 @@ final class ChainSolver
              * re-impose the lengths and endpoints the depenetration disturbed. */
             if (collisions)
             {
+                for (int contactPass = 0; contactPass < 3; contactPass++)
+                {
+                    resolveCollisions(world, state.pos, state.prev, state.anchor, targetPosition, last, radius);
+                    lengthForward(state.pos, lengths);
+                    pinEnds(state.pos, state.anchor, targetPosition, last);
+                }
+
+                /* Length projection can put a joint back into a block. End on contact rather
+                 * than projection so the rendered limb is never the penetrating intermediate. */
                 resolveCollisions(world, state.pos, state.prev, state.anchor, targetPosition, last, radius);
-                lengthForward(state.pos, lengths);
-                pinEnds(state.pos, state.anchor, targetPosition, last);
             }
         }
 

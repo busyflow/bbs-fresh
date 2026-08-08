@@ -15,16 +15,17 @@ import java.util.List;
 /**
  * Resolves bone-physics collisions against solid world blocks. Each chain particle is a sphere of the
  * chain radius and each bone segment a capsule sampled as spheres along its length. Contacts are solved
- * by closest-point depenetration with Coulomb friction applied directly in Verlet velocity space: the
- * inward normal velocity is removed (no bounce) and the tangential velocity is scaled by the friction
- * coefficient. No swept raycasts, no axis-aligned normals, no special-cased rest thresholds.
+ * by continuous swept contacts followed by closest-point depenetration. Coulomb friction is applied
+ * directly in Verlet velocity space: the inward normal velocity is removed (no bounce) and the
+ * tangential velocity is scaled by the friction coefficient.
  */
 public final class ModelPhysicsWorldCollisions
 {
     private static final float EPS = 1.0e-5f;
-    private static final int RELAXATIONS = 2;
-    private static final int DEPENETRATION_STEPS = 4;
-    private static final float SEGMENT_SAMPLE_STEP = 0.5F;
+    private static final int RELAXATIONS = 4;
+    private static final int DEPENETRATION_STEPS = 6;
+    private static final float SEGMENT_SAMPLE_STEP = 0.35F;
+    private static final float CONTACT_SLOP = 1.0E-4F;
 
     private ModelPhysicsWorldCollisions()
     {
@@ -46,7 +47,9 @@ public final class ModelPhysicsWorldCollisions
 
         float f = MathHelper.clamp(friction, 0F, 1F);
         Vector3f normal = new Vector3f();
+        Vector3f sweepNormal = new Vector3f();
         Vector3f sample = new Vector3f();
+        Vector3f previousSample = new Vector3f();
 
         for (int relax = 0; relax < RELAXATIONS; relax++)
         {
@@ -57,18 +60,21 @@ public final class ModelPhysicsWorldCollisions
 
             for (int i = from; i < to; i++)
             {
-                collideSphere(pos[i], prev[i], radius, f, boxes, normal, applyFriction);
+                collideSphere(pos[i], prev[i], radius, f, boxes, normal, sweepNormal, applyFriction);
             }
 
             for (int i = from; i < to - 1; i++)
             {
-                collideSegment(pos[i], pos[i + 1], radius, boxes, normal, sample);
+                collideSegment(pos[i], pos[i + 1], prev[i], prev[i + 1], radius, boxes,
+                    normal, sweepNormal, sample, previousSample);
             }
         }
     }
 
-    private static void collideSphere(Vector3f p, Vector3f prev, float radius, float friction, List<float[]> boxes, Vector3f normal, boolean applyFriction)
+    private static void collideSphere(Vector3f p, Vector3f prev, float radius, float friction,
+        List<float[]> boxes, Vector3f normal, Vector3f sweepNormal, boolean applyFriction)
     {
+        boolean swept = sweepSphere(p, prev, radius, boxes, sweepNormal);
         float pushX = 0F;
         float pushY = 0F;
         float pushZ = 0F;
@@ -98,16 +104,20 @@ public final class ModelPhysicsWorldCollisions
 
         float pushLenSq = pushX * pushX + pushY * pushY + pushZ * pushZ;
 
-        if (pushLenSq <= EPS * EPS)
+        if (pushLenSq > EPS * EPS)
         {
-            return;
+            float inv = 1F / (float) Math.sqrt(pushLenSq);
+            applyFriction(p, prev, pushX * inv, pushY * inv, pushZ * inv, friction);
         }
-
-        float inv = 1F / (float) Math.sqrt(pushLenSq);
-        applyFriction(p, prev, pushX * inv, pushY * inv, pushZ * inv, friction);
+        else if (swept)
+        {
+            applyFriction(p, prev, sweepNormal.x, sweepNormal.y, sweepNormal.z, friction);
+        }
     }
 
-    private static void collideSegment(Vector3f a, Vector3f b, float radius, List<float[]> boxes, Vector3f normal, Vector3f sample)
+    private static void collideSegment(Vector3f a, Vector3f b, Vector3f previousA, Vector3f previousB,
+        float radius, List<float[]> boxes, Vector3f normal, Vector3f sweepNormal, Vector3f sample,
+        Vector3f previousSample)
     {
         float dx = b.x - a.x;
         float dy = b.y - a.y;
@@ -126,6 +136,23 @@ public final class ModelPhysicsWorldCollisions
             float t = s / (float) samples;
 
             sample.set(a.x + dx * t, a.y + dy * t, a.z + dz * t);
+            previousSample.set(previousA).lerp(previousB, t);
+
+            float originalX = sample.x;
+            float originalY = sample.y;
+            float originalZ = sample.z;
+
+            sweepSphere(sample, previousSample, radius, boxes, sweepNormal);
+
+            float correctionX = sample.x - originalX;
+            float correctionY = sample.y - originalY;
+            float correctionZ = sample.z - originalZ;
+            float correctionSq = correctionX * correctionX + correctionY * correctionY + correctionZ * correctionZ;
+
+            if (correctionSq > EPS * EPS)
+            {
+                distributeSegmentCorrection(a, b, t, correctionX, correctionY, correctionZ);
+            }
 
             float pen = deepestPenetration(sample.x, sample.y, sample.z, radius, boxes, normal);
 
@@ -134,18 +161,171 @@ public final class ModelPhysicsWorldCollisions
                 continue;
             }
 
-            float wa = 1F - t;
-            float wb = t;
-            float distribute = pen / (wa * wa + wb * wb);
-
-            a.x += normal.x * wa * distribute;
-            a.y += normal.y * wa * distribute;
-            a.z += normal.z * wa * distribute;
-
-            b.x += normal.x * wb * distribute;
-            b.y += normal.y * wb * distribute;
-            b.z += normal.z * wb * distribute;
+            distributeSegmentCorrection(a, b, t, normal.x * pen, normal.y * pen, normal.z * pen);
         }
+    }
+
+    private static void distributeSegmentCorrection(Vector3f a, Vector3f b, float t,
+        float correctionX, float correctionY, float correctionZ)
+    {
+        float wa = 1F - t;
+        float wb = t;
+        float distribute = 1F / (wa * wa + wb * wb);
+
+        a.x += correctionX * wa * distribute;
+        a.y += correctionY * wa * distribute;
+        a.z += correctionZ * wa * distribute;
+        b.x += correctionX * wb * distribute;
+        b.y += correctionY * wb * distribute;
+        b.z += correctionZ * wb * distribute;
+    }
+
+    /**
+     * Sweep a particle from its previous position to its proposed one against collision boxes
+     * expanded by its radius. This catches a floor or wall even when the particle crosses the
+     * whole block between two solver samples.
+     */
+    private static boolean sweepSphere(Vector3f p, Vector3f previous, float radius,
+        List<float[]> boxes, Vector3f outNormal)
+    {
+        float dx = p.x - previous.x;
+        float dy = p.y - previous.y;
+        float dz = p.z - previous.z;
+
+        if (dx * dx + dy * dy + dz * dz <= EPS * EPS)
+        {
+            return false;
+        }
+
+        float best = Float.POSITIVE_INFINITY;
+        float[] hit = new float[4];
+
+        for (int i = 0, n = boxes.size(); i < n; i++)
+        {
+            float[] box = boxes.get(i);
+
+            if (rayExpandedBox(previous.x, previous.y, previous.z, dx, dy, dz,
+                box[0] - radius, box[1] - radius, box[2] - radius,
+                box[3] + radius, box[4] + radius, box[5] + radius, hit)
+                && hit[0] < best)
+            {
+                best = hit[0];
+                outNormal.set(hit[1], hit[2], hit[3]);
+            }
+        }
+
+        if (!Float.isFinite(best))
+        {
+            return false;
+        }
+
+        p.set(previous.x + dx * best, previous.y + dy * best, previous.z + dz * best)
+            .add(outNormal.x * CONTACT_SLOP, outNormal.y * CONTACT_SLOP, outNormal.z * CONTACT_SLOP);
+
+        return true;
+    }
+
+    /** Segment versus AABB slab test. Returns the first inward contact in [0, 1]. */
+    private static boolean rayExpandedBox(float ox, float oy, float oz, float dx, float dy, float dz,
+        float minX, float minY, float minZ, float maxX, float maxY, float maxZ, float[] out)
+    {
+        /* A particle already inside the expanded box needs closest-point depenetration instead;
+         * treating its start as a swept hit can choose an unrelated face and pull it deeper. */
+        if (ox > minX + EPS && ox < maxX - EPS
+            && oy > minY + EPS && oy < maxY - EPS
+            && oz > minZ + EPS && oz < maxZ - EPS)
+        {
+            return false;
+        }
+
+        float near = 0F;
+        float far = 1F;
+        float nx = 0F;
+        float ny = 0F;
+        float nz = 0F;
+
+        if (Math.abs(dx) < EPS)
+        {
+            if (ox < minX || ox > maxX) return false;
+        }
+        else
+        {
+            float a = (minX - ox) / dx;
+            float b = (maxX - ox) / dx;
+            float entry = Math.min(a, b);
+            float exit = Math.max(a, b);
+
+            if (entry > near)
+            {
+                near = entry;
+                nx = dx > 0F ? -1F : 1F;
+                ny = 0F;
+                nz = 0F;
+            }
+
+            far = Math.min(far, exit);
+            if (near > far) return false;
+        }
+
+        if (Math.abs(dy) < EPS)
+        {
+            if (oy < minY || oy > maxY) return false;
+        }
+        else
+        {
+            float a = (minY - oy) / dy;
+            float b = (maxY - oy) / dy;
+            float entry = Math.min(a, b);
+            float exit = Math.max(a, b);
+
+            if (entry > near)
+            {
+                near = entry;
+                nx = 0F;
+                ny = dy > 0F ? -1F : 1F;
+                nz = 0F;
+            }
+
+            far = Math.min(far, exit);
+            if (near > far) return false;
+        }
+
+        if (Math.abs(dz) < EPS)
+        {
+            if (oz < minZ || oz > maxZ) return false;
+        }
+        else
+        {
+            float a = (minZ - oz) / dz;
+            float b = (maxZ - oz) / dz;
+            float entry = Math.min(a, b);
+            float exit = Math.max(a, b);
+
+            if (entry > near)
+            {
+                near = entry;
+                nx = 0F;
+                ny = 0F;
+                nz = dz > 0F ? -1F : 1F;
+            }
+
+            far = Math.min(far, exit);
+            if (near > far) return false;
+        }
+
+        float inward = dx * nx + dy * ny + dz * nz;
+
+        if (near < 0F || near > 1F || inward >= -EPS || (nx == 0F && ny == 0F && nz == 0F))
+        {
+            return false;
+        }
+
+        out[0] = near;
+        out[1] = nx;
+        out[2] = ny;
+        out[3] = nz;
+
+        return true;
     }
 
     private static void applyFriction(Vector3f p, Vector3f prev, float nx, float ny, float nz, float friction)
