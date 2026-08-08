@@ -86,8 +86,9 @@ public class CrowdKeyframeRuntime
                 continue;
             }
 
-            applyWalk(world, film, replay, crowd, members, tick);
-            applyJump(replay, members, tick);
+            boolean placed = applyWalk(world, film, replay, crowd, members, tick);
+
+            applyJump(replay, members, tick, placed);
             applyLook(film, replay, members, tick);
             applyTexture(replay, members, tick);
             applyColor(replay, members, tick);
@@ -101,14 +102,14 @@ public class CrowdKeyframeRuntime
      * this tick, down to the stagger that makes the near edge leave first, so asking the
      * navigator to make its own way there would fight the curve the shot was authored on.</p>
      */
-    private static void applyWalk(ServerWorld world, Film film, Replay replay, Crowd crowd,
+    private static boolean applyWalk(ServerWorld world, Film film, Replay replay, Crowd crowd,
         List<LivingEntity> members, int tick)
     {
         CrowdWalkEvaluator.Frame frame = CrowdWalkEvaluator.frame(replay, tick);
 
         if (frame == null)
         {
-            return;
+            return false;
         }
 
         Vec3d anchor = crowdAnchor(film, crowd);
@@ -195,6 +196,8 @@ public class CrowdKeyframeRuntime
                 }
             }
         }
+
+        return true;
     }
 
     /** Rotate toward an angle by at most {@code maxStep}, the short way round. */
@@ -279,7 +282,20 @@ public class CrowdKeyframeRuntime
         return world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, blockX, blockZ);
     }
 
-    private static void applyJump(Replay replay, List<LivingEntity> members, int tick)
+    /**
+     * Lift the jumping part of the crowd off the ground.
+     *
+     * <p>Lifted rather than launched: the arc is authored, so handing it to the physics as an
+     * impulse would land members at heights the keyframes never asked for.</p>
+     *
+     * <p>{@code placed} says whether the walk has already put these members down at their ground
+     * position this tick. When it has, the height is simply added to it. When it has not - a
+     * crowd with jump keyframes and no walk keyframes - there is no ground position to add to,
+     * only wherever the member was left last tick, which already has last tick's jump in it. So
+     * what is applied is the change since then. Adding the full height to that was the crowd
+     * climbing away into the sky, one jump's worth per tick, and never coming down.</p>
+     */
+    private static void applyJump(Replay replay, List<LivingEntity> members, int tick, boolean placed)
     {
         CrowdJumpEvaluator.Frame frame = CrowdJumpEvaluator.frame(replay, tick);
 
@@ -290,13 +306,15 @@ public class CrowdKeyframeRuntime
 
         for (LivingEntity member : members)
         {
-            double height = frame.height(CrowdUtils.entityIndex(member));
+            int index = CrowdUtils.entityIndex(member);
+            double height = frame.height(index);
+            double offset = placed ? height : height - frame.previousHeight(index);
 
-            if (height > 0D)
+            if (offset != 0D)
             {
-                /* Lifted rather than launched: the arc is authored, so giving it to the physics
-                 * as an impulse would land members at heights the keyframes never asked for. */
-                member.setPos(member.getX(), member.getY() + height, member.getZ());
+                member.setPos(member.getX(), member.getY() + offset, member.getZ());
+                member.fallDistance = 0F;
+                member.setOnGround(height <= 0D);
             }
         }
     }

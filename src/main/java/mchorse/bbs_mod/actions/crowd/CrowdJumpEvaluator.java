@@ -1,23 +1,34 @@
 package mchorse.bbs_mod.actions.crowd;
 
 import mchorse.bbs_mod.film.replays.Replay;
+import mchorse.bbs_mod.utils.keyframes.Keyframe;
 import net.minecraft.util.math.MathHelper;
 
+import java.util.List;
+
 /**
- * Deterministic crowd jump timeline shared by live actors and the visual crowd tier.
+ * How high above the ground each crowd member is at a given tick.
  *
- * <p>Only the short history capable of contributing to the current jump arc is evaluated.
- * This makes seeking and scrubbing exact without storing one state object per logical member.</p>
+ * <p>A pure function of the tick and the member's index: nothing is remembered between ticks, so
+ * scrubbing backwards lands on exactly the pose playing forwards would have, and a jump can never
+ * accumulate. It used to add its height to wherever the member already was, which on a crowd with
+ * no walk keyframes to reset the position meant every tick added another lift and the crowd
+ * climbed away into the sky.</p>
  */
 public final class CrowdJumpEvaluator
 {
     public static final int DURATION = CrowdJump.DURATION;
     public static final double HEIGHT = CrowdJump.HEIGHT;
 
-    /* Salts, so a member's height and jump length are drawn from the same generator as its
-     * timing without being the same number as any tick's roll. */
-    private static final int HEIGHT_SALT = Integer.MIN_VALUE + 1;
-    private static final int LENGTH_SALT = Integer.MIN_VALUE + 2;
+    /* Salts, so a member's choice, height and jump length are drawn from the same generator
+     * without being the same number as each other. */
+    private static final int CHOICE_SALT = Integer.MIN_VALUE + 1;
+    private static final int HEIGHT_SALT = Integer.MIN_VALUE + 2;
+    private static final int LENGTH_SALT = Integer.MIN_VALUE + 3;
+    private static final int PHASE_SALT = Integer.MIN_VALUE + 4;
+
+    /** At the slowest rate that still repeats, roughly this long standing between jumps. */
+    private static final double MAX_GAP = DURATION * 12D;
 
     private CrowdJumpEvaluator()
     {}
@@ -29,33 +40,40 @@ public final class CrowdJumpEvaluator
             return null;
         }
 
-        int currentTick = MathHelper.floor(filmTick);
-        int firstTick = currentTick - CrowdJump.MAX_DURATION;
-        double[] chances = new double[CrowdJump.MAX_DURATION + 1];
-        boolean potential = false;
-        boolean random = false;
+        float tick = localTick(replay, filmTick);
+        CrowdJump jump = replay.keyframes.crowdJump.interpolate(tick);
 
-        for (int i = 0; i < chances.length; i++)
+        if (jump == null || jump.amount <= 0F)
         {
-            float localTick = localTick(replay, firstTick + i);
-            CrowdJump jump = replay.keyframes.crowdJump.interpolate(localTick);
-
-            if (jump == null)
-            {
-                continue;
-            }
-
-            double chance = jump.chance();
-
-            chances[i] = chance;
-            potential |= chance > 0D;
-            /* Whether the crowd is varied is read from the tick being drawn, not from the whole
-             * window - the older entries are only there to find jumps already under way. */
-            random = jump.random;
+            return null;
         }
 
-        return new Frame(replay.getId().hashCode(), replay.looping.get(), firstTick,
-            filmTick, chances, potential, random);
+        return new Frame(replay.getId().hashCode(), tick, anchor(replay, tick),
+            jump.amount, jump.rate, jump.random);
+    }
+
+    /**
+     * The tick the keyframe in effect sits on, which is where a jump is counted from.
+     *
+     * <p>It matters at rate 0, where each member jumps exactly once: the jump belongs to the
+     * keyframe that asked for it, so dropping a keyframe on the timeline is one jump there.</p>
+     */
+    private static float anchor(Replay replay, float tick)
+    {
+        List<Keyframe<CrowdJump>> list = replay.keyframes.crowdJump.getKeyframes();
+        float anchor = list.get(0).getTick();
+
+        for (Keyframe<CrowdJump> keyframe : list)
+        {
+            if (keyframe.getTick() > tick)
+            {
+                break;
+            }
+
+            anchor = keyframe.getTick();
+        }
+
+        return anchor;
     }
 
     private static float localTick(Replay replay, float filmTick)
@@ -72,75 +90,69 @@ public final class CrowdJumpEvaluator
         return wrapped < 0F ? wrapped + loop : wrapped;
     }
 
-    public static final class Frame
+    public record Frame(int replayHash, float tick, float anchor, float amount, float rate,
+                        boolean random)
     {
-        private final int replayHash;
-        private final int loop;
-        private final int firstTick;
-        private final float filmTick;
-        private final double[] chances;
-        private final boolean potential;
-        private final boolean random;
-
-        private Frame(int replayHash, int loop, int firstTick, float filmTick,
-            double[] chances, boolean potential, boolean random)
-        {
-            this.replayHash = replayHash;
-            this.loop = loop;
-            this.firstTick = firstTick;
-            this.filmTick = filmTick;
-            this.chances = chances;
-            this.potential = potential;
-            this.random = random;
-        }
-
         public boolean hasPotential()
         {
-            return this.potential;
+            return this.amount > 0F;
         }
 
+        /** How high this member is right now. */
         public double height(int memberIndex)
         {
-            if (!this.potential)
+            return this.heightAt(memberIndex, this.tick);
+        }
+
+        /**
+         * How high this member was a tick ago.
+         *
+         * <p>Wanted by the caller that can only nudge a member up or down rather than place it
+         * outright, so it can undo exactly as much as it added.</p>
+         */
+        public double previousHeight(int memberIndex)
+        {
+            return this.heightAt(memberIndex, this.tick - 1F);
+        }
+
+        public double heightAt(int memberIndex, float at)
+        {
+            /* Who jumps is a fixed draw against the share wanted, not a roll per tick. The same
+             * members jump throughout, and raising the share adds to them rather than choosing a
+             * different crowd. */
+            if (randomFor(this.replayHash, memberIndex, CHOICE_SALT) >= this.amount)
             {
                 return 0D;
             }
 
             double scale = 1D;
-            int duration = DURATION;
+            double duration = DURATION;
 
             if (this.random)
             {
                 scale = 0.7D + randomFor(this.replayHash, memberIndex, HEIGHT_SALT) * 0.6D;
-                duration = (int) Math.round(DURATION
-                    * (0.8D + randomFor(this.replayHash, memberIndex, LENGTH_SALT) * 0.55D));
+                duration = DURATION * (0.8D + randomFor(this.replayHash, memberIndex, LENGTH_SALT) * 0.55D);
             }
 
-            int start = Integer.MIN_VALUE;
+            double phase = randomFor(this.replayHash, memberIndex, PHASE_SALT) * duration;
+            double since = at - this.anchor;
+            double elapsed;
 
-            for (int i = 0; i < this.chances.length; i++)
+            if (this.rate <= 0F)
             {
-                int tick = this.firstTick + i;
-
-                /* Landed, so this member is free to leave the ground again. */
-                if (start != Integer.MIN_VALUE && tick - start >= duration)
-                {
-                    start = Integer.MIN_VALUE;
-                }
-
-                if (start == Integer.MIN_VALUE && this.chances[i] > 0D
-                    && randomFor(this.replayHash, memberIndex, this.randomTick(tick)) < this.chances[i])
-                {
-                    start = tick;
-                }
+                /* One jump, and the phase only keeps the crowd from leaving the ground in
+                 * perfect unison. */
+                elapsed = since - phase;
             }
-
-            if (start == Integer.MIN_VALUE)
+            else
             {
-                return 0D;
-            }
+                /* The gap is the standing about between jumps, so rate 1 leaves none of it and a
+                 * member is back up the tick after it lands. */
+                double gap = MAX_GAP * (1D - this.rate) / this.rate;
+                double period = duration + Math.min(gap, MAX_GAP);
 
-            double elapsed = this.filmTick - start;
+                elapsed = Math.floorMod((long) Math.floor(since + phase), (long) Math.max(1D, period));
+            }
 
             if (elapsed < 0D || elapsed >= duration)
             {
@@ -150,30 +162,18 @@ public final class CrowdJumpEvaluator
             double progress = elapsed / duration;
             double wave = Math.sin(Math.PI * progress);
 
-            /* sin squared has zero vertical velocity at take-off and landing. It keeps both the
-             * live tier and the visual LOD tier on the exact same smooth, deterministic arc
-             * without the parabola's abrupt endpoint snap. */
+            /* sin squared has zero vertical velocity at take-off and landing, so a member settles
+             * onto the ground rather than arriving at it still moving. */
             return HEIGHT * scale * wave * wave;
-        }
-
-        private int randomTick(int tick)
-        {
-            if (this.loop <= 0)
-            {
-                return tick;
-            }
-
-            int wrapped = tick % this.loop;
-
-            return wrapped < 0 ? wrapped + this.loop : wrapped;
         }
     }
 
-    private static double randomFor(int replayHash, int memberIndex, int tick)
+    private static double randomFor(int replayHash, int memberIndex, int salt)
     {
         long value = replayHash * 0x9E3779B97F4A7C15L;
+
         value ^= (long) memberIndex * 0xBF58476D1CE4E5B9L;
-        value ^= (long) tick * 0x94D049BB133111EBL;
+        value ^= (long) salt * 0x94D049BB133111EBL;
         value ^= value >>> 30;
         value *= 0xBF58476D1CE4E5B9L;
         value ^= value >>> 27;

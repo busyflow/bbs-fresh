@@ -45,11 +45,11 @@ public class CrowdJumpKeyframeFactory implements IKeyframeFactory<CrowdJump>
             return av.copy();
         }
 
-        /* Intensity is how much of the crowd is up, so it interpolates - that is what lets a
-         * crowd be brought to a boil over a few seconds. Whether they vary is a choice about the
-         * look and holds until the next keyframe says otherwise. */
-        float intensity = interpolation.interpolate(av.intensity, bv.intensity, x);
+        /* How many jump interpolates, so a crowd can be brought to a boil over a few seconds.
+         * How often, and whether they vary, are choices about the look and hold until the next
+         * keyframe says otherwise. */
+        float amount = interpolation.interpolate(av.amount, bv.amount, x);
 
-        return new CrowdJump(intensity, av.random);
+        return new CrowdJump(amount, av.rate, av.random);
     }
 }
