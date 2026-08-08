@@ -44,6 +44,15 @@ public class CrowdKeyframeRuntime
 {
     private static final float[] ROTATION = new float[2];
 
+    /**
+     * How far a member may turn in one tick while walking.
+     *
+     * <p>Fast enough to have come round before it matters, slow enough to read as turning. A
+     * crowd that reaches its new heading in one tick all together is the most mechanical thing a
+     * crowd can do, and that is what setting the yaw outright looked like.</p>
+     */
+    private static final float TURN_DEGREES_PER_TICK = 18F;
+
     private CrowdKeyframeRuntime()
     {}
 
@@ -156,16 +165,44 @@ public class CrowdKeyframeRuntime
             member.setOnGround(true);
 
             /* Facing follows travel unless a look keyframe overrides it below, so a walking
-             * crowd does not moonwalk to its destination. */
-            if (frame.moving() && frame.path().faceTravel && (dx * dx + dz * dz) > 1.0E-6D)
+             * crowd does not moonwalk to its destination.
+             *
+             * The direction is read off the route ahead of the member rather than from how far
+             * it moved this tick: a tick of movement is a very short line, and one near a
+             * waypoint points almost anywhere, which is what had members spinning on the spot.
+             * A member with nowhere to be - before the route starts, after it ends - gets no
+             * direction back and keeps the facing it spawned with. */
+            Vec3d heading = frame.path().faceTravel ? CrowdWalkEvaluator.memberFacing(frame, index) : null;
+
+            if (heading != null)
             {
-                float yaw = (float) (MathHelper.atan2(dz, dx) * (180D / Math.PI)) - 90F;
+                float target = (float) (MathHelper.atan2(heading.z, heading.x) * (180D / Math.PI)) - 90F;
+                /* Turned toward, not set to. Setting it outright is a snap, and a crowd of them
+                 * snapping together is the single most mechanical thing a crowd can do. */
+                float yaw = turnToward(member.getYaw(), target, TURN_DEGREES_PER_TICK);
 
                 member.setYaw(yaw);
                 member.setBodyYaw(yaw);
                 member.setHeadYaw(yaw);
+
+                /* Say that this facing is the truth. Left to itself the client works body yaw
+                 * out from which way the entity appears to be travelling, and against positions
+                 * we are setting ourselves it can settle on exactly backwards - which is the
+                 * crowd walking its route while facing the way it came. */
+                if (member instanceof CrowdDrivenEntity driven)
+                {
+                    driven.bbs$driveBodyYaw();
+                }
             }
         }
+    }
+
+    /** Rotate toward an angle by at most {@code maxStep}, the short way round. */
+    private static float turnToward(float current, float target, float maxStep)
+    {
+        float delta = MathHelper.wrapDegrees(target - current);
+
+        return MathHelper.wrapDegrees(current + MathHelper.clamp(delta, -maxStep, maxStep));
     }
 
     private static Vec3d crowdAnchor(Film film, Crowd crowd)

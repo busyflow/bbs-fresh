@@ -2,6 +2,7 @@ package mchorse.bbs_mod.actions.crowd;
 
 import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.utils.keyframes.Keyframe;
+import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 
@@ -11,19 +12,24 @@ import java.util.List;
  * Turns a crowd's walk keyframes into per-member positions. Shared by server playback and the
  * editor preview so both agree exactly.
  *
- * <p>The waypoints are a route, not a series of trips. The crowd is carried along a curve that
- * passes through every one of them and only comes to rest at the two ends, so a waypoint in the
- * middle is a place the route goes through rather than a place the crowd stops. Easing at every
- * waypoint is what made a three-point walk read as three separate walks.</p>
+ * <p>The waypoints are one route, and a member is placed by asking where the route is at that
+ * member's own time. Stagger is a delay in ticks, so a member who set off late is simply further
+ * back along the same curve - it never has to catch up and there is nothing to catch up to. The
+ * previous shape, where progress ran 0 to 1 within each segment and was clamped at both ends, is
+ * what made the crowd gather at every waypoint and wait for its stragglers before setting off
+ * again.</p>
  *
- * <p>What a member is given is a displacement - how far the crowd has moved from its first
- * waypoint - which is added to wherever that member was standing. The alternative, placing
- * members around the waypoint itself, cannot work for painted ground: painted ground is somewhere
- * in particular, and a crowd standing on it is not free to be re-centred.</p>
+ * <p>What a member is given is a displacement - how far the route has moved from its first
+ * waypoint - added to wherever that member was standing. Placing members around the waypoint
+ * instead cannot work for painted ground, which is somewhere in particular and not free to be
+ * re-centred.</p>
  */
 public final class CrowdWalkEvaluator
 {
     private static final double EPSILON = 1.0E-10D;
+
+    /** How far ahead the route is sampled to work out which way a member is heading. */
+    private static final float FACING_STEP = 1F;
 
     private CrowdWalkEvaluator()
     {}
@@ -35,7 +41,8 @@ public final class CrowdWalkEvaluator
             return null;
         }
 
-        List<Keyframe<CrowdWalk>> list = (List<Keyframe<CrowdWalk>>) replay.keyframes.crowdWalk.getKeyframes();
+        KeyframeChannel<CrowdWalk> channel = replay.keyframes.crowdWalk;
+        List<Keyframe<CrowdWalk>> list = channel.getKeyframes();
         int size = list.size();
         float tick = localTick(replay, filmTick);
         int i = indexAt(list, tick);
@@ -44,30 +51,73 @@ public final class CrowdWalkEvaluator
         CrowdWalk to = value(list, Math.min(i + 1, size - 1));
         float startTick = list.get(i).getTick();
         float targetTick = list.get(Math.min(i + 1, size - 1)).getTick();
-        float span = targetTick - startTick;
-        float raw = span <= 0F ? 0F : MathHelper.clamp((tick - startTick) / span, 0F, 1F);
+        float span = Math.max(1F, targetTick - startTick);
 
-        /* The curve leaves from rest only at the first waypoint and settles only at the last.
-         * Everywhere between, it is passing through. */
-        boolean easeIn = i == 0;
-        boolean easeOut = i + 1 >= size - 1;
-
-        Vec3d p1 = from.position();
-        Vec3d p2 = to.position();
-        Vec3d m1 = tangent(list, i, span);
-        Vec3d m2 = tangent(list, i + 1, span);
         Vec3d first = value(list, 0).position();
-
-        float shaped = shape(raw, from.ease, easeIn, easeOut);
-        Vec3d centre = hermite(p1, p2, m1, m2, shaped);
-        Vec3d direction = p2.subtract(p1);
+        Vec3d centre = positionAt(channel, tick);
+        Vec3d ahead = positionAt(channel, tick + FACING_STEP);
+        Vec3d direction = ahead.subtract(centre);
 
         direction = direction.lengthSquared() > EPSILON ? direction.normalize() : new Vec3d(0D, 0D, 1D);
 
-        boolean moving = p1.squaredDistanceTo(p2) > EPSILON && raw > 0F && raw < 1F;
+        boolean moving = tick >= list.get(0).getTick()
+            && tick < list.get(size - 1).getTick()
+            && centre.squaredDistanceTo(ahead) > EPSILON;
 
-        return new Frame(from, to, p1, p2, m1, m2, first, centre, direction,
-            raw, shaped, from.ease, easeIn, easeOut, moving, startTick, targetTick);
+        return new Frame(channel, list, from, to, first, centre, direction, tick, span, moving,
+            startTick, targetTick);
+    }
+
+    /**
+     * Where the route is at a given tick.
+     *
+     * <p>The shape of the curve is the channel's own, so each waypoint's interpolation setting -
+     * linear, the easings, bezier, auto - is what decides how the crowd gets from one to the
+     * next. This used to impose a curve of its own and ignore the setting entirely, which made
+     * the whole interpolation menu inert on this track.</p>
+     *
+     * <p>Ease is applied on top, as a warp of time rather than of the path, and only in the two
+     * segments that are really ends. A waypoint in the middle is somewhere the route passes
+     * through; starting and stopping at every one of them is what made a three-point walk read
+     * as three separate walks.</p>
+     */
+    private static Vec3d positionAt(KeyframeChannel<CrowdWalk> channel, float tick)
+    {
+        CrowdWalk value = channel.interpolate(easedTick(channel.getKeyframes(), tick));
+
+        return value == null ? Vec3d.ZERO : value.position();
+    }
+
+    /** Bend time within the route's first and last segments, so it leaves and arrives at rest. */
+    private static float easedTick(List<Keyframe<CrowdWalk>> list, float tick)
+    {
+        int size = list.size();
+        int i = indexAt(list, tick);
+
+        if (i >= size - 1)
+        {
+            return tick;
+        }
+
+        boolean easeIn = i == 0;
+        boolean easeOut = i + 1 >= size - 1;
+
+        if (!easeIn && !easeOut)
+        {
+            return tick;
+        }
+
+        float startTick = list.get(i).getTick();
+        float span = list.get(i + 1).getTick() - startTick;
+
+        if (span <= 0F)
+        {
+            return tick;
+        }
+
+        float raw = MathHelper.clamp((tick - startTick) / span, 0F, 1F);
+
+        return startTick + shape(raw, value(list, i).ease, easeIn, easeOut) * span;
     }
 
     /** The keyframe the given tick sits on or after. */
@@ -113,48 +163,6 @@ public final class CrowdWalkEvaluator
     }
 
     /**
-     * The route's direction at one waypoint, taken from its neighbours either side and scaled
-     * into this segment's own length.
-     *
-     * <p>Divided by the neighbours' tick spread rather than assuming the waypoints are evenly
-     * spaced, because they are not - a waypoint dropped close after another would otherwise
-     * throw the curve well past both of them.</p>
-     */
-    private static Vec3d tangent(List<Keyframe<CrowdWalk>> list, int index, float span)
-    {
-        int size = list.size();
-        int i = MathHelper.clamp(index, 0, size - 1);
-        int before = Math.max(0, i - 1);
-        int after = Math.min(size - 1, i + 1);
-        float spread = list.get(after).getTick() - list.get(before).getTick();
-
-        if (spread <= 0F || span <= 0F)
-        {
-            return Vec3d.ZERO;
-        }
-
-        return value(list, after).position().subtract(value(list, before).position())
-            .multiply(span / spread);
-    }
-
-    /** Cubic Hermite, so the route arrives at each waypoint going the way it leaves. */
-    private static Vec3d hermite(Vec3d p1, Vec3d p2, Vec3d m1, Vec3d m2, double t)
-    {
-        double t2 = t * t;
-        double t3 = t2 * t;
-        double h00 = 2D * t3 - 3D * t2 + 1D;
-        double h10 = t3 - 2D * t2 + t;
-        double h01 = -2D * t3 + 3D * t2;
-        double h11 = t3 - t2;
-
-        return new Vec3d(
-            h00 * p1.x + h10 * m1.x + h01 * p2.x + h11 * m2.x,
-            h00 * p1.y + h10 * m1.y + h01 * p2.y + h11 * m2.y,
-            h00 * p1.z + h10 * m1.z + h01 * p2.z + h11 * m2.z
-        );
-    }
-
-    /**
      * Where a member starting at {@code base} sits right now, written into {@code output}.
      * Allocation-free: the visual crowd calls this once per drawn member per frame.
      *
@@ -171,10 +179,9 @@ public final class CrowdWalkEvaluator
             return;
         }
 
-        double raw = memberProgress(frame, index);
-        double t = shape((float) raw, frame.easeAmount, frame.easeIn, frame.easeOut);
-        Vec3d at = hermite(frame.p1, frame.p2, frame.m1, frame.m2, t);
-        double loosen = frame.from.spread * Math.sin(Math.PI * t) * 0.35D;
+        float tick = memberTick(frame, index);
+        Vec3d at = positionAt(frame.channel, tick);
+        double loosen = frame.from.spread * bulge(frame, tick) * 0.35D;
 
         output[0] = baseX + (baseX - centreX) * loosen + (at.x - frame.first.x);
         output[1] = baseY + (at.y - frame.first.y);
@@ -194,22 +201,76 @@ public final class CrowdWalkEvaluator
     }
 
     /**
-     * A member's own progress along the segment. Stagger delays members by a deterministic
-     * amount, then the whole range is rescaled so the last one still reaches 1 exactly when
-     * the crowd's progress does.
+     * Which way a member is travelling, or null when it is standing still.
+     *
+     * <p>Read off the route a little ahead of where the member is rather than from how far it
+     * moved last tick. A tick's worth of movement is a very short line, and near a waypoint it
+     * can point almost anywhere; that is what had members turning around on the spot.</p>
      */
-    public static double memberProgress(Frame frame, int index)
+    public static Vec3d memberFacing(Frame frame, int index)
+    {
+        if (frame == null)
+        {
+            return null;
+        }
+
+        float tick = memberTick(frame, index);
+        int size = frame.list.size();
+
+        /* Standing at either end of the route is standing still, and a member that is not going
+         * anywhere has no direction of travel to face - it keeps whatever it was given. */
+        if (tick < frame.list.get(0).getTick() || tick >= frame.list.get(size - 1).getTick())
+        {
+            return null;
+        }
+
+        Vec3d here = positionAt(frame.channel, tick);
+        Vec3d ahead = positionAt(frame.channel, tick + FACING_STEP);
+        Vec3d direction = ahead.subtract(here);
+
+        return direction.lengthSquared() <= 1.0E-8D ? null : direction.normalize();
+    }
+
+    /**
+     * The tick of the route a member is standing on.
+     *
+     * <p>Stagger is a delay, so a late member is further back along the same curve rather than
+     * running its own compressed copy of the trip. Nobody is held at a waypoint waiting for the
+     * rest to arrive, which is the whole difference between a crowd walking and a crowd
+     * marching in formation.</p>
+     */
+    private static float memberTick(Frame frame, int index)
     {
         float stagger = MathHelper.clamp(frame.from.stagger, 0F, 1F);
 
         if (stagger <= 0F)
         {
-            return frame.raw;
+            return frame.tick;
         }
 
-        double delay = stagger * offset(index);
+        return frame.tick - (float) (stagger * offset(index) * frame.span);
+    }
 
-        return MathHelper.clamp(frame.raw * (1D + stagger) - delay, 0D, 1D);
+    /** How far through its current segment a member is, for spread to breathe on. */
+    private static double bulge(Frame frame, float tick)
+    {
+        List<Keyframe<CrowdWalk>> list = frame.list;
+        int i = indexAt(list, tick);
+
+        if (i >= list.size() - 1)
+        {
+            return 0D;
+        }
+
+        float startTick = list.get(i).getTick();
+        float span = list.get(i + 1).getTick() - startTick;
+
+        if (span <= 0F)
+        {
+            return 0D;
+        }
+
+        return Math.sin(Math.PI * MathHelper.clamp((tick - startTick) / span, 0F, 1F));
     }
 
     /** Deterministic per-member value in [0, 1). Same member always leaves at the same moment. */
@@ -229,9 +290,10 @@ public final class CrowdWalkEvaluator
     /**
      * Blend between constant speed and one that starts or stops from a standstill.
      *
-     * <p>Only the ends that are really ends are eased. A waypoint in the middle of a route gets
-     * neither, so the crowd carries its speed through it instead of stopping dead at every point
-     * it was told to visit.</p>
+     * <p>Only the ends that are really ends are eased, and the one-sided curves leave the
+     * interior end at exactly the constant speed the next segment carries on at. An ease that
+     * arrives at the middle of a route going faster or slower than the rest of it shows up as a
+     * lurch at the waypoint, which is the thing this is meant to avoid.</p>
      */
     private static float shape(float t, float amount, boolean easeIn, boolean easeOut)
     {
@@ -251,13 +313,14 @@ public final class CrowdWalkEvaluator
         }
         else if (easeIn)
         {
-            shaped = clamped * clamped;
+            /* Zero speed at 0, exactly constant speed at 1. */
+            shaped = clamped * clamped * (2F - clamped);
         }
         else
         {
             float inverse = 1F - clamped;
 
-            shaped = 1F - inverse * inverse;
+            shaped = 1F - inverse * inverse * (2F - inverse);
         }
 
         return MathHelper.lerp(strength, clamped, shaped);
@@ -288,9 +351,9 @@ public final class CrowdWalkEvaluator
         return wrapped < 0F ? wrapped + loop : wrapped;
     }
 
-    public record Frame(CrowdWalk from, CrowdWalk to, Vec3d p1, Vec3d p2, Vec3d m1, Vec3d m2,
-                        Vec3d first, Vec3d centre, Vec3d forward, float raw, float progress,
-                        float easeAmount, boolean easeIn, boolean easeOut, boolean moving,
+    public record Frame(KeyframeChannel<CrowdWalk> channel, List<Keyframe<CrowdWalk>> list,
+                        CrowdWalk from, CrowdWalk to, Vec3d first,
+                        Vec3d centre, Vec3d forward, float tick, float span, boolean moving,
                         float startTick, float targetTick)
     {
         /** The waypoint whose settings govern this stretch of the route. */
