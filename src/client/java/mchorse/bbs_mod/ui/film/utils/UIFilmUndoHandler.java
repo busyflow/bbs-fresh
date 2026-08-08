@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.ui.film.utils;
 
+import mchorse.bbs_mod.film.Film;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.data.types.BaseType;
 import mchorse.bbs_mod.network.ClientNetwork;
@@ -142,6 +143,27 @@ public class UIFilmUndoHandler extends UIFormUndoHandler
     {
         super.handleValue(value);
 
+        if (this.isCrowd(value))
+        {
+            /* Sync the whole crowds group rather than the field that changed. The server spawns
+             * from its own copy of the film, and an edit that adds or removes a crowd is a
+             * change of shape, not of one value - a path like "crowds/1/count" cannot be
+             * resolved against a server that has never heard of crowd 1. Sending the group
+             * carries the structure with it.
+             *
+             * Crowds are why this had to be said at all: spawning used to be an action clip, so
+             * it reached the server through the clips branch below, and moving crowds onto the
+             * film quietly took them off every path this method recognises. The crowd was
+             * therefore only ever edited client-side, and the server had none to spawn. */
+            Film film = ((UIFilmPanel) this.uiElement).getData();
+
+            if (film != null)
+            {
+                this.syncData.add(film.crowds);
+                this.actionsTimer.mark();
+            }
+        }
+
         if (this.isReplayActions(value))
         {
             /* TODO: Variant A for the lazy-channel desync — if 'value' is a keyframe
@@ -171,6 +193,14 @@ public class UIFilmUndoHandler extends UIFormUndoHandler
 
             this.syncData.clear();
         }
+    }
+
+    /** Anything under the film's crowds, including the group itself. */
+    private boolean isCrowd(BaseValue value)
+    {
+        String path = value.getPath().toString();
+
+        return path.equals("crowds") || path.startsWith("crowds/") || path.contains("/crowds/") || path.endsWith("/crowds");
     }
 
     private boolean isReplayActions(BaseValue value)

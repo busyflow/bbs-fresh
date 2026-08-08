@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.film.crowds;
 
+import mchorse.bbs_mod.settings.values.base.BaseValue;
 import mchorse.bbs_mod.actions.types.area.ValueAreaCells;
 import mchorse.bbs_mod.actions.types.crowd.CrowdFormation;
 import mchorse.bbs_mod.settings.values.core.ValueForm;
@@ -127,19 +128,24 @@ public class Crowd extends ValueGroup
         return this.cells.get();
     }
 
+    /* Painting writes into the cell map directly, which nothing would otherwise hear about -
+     * the map is mutated in place, so the value it belongs to never fires. Announcing the edit
+     * is what puts painted ground into the undo history and, more to the point, what sends it to
+     * the server; a stroke nobody was told about is a crowd that spawns on unpainted ground. */
+
     public void paint(int x, int y, int z)
     {
-        this.getCells().put(ValueAreaCells.key(x, z), y);
+        BaseValue.edit(this.cells, (cells) -> cells.get().put(ValueAreaCells.key(x, z), y));
     }
 
     public void erase(int x, int z)
     {
-        this.getCells().remove(ValueAreaCells.key(x, z));
+        BaseValue.edit(this.cells, (cells) -> cells.get().remove(ValueAreaCells.key(x, z)));
     }
 
     public void clearCells()
     {
-        this.getCells().clear();
+        BaseValue.edit(this.cells, (cells) -> cells.get().clear());
     }
 
     public CrowdFormation getFormation()
