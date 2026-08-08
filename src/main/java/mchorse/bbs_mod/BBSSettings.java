@@ -30,6 +30,8 @@ public class BBSSettings {
 	public static ValueBoolean killExcludeSelf;
 	public static ValueBoolean highBoneModelOptimization;
 	public static ValueInt crowdPreviewCount;
+	public static ValueBoolean creativeShowHearts;
+	public static ValueBoolean creativeShowHunger;
 
 	public static final String DEFAULT_FFMPEG_ARGUMENTS = "-f rawvideo -pix_fmt bgr24 -s %WIDTH%x%HEIGHT% -r %FPS% -i - -vf %FILTERS% -c:v libx264 -preset ultrafast -tune zerolatency -qp 18 -pix_fmt yuv420p %NAME%.mp4";
 	public static final String DEFAULT_AUDIO_FFMPEG_ARGUMENTS = "-f rawvideo -pix_fmt bgr24 -s %WIDTH%x%HEIGHT% -r %FPS% -i - -i %AUDIO_TRACK% -vf %FILTERS% -c:v libx264 -preset ultrafast -tune zerolatency -qp 18 -pix_fmt yuv420p -c:a aac -b:a 128k -shortest %NAME%.mp4";
@@ -834,5 +836,7 @@ public class BBSSettings {
 		killExcludeSelf = builder.getBoolean("kill_exclude_self", true);
 		highBoneModelOptimization = builder.getBoolean("high_bone_model_optimization", false);
 		crowdPreviewCount = builder.getInt("crowd_preview_count", 500, 0, 100000);
+		creativeShowHearts = builder.getBoolean("creative_show_hearts", false);
+		creativeShowHunger = builder.getBoolean("creative_show_hunger", false);
 	}
 }
