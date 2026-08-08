@@ -2,33 +2,24 @@ package mchorse.bbs_mod.actions.crowd;
 
 import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.utils.keyframes.Keyframe;
-import net.minecraft.util.math.MathHelper;
 
 import java.util.List;
 
 /**
- * How high above the ground each crowd member is at a given tick.
+ * Decides which crowd members jump on a given tick.
  *
- * <p>A pure function of the tick and the member's index: nothing is remembered between ticks, so
- * scrubbing backwards lands on exactly the pose playing forwards would have, and a jump can never
- * accumulate. It used to add its height to wherever the member already was, which on a crowd with
- * no walk keyframes to reset the position meant every tick added another lift and the crowd
- * climbed away into the sky.</p>
+ * <p>Only the decision. The jump itself is a real one - the member is given upward velocity and
+ * gravity brings it back - which is how the crowd behaviour clip has always done it. Placing
+ * members along an authored arc instead meant owning their vertical position outright, and
+ * getting that even slightly wrong put them under the floor.</p>
  */
 public final class CrowdJumpEvaluator
 {
-    public static final int DURATION = CrowdJump.DURATION;
-    public static final double HEIGHT = CrowdJump.HEIGHT;
-
-    /* Salts, so a member's choice, height and jump length are drawn from the same generator
-     * without being the same number as each other. */
-    private static final int CHOICE_SALT = Integer.MIN_VALUE + 1;
-    private static final int HEIGHT_SALT = Integer.MIN_VALUE + 2;
-    private static final int LENGTH_SALT = Integer.MIN_VALUE + 3;
-    private static final int PHASE_SALT = Integer.MIN_VALUE + 4;
-
-    /** At the slowest rate that still repeats, roughly this long standing between jumps. */
-    private static final double MAX_GAP = DURATION * 12D;
+    /* Salts, so a member's choice and its per-tick roll come from the same generator without
+     * being the same number. */
+    private static final int CHOICE_SALT = 0x5A91;
+    private static final int ROLL_SALT = 0x9E37;
+    private static final int POWER_SALT = 0x7C15;
 
     private CrowdJumpEvaluator()
     {}
@@ -53,10 +44,10 @@ public final class CrowdJumpEvaluator
     }
 
     /**
-     * The tick the keyframe in effect sits on, which is where a jump is counted from.
+     * The tick of the keyframe in effect, which a single jump is counted from.
      *
-     * <p>It matters at rate 0, where each member jumps exactly once: the jump belongs to the
-     * keyframe that asked for it, so dropping a keyframe on the timeline is one jump there.</p>
+     * <p>Only matters at rate 0, where a member jumps once: the jump belongs to the keyframe that
+     * asked for it, so dropping a keyframe on the timeline is one jump there.</p>
      */
     private static float anchor(Replay replay, float tick)
     {
@@ -93,78 +84,45 @@ public final class CrowdJumpEvaluator
     public record Frame(int replayHash, float tick, float anchor, float amount, float rate,
                         boolean random)
     {
-        public boolean hasPotential()
-        {
-            return this.amount > 0F;
-        }
-
-        /** How high this member is right now. */
-        public double height(int memberIndex)
-        {
-            return this.heightAt(memberIndex, this.tick);
-        }
-
         /**
-         * How high this member was a tick ago.
+         * How hard this member pushes off, as a multiple of a normal jump.
          *
-         * <p>Wanted by the caller that can only nudge a member up or down rather than place it
-         * outright, so it can undo exactly as much as it added.</p>
+         * <p>Applied to the velocity rather than to a height, so the member still lands on
+         * whatever the floor turns out to be.</p>
          */
-        public double previousHeight(int memberIndex)
+        public double power(int memberIndex)
         {
-            return this.heightAt(memberIndex, this.tick - 1F);
+            return this.random
+                ? 0.85D + randomFor(this.replayHash, memberIndex, POWER_SALT) * 0.3D
+                : 1D;
         }
 
-        public double heightAt(int memberIndex, float at)
+        /** Whether this member should leave the ground on this tick. */
+        public boolean jumps(int memberIndex)
         {
             /* Who jumps is a fixed draw against the share wanted, not a roll per tick. The same
-             * members jump throughout, and raising the share adds to them rather than choosing a
+             * members jump throughout, and raising the share adds to them rather than picking a
              * different crowd. */
             if (randomFor(this.replayHash, memberIndex, CHOICE_SALT) >= this.amount)
             {
-                return 0D;
+                return false;
             }
-
-            double scale = 1D;
-            double duration = DURATION;
-
-            if (this.random)
-            {
-                scale = 0.7D + randomFor(this.replayHash, memberIndex, HEIGHT_SALT) * 0.6D;
-                duration = DURATION * (0.8D + randomFor(this.replayHash, memberIndex, LENGTH_SALT) * 0.55D);
-            }
-
-            double phase = randomFor(this.replayHash, memberIndex, PHASE_SALT) * duration;
-            double since = at - this.anchor;
-            double elapsed;
 
             if (this.rate <= 0F)
             {
-                /* One jump, and the phase only keeps the crowd from leaving the ground in
-                 * perfect unison. */
-                elapsed = since - phase;
-            }
-            else
-            {
-                /* The gap is the standing about between jumps, so rate 1 leaves none of it and a
-                 * member is back up the tick after it lands. */
-                double gap = MAX_GAP * (1D - this.rate) / this.rate;
-                double period = duration + Math.min(gap, MAX_GAP);
+                /* One jump each, spread over a few ticks so the crowd does not leave the ground
+                 * in perfect unison. */
+                double spread = 1D + randomFor(this.replayHash, memberIndex, ROLL_SALT) * 5D;
 
-                elapsed = Math.floorMod((long) Math.floor(since + phase), (long) Math.max(1D, period));
+                return (int) this.tick == (int) (this.anchor + spread);
             }
 
-            if (elapsed < 0D || elapsed >= duration)
-            {
-                return 0D;
-            }
+            /* Otherwise a chance each tick they are stood on the ground. Cubed so the low end is
+             * an occasional hop rather than a near-constant one, while 1 stays exactly 1 - back
+             * up the tick after landing. */
+            double chance = this.rate * this.rate * this.rate;
 
-            double progress = elapsed / duration;
-            double wave = Math.sin(Math.PI * progress);
-
-            /* sin squared has zero vertical velocity at take-off and landing, so a member settles
-             * onto the ground rather than arriving at it still moving. */
-            return HEIGHT * scale * wave * wave;
+            return chance >= 1D || randomFor(this.replayHash, memberIndex, (int) this.tick) < chance;
         }
     }
 

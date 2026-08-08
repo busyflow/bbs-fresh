@@ -13,10 +13,8 @@ import net.minecraft.util.math.MathHelper;
  */
 public class CrowdJump
 {
-    /** Ticks one jump takes at the standard size. */
-    public static final int DURATION = 12;
-
-    public static final double HEIGHT = 0.9D;
+    /** Roughly how long a vanilla jump keeps a mob off the ground, for reading the old rate. */
+    private static final int DURATION = 12;
 
     /**
      * The share of the crowd that jumps at all, as a fraction.
@@ -35,10 +33,12 @@ public class CrowdJump
     public float rate = 0.5F;
 
     /**
-     * Vary each member's jump height and how long it takes.
+     * Vary how high each member jumps.
      *
-     * <p>Off, everyone jumps the same height at the same speed. They are already out of step with
-     * each other, but identical arcs read as a mechanism rather than a crowd.</p>
+     * <p>Off, every jump is the vanilla one and they all reach the same height. On, a member's
+     * push off the ground is scaled a little either way, so the crowd is not one shape repeating.
+     * The jump is still real either way - the scale goes into the velocity, not into a height
+     * anyone is placed at.</p>
      */
     public boolean random = true;
 

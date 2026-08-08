@@ -20,6 +20,7 @@ import mchorse.bbs_mod.settings.values.core.ValueColor;
 import mchorse.bbs_mod.settings.values.core.ValueLink;
 import mchorse.bbs_mod.utils.colors.Color;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.world.Heightmap;
 import net.minecraft.world.chunk.ChunkStatus;
@@ -86,9 +87,8 @@ public class CrowdKeyframeRuntime
                 continue;
             }
 
-            boolean placed = applyWalk(world, film, replay, crowd, members, tick);
-
-            applyJump(replay, members, tick, placed);
+            applyWalk(world, film, replay, crowd, members, tick);
+            applyJump(replay, members, tick);
             applyLook(film, replay, members, tick);
             applyTexture(replay, members, tick);
             applyColor(replay, members, tick);
@@ -146,14 +146,20 @@ public class CrowdKeyframeRuntime
                 position[1] = groundY(world, position[0], position[2], position[1]);
             }
 
+            /* A member in the air is in the middle of a jump, and the jump is real - so the
+             * route drives where it is going along the ground and gravity is left to own the
+             * height. Writing the route's ground height in every tick would flatten the jump the
+             * moment it left the floor. */
+            boolean airborne = !member.isOnGround();
+            double y = airborne ? member.getY() : position[1];
             double dx = position[0] - member.getX();
-            double dy = position[1] - member.getY();
+            double dy = airborne ? member.getVelocity().y : position[1] - member.getY();
             double dz = position[2] - member.getZ();
 
             /* setPos lets the normal entity tracker interpolate the short per-tick steps. A
              * teleport-style refresh here is both visibly harsh and can create fall damage
              * after the entity briefly believes it has travelled vertically. */
-            member.setPos(position[0], position[1], position[2]);
+            member.setPos(position[0], y, position[2]);
 
             /* Velocity is reported, not applied - the position above is already the whole
              * answer. It is what the client extrapolates from between the tracker's updates,
@@ -163,7 +169,6 @@ public class CrowdKeyframeRuntime
             member.setVelocity(dx, dy, dz);
             member.velocityDirty = true;
             member.fallDistance = 0F;
-            member.setOnGround(true);
 
             /* Facing follows travel unless a look keyframe overrides it below, so a walking
              * crowd does not moonwalk to its destination.
@@ -283,40 +288,54 @@ public class CrowdKeyframeRuntime
     }
 
     /**
-     * Lift the jumping part of the crowd off the ground.
+     * Make the jumping part of the crowd jump, the way the behaviour clip always has.
      *
-     * <p>Lifted rather than launched: the arc is authored, so handing it to the physics as an
-     * impulse would land members at heights the keyframes never asked for.</p>
-     *
-     * <p>{@code placed} says whether the walk has already put these members down at their ground
-     * position this tick. When it has, the height is simply added to it. When it has not - a
-     * crowd with jump keyframes and no walk keyframes - there is no ground position to add to,
-     * only wherever the member was left last tick, which already has last tick's jump in it. So
-     * what is applied is the change since then. Adding the full height to that was the crowd
-     * climbing away into the sky, one jump's worth per tick, and never coming down.</p>
+     * <p>A real jump: upward velocity, and gravity to bring it back. The previous attempt placed
+     * members along an arc of its own, which meant owning their vertical position outright - and
+     * an authored height that disagrees with the floor by any amount puts them through it. Left
+     * to the physics, a member lands on whatever is under it.</p>
      */
-    private static void applyJump(Replay replay, List<LivingEntity> members, int tick, boolean placed)
+    private static void applyJump(Replay replay, List<LivingEntity> members, int tick)
     {
         CrowdJumpEvaluator.Frame frame = CrowdJumpEvaluator.frame(replay, tick);
 
-        if (frame == null || !frame.hasPotential())
+        if (frame == null)
         {
             return;
         }
 
         for (LivingEntity member : members)
         {
-            int index = CrowdUtils.entityIndex(member);
-            double height = frame.height(index);
-            double offset = placed ? height : height - frame.previousHeight(index);
-
-            if (offset != 0D)
+            /* Already in the air, or swimming, is not a place to jump from. */
+            if (!member.isOnGround() || member.isTouchingWater())
             {
-                member.setPos(member.getX(), member.getY() + offset, member.getZ());
-                member.fallDistance = 0F;
-                member.setOnGround(height <= 0D);
+                continue;
+            }
+
+            int index = CrowdUtils.entityIndex(member);
+
+            if (frame.jumps(index))
+            {
+                jump(member, frame.power(index));
             }
         }
+    }
+
+    private static void jump(LivingEntity entity, double power)
+    {
+        Vec3d velocity = entity.getVelocity();
+
+        if (entity instanceof MobEntity mob && power == 1D)
+        {
+            mob.getJumpControl().setActive();
+            mob.setJumping(true);
+
+            return;
+        }
+
+        entity.setVelocity(velocity.x, Math.max(velocity.y, 0.42D * power), velocity.z);
+        entity.velocityModified = true;
+        entity.setJumping(true);
     }
 
     private static void applyLook(Film film, Replay replay, List<LivingEntity> members, int tick)
