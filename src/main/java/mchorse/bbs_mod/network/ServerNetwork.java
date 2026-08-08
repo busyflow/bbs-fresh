@@ -76,6 +76,7 @@ public class ServerNetwork
     public static final Identifier CLIENT_REFRESH_MODEL_BLOCKS = new Identifier(BBSMod.MOD_ID, "c17");
     public static final Identifier CLIENT_REQUEST_FILM_RESYNC = new Identifier(BBSMod.MOD_ID, "c18");
     public static final Identifier CLIENT_CROWD_MEMBERS = new Identifier(BBSMod.MOD_ID, "c19");
+    public static final Identifier CLIENT_CROWD_PRELOAD_READY = new Identifier(BBSMod.MOD_ID, "c20");
 
     public static final Identifier SERVER_MODEL_BLOCK_FORM_PACKET = new Identifier(BBSMod.MOD_ID, "s1");
     public static final Identifier SERVER_MODEL_BLOCK_TRANSFORMS_PACKET = new Identifier(BBSMod.MOD_ID, "s2");
@@ -432,6 +433,15 @@ public class ServerNetwork
                 }
 
                 sendStopFilm(player, filmId);
+
+                /* RESTART leaves the editor's server player paused. During an export, prepare
+                 * just the crowd now so its expensive full-size spawn runs inside the configured
+                 * delay rather than on the first captured tick. sendStopFilm must come first: it
+                 * clears the client's old crowd ids before the preload announces the new ones. */
+                if (actionPlayer != null)
+                {
+                    actionPlayer.preloadCrowdsForExport();
+                }
             }
             else if (state == ActionState.STOP)
             {
@@ -732,7 +742,7 @@ public class ServerNetwork
 
             if (film != null)
             {
-                BBSMod.getActions().play(player, world, film, 0);
+                ActionPlayer actionPlayer = BBSMod.getActions().play(player, world, film, 0);
 
                 BaseType data = film.toData();
 
@@ -741,6 +751,13 @@ public class ServerNetwork
                     packetByteBuf.writeString(filmId);
                     packetByteBuf.writeBoolean(withCamera);
                 });
+
+                /* Spawn the crowd right now during an export, so its cost lands inside the
+                 * configured export delay instead of the first recorded frames. */
+                if (actionPlayer != null)
+                {
+                    actionPlayer.preloadCrowdsForExport();
+                }
             }
         }
         catch (Exception e)
@@ -757,13 +774,18 @@ public class ServerNetwork
 
             if (film != null)
             {
-                BBSMod.getActions().play(player, player.getServerWorld(), film, 0);
+                ActionPlayer actionPlayer = BBSMod.getActions().play(player, player.getServerWorld(), film, 0);
 
                 crusher.send(player, CLIENT_PLAY_FILM_PACKET, film.toData(), (packetByteBuf) ->
                 {
                     packetByteBuf.writeString(filmId);
                     packetByteBuf.writeBoolean(withCamera);
                 });
+
+                if (actionPlayer != null)
+                {
+                    actionPlayer.preloadCrowdsForExport();
+                }
             }
         }
         catch (Exception e)
@@ -903,6 +925,15 @@ public class ServerNetwork
 
             ServerPlayNetworking.send(player, CLIENT_CROWD_MEMBERS, buf);
         }
+    }
+
+    /** Tell the exporting client that every initial crowd member has been spawned and announced. */
+    public static void sendCrowdPreloadReady(ServerPlayerEntity player, String filmId)
+    {
+        PacketByteBuf buf = PacketByteBufs.create();
+
+        buf.writeString(filmId);
+        ServerPlayNetworking.send(player, CLIENT_CROWD_PRELOAD_READY, buf);
     }
 
     public static void sendGunProperties(ServerPlayerEntity player, GunProjectileEntity projectile)
