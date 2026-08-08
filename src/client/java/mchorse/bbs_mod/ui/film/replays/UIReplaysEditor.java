@@ -1261,10 +1261,13 @@ public class UIReplaysEditor extends UIElement
     }
 
     /**
-     * The crowd panel shares the parameters area with the keyframe editor, which only puts
-     * anything there while a keyframe is selected. So the crowd's settings fill the space the
-     * rest of the time and step aside the moment a keyframe is being edited, rather than
-     * covering it.
+     * The crowd panel fills the parameters area for as long as a crowd replay is selected.
+     *
+     * <p>It shares that area with the keyframe editor and the action clip editor, but both of
+     * those only put something there while one of their own is selected - a keyframe, a clip.
+     * So the rule is simply "whenever nothing else is using it", which holds in both timeline
+     * modes; tying it to the keyframe mode instead left the area blank whenever the actions
+     * timeline was up, which is most of the time while a crowd is being built.</p>
      */
     private void updateCrowdPropertiesVisibility()
     {
@@ -1273,9 +1276,11 @@ public class UIReplaysEditor extends UIElement
             return;
         }
 
-        boolean editingKeyframe = !this.actionsMode && this.keyframeEditor != null && this.keyframeEditor.editor != null;
+        boolean occupied = this.actionsMode
+            ? this.actionTimeline != null && this.actionTimeline.getClip() != null
+            : this.keyframeEditor != null && this.keyframeEditor.editor != null;
 
-        this.crowdProperties.setVisible(this.propertiesVisible && this.crowdIsShown && !this.actionsMode && !editingKeyframe);
+        this.crowdProperties.setVisible(this.propertiesVisible && this.crowdIsShown && !occupied);
     }
 
     private boolean isShowingAllReplayTracks()
