@@ -37,6 +37,7 @@ import mchorse.bbs_mod.ui.UIKeys;
 import mchorse.bbs_mod.ui.dashboard.panels.UIDashboardPanels;
 import mchorse.bbs_mod.ui.film.UIClipsPanel;
 import mchorse.bbs_mod.ui.film.UIFilmPanel;
+import mchorse.bbs_mod.ui.film.crowds.UICrowdReplayProperties;
 import mchorse.bbs_mod.ui.film.replays.overlays.UIAnimationToPoseOverlayPanel;
 import mchorse.bbs_mod.ui.film.replays.overlays.UIKeyframeSheetFilterOverlayPanel;
 import mchorse.bbs_mod.ui.film.utils.keyframes.UIFilmKeyframes;
@@ -121,6 +122,14 @@ public class UIReplaysEditor extends UIElement
     private Pair<Form, String> pendingPick;
     private boolean timelineVisible = true;
     private boolean propertiesVisible = true;
+
+    /**
+     * The crowd panel that shares the parameters area, shown only for a crowd replay.
+     *
+     * <p>Created lazily and parented to the film panel's parameters dock the same way the
+     * keyframe and action editors are, so it lands where clip parameters land.</p>
+     */
+    private UICrowdReplayProperties crowdProperties;
     private Set<String> keys = new LinkedHashSet<>();
     private final Map<String, Set<String>> expandedPoseTabsByReplay = new HashMap<>();
 
@@ -587,6 +596,7 @@ public class UIReplaysEditor extends UIElement
             }
 
             this.replayProperties.setReplay(replay);
+            this.updateCrowdProperties(replay);
             this.filmPanel.actionEditor.setClips(replay == null ? null : replay.actions);
             this.updateChannelsList();
 
@@ -1246,6 +1256,26 @@ public class UIReplaysEditor extends UIElement
             this.actionTimeline.setTimelineVisible(this.timelineVisible && this.actionsMode);
             this.actionTimeline.setPropertiesVisible(this.propertiesVisible && this.actionsMode);
         }
+
+        this.updateCrowdPropertiesVisibility();
+    }
+
+    /**
+     * The crowd panel shares the parameters area with the keyframe editor, which only puts
+     * anything there while a keyframe is selected. So the crowd's settings fill the space the
+     * rest of the time and step aside the moment a keyframe is being edited, rather than
+     * covering it.
+     */
+    private void updateCrowdPropertiesVisibility()
+    {
+        if (this.crowdProperties == null)
+        {
+            return;
+        }
+
+        boolean editingKeyframe = !this.actionsMode && this.keyframeEditor != null && this.keyframeEditor.editor != null;
+
+        this.crowdProperties.setVisible(this.propertiesVisible && this.crowdIsShown && !this.actionsMode && !editingKeyframe);
     }
 
     private boolean isShowingAllReplayTracks()
@@ -1254,6 +1284,28 @@ public class UIReplaysEditor extends UIElement
     }
 
     /** The all-tracks preference reclaims the narrow category rail for the active timeline. */
+    /**
+     * Give the parameters area the crowd panel when this replay is a crowd, and take it away
+     * again when it is not.
+     *
+     * <p>Built on first need rather than up front, because the film panel it parents into is
+     * still being assembled when this editor is constructed.</p>
+     */
+    private void updateCrowdProperties(Replay replay)
+    {
+        if (this.crowdProperties == null)
+        {
+            this.crowdProperties = new UICrowdReplayProperties(() -> this.filmPanel.getUndoHandler().getUndoManager().markLastUndoNoMerging());
+            this.crowdProperties.relative(this.filmPanel.editArea).full(this.filmPanel.editArea);
+            this.filmPanel.editArea.add(this.crowdProperties);
+        }
+
+        this.crowdIsShown = this.crowdProperties.setReplay(replay);
+        this.updateTimelineModeVisibility();
+    }
+
+    private boolean crowdIsShown;
+
     private void layoutTimeline(UIElement timeline)
     {
         int inset = this.isShowingAllReplayTracks() ? 0 : CATEGORY_BAR_WIDTH;
@@ -1496,6 +1548,11 @@ public class UIReplaysEditor extends UIElement
     @Override
     public void render(UIContext context)
     {
+        /* Per frame, because what decides it - whether a keyframe is currently selected - is not
+         * something that announces itself, and a stale answer here means the crowd's settings
+         * sitting on top of the keyframe editor. It is two field reads. */
+        this.updateCrowdPropertiesVisibility();
+
         boolean allTracks = this.isShowingAllReplayTracks();
 
         if (this.lastShowAllReplayTracks != allTracks)
