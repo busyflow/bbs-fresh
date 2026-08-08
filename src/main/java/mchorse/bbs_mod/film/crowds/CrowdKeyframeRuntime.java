@@ -109,6 +109,12 @@ public class CrowdKeyframeRuntime
         double spacing = crowd.spacing.get();
         double[] position = new double[3];
 
+        /* Spread pushes members away from the middle of their own arrangement, so the middle has
+         * to be worked out rather than assumed to be the origin. A painted crowd stands at world
+         * coordinates; spreading those about the origin is what threw members a hundred blocks
+         * out and dragged them back as the walk finished. */
+        Vec3d centre = crowdCentre(crowd, paint, formation, anchor, count, spacing);
+
         for (LivingEntity member : members)
         {
             int index = CrowdUtils.entityIndex(member);
@@ -122,7 +128,8 @@ public class CrowdKeyframeRuntime
             /* The local formation position is immutable for this playback. Feeding the current
              * entity position back in here made every frame's offset become the next frame's
              * starting offset, which compounded into launches across the map. */
-            CrowdWalkEvaluator.memberPosition(frame, index, base.x, base.y, base.z, position);
+            CrowdWalkEvaluator.memberPosition(frame, index, base.x, base.y, base.z,
+                centre.x, centre.y, centre.z, position);
 
             if (frame.path().terrainFollow)
             {
@@ -130,13 +137,21 @@ public class CrowdKeyframeRuntime
             }
 
             double dx = position[0] - member.getX();
+            double dy = position[1] - member.getY();
             double dz = position[2] - member.getZ();
 
             /* setPos lets the normal entity tracker interpolate the short per-tick steps. A
              * teleport-style refresh here is both visibly harsh and can create fall damage
              * after the entity briefly believes it has travelled vertically. */
             member.setPos(position[0], position[1], position[2]);
-            member.setVelocity(Vec3d.ZERO);
+
+            /* Velocity is reported, not applied - the position above is already the whole
+             * answer. It is what the client extrapolates from between the tracker's updates,
+             * which do not arrive every tick, and it is what the mob's own walk cycle reads to
+             * decide its legs are moving. Zeroing it left the crowd sliding in steps with their
+             * feet still. */
+            member.setVelocity(dx, dy, dz);
+            member.velocityDirty = true;
             member.fallDistance = 0F;
             member.setOnGround(true);
 
@@ -158,6 +173,46 @@ public class CrowdKeyframeRuntime
         Replay anchor = CrowdUtils.getReplay(film, crowd.anchor.get());
 
         return anchor == null ? Vec3d.ZERO : CrowdUtils.replayPosition(anchor, crowd.start.get());
+    }
+
+    /**
+     * The middle of the crowd's arrangement, for spread to push members away from.
+     *
+     * <p>A formation is built around its anchor, so that is the middle by construction. Painted
+     * ground has whatever shape it was painted, so its middle is the average of the places
+     * members actually stand - sampled rather than summed over every cell, since the count is
+     * routinely in the thousands and this is wanted every tick.</p>
+     */
+    private static Vec3d crowdCentre(Crowd crowd, CrowdPaintArea paint, CrowdFormation formation,
+        Vec3d anchor, int count, double spacing)
+    {
+        if (paint == null)
+        {
+            return anchor;
+        }
+
+        int samples = Math.min(count, 64);
+        double x = 0D;
+        double y = 0D;
+        double z = 0D;
+        int taken = 0;
+
+        for (int i = 0; i < samples; i++)
+        {
+            Vec3d point = paint.point((int) ((long) i * count / samples), count, 0);
+
+            if (point == null)
+            {
+                continue;
+            }
+
+            x += point.x;
+            y += point.y;
+            z += point.z;
+            taken += 1;
+        }
+
+        return taken == 0 ? anchor : new Vec3d(x / taken, y / taken, z / taken);
     }
 
     private static Vec3d memberBase(Crowd crowd, CrowdPaintArea paint, CrowdFormation formation,
