@@ -25,7 +25,6 @@ public class UICrowdWalkKeyframeFactory extends UIKeyframeFactory<CrowdWalk>
     private final UITrackpad x;
     private final UITrackpad y;
     private final UITrackpad z;
-    private final UITrackpad ease;
     private final UITrackpad stagger;
     private final UITrackpad spread;
     private final UIToggle run;
@@ -52,7 +51,6 @@ public class UICrowdWalkKeyframeFactory extends UIKeyframeFactory<CrowdWalk>
         this.x = trackpad(-10000D, 10000D, 0.25D, v -> this.edit(p -> p.x = v.floatValue()));
         this.y = trackpad(-10000D, 10000D, 0.25D, v -> this.edit(p -> p.y = v.floatValue()));
         this.z = trackpad(-10000D, 10000D, 0.25D, v -> this.edit(p -> p.z = v.floatValue()));
-        this.ease = trackpad(0D, 1D, 0.05D, v -> this.edit(p -> p.ease = v.floatValue()));
         this.stagger = trackpad(0D, 1D, 0.05D, v -> this.edit(p -> p.stagger = v.floatValue()));
         this.spread = trackpad(0D, 1D, 0.05D, v -> this.edit(p -> p.spread = v.floatValue()));
 
@@ -62,7 +60,6 @@ public class UICrowdWalkKeyframeFactory extends UIKeyframeFactory<CrowdWalk>
         this.showPath = new UIToggle(IKey.constant("Show walk path"), b -> this.edit(p -> p.showPath = b.getValue()));
         this.showPoint = new UIToggle(IKey.constant("Show timeline points"), b -> this.edit(p -> p.showPoint = b.getValue()));
 
-        this.ease.tooltip(IKey.constant("0 walks at one speed. 1 starts and stops from a standstill."));
         this.stagger.tooltip(IKey.constant("How ragged the crowd is about setting off.\n\n0 moves them as one block. 1 spreads them over about three ticks, so some are a step behind for the whole walk and arrive a step late."));
         this.spread.tooltip(IKey.constant("How much the formation loosens halfway. Exact shape at both ends."));
 
@@ -85,7 +82,6 @@ public class UICrowdWalkKeyframeFactory extends UIKeyframeFactory<CrowdWalk>
             UI.labelRow(IKey.constant("Position X"), this.x).marginTop(UIConstants.SECTION_GAP),
             UI.labelRow(IKey.constant("Position Y"), this.y),
             UI.labelRow(IKey.constant("Position Z"), this.z),
-            UI.labelRow(IKey.constant("Ease"), this.ease).marginTop(UIConstants.SECTION_GAP),
             UI.labelRow(IKey.constant("Stagger"), this.stagger),
             UI.labelRow(IKey.constant("Spread"), this.spread),
             this.faceTravel.marginTop(UIConstants.SECTION_GAP),
@@ -161,7 +157,6 @@ public class UICrowdWalkKeyframeFactory extends UIKeyframeFactory<CrowdWalk>
             this.x.setValue(point.x);
             this.y.setValue(point.y);
             this.z.setValue(point.z);
-            this.ease.setValue(point.ease);
             this.stagger.setValue(point.stagger);
             this.spread.setValue(point.spread);
             this.run.setValue(point.run);

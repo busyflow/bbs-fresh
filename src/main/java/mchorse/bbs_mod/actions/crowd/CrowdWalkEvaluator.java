@@ -82,53 +82,20 @@ public final class CrowdWalkEvaluator
     /**
      * Where the route is at a given tick.
      *
-     * <p>The shape of the curve is the channel's own, so each waypoint's interpolation setting -
-     * linear, the easings, bezier, auto - is what decides how the crowd gets from one to the
-     * next. This used to impose a curve of its own and ignore the setting entirely, which made
-     * the whole interpolation menu inert on this track.</p>
+     * <p>The curve is entirely the channel's own, so each waypoint's interpolation setting is
+     * what decides how the crowd gets to the next one, and linear means linear - constant speed,
+     * no rounding off at either end.</p>
      *
-     * <p>Ease is applied on top, as a warp of time rather than of the path, and only in the two
-     * segments that are really ends. A waypoint in the middle is somewhere the route passes
-     * through; starting and stopping at every one of them is what made a three-point walk read
-     * as three separate walks.</p>
+     * <p>There was a second easing here, a per-waypoint one that warped time on top of the
+     * interpolation. Two controls over the same thing, and the hidden one won: a waypoint set to
+     * linear still eased in and out, because the default of the knob nobody went looking for was
+     * 0.75. The interpolation menu already carries every easing worth having.</p>
      */
     private static Vec3d positionAt(KeyframeChannel<CrowdWalk> channel, float tick)
     {
-        CrowdWalk value = channel.interpolate(easedTick(channel.getKeyframes(), tick));
+        CrowdWalk value = channel.interpolate(tick);
 
         return value == null ? Vec3d.ZERO : value.position();
-    }
-
-    /** Bend time within the route's first and last segments, so it leaves and arrives at rest. */
-    private static float easedTick(List<Keyframe<CrowdWalk>> list, float tick)
-    {
-        int size = list.size();
-        int i = indexAt(list, tick);
-
-        if (i >= size - 1)
-        {
-            return tick;
-        }
-
-        boolean easeIn = i == 0;
-        boolean easeOut = i + 1 >= size - 1;
-
-        if (!easeIn && !easeOut)
-        {
-            return tick;
-        }
-
-        float startTick = list.get(i).getTick();
-        float span = list.get(i + 1).getTick() - startTick;
-
-        if (span <= 0F)
-        {
-            return tick;
-        }
-
-        float raw = MathHelper.clamp((tick - startTick) / span, 0F, 1F);
-
-        return startTick + shape(raw, value(list, i).ease, easeIn, easeOut) * span;
     }
 
     /** The keyframe the given tick sits on or after. */
@@ -296,45 +263,6 @@ public final class CrowdWalkEvaluator
         value ^= value >>> 16;
 
         return (value & 0x00ffffff) / 16777216D;
-    }
-
-    /**
-     * Blend between constant speed and one that starts or stops from a standstill.
-     *
-     * <p>Only the ends that are really ends are eased, and the one-sided curves leave the
-     * interior end at exactly the constant speed the next segment carries on at. An ease that
-     * arrives at the middle of a route going faster or slower than the rest of it shows up as a
-     * lurch at the waypoint, which is the thing this is meant to avoid.</p>
-     */
-    private static float shape(float t, float amount, boolean easeIn, boolean easeOut)
-    {
-        float clamped = MathHelper.clamp(t, 0F, 1F);
-        float strength = MathHelper.clamp(amount, 0F, 1F);
-
-        if (strength <= 0F || (!easeIn && !easeOut))
-        {
-            return clamped;
-        }
-
-        float shaped;
-
-        if (easeIn && easeOut)
-        {
-            shaped = clamped * clamped * clamped * (clamped * (clamped * 6F - 15F) + 10F);
-        }
-        else if (easeIn)
-        {
-            /* Zero speed at 0, exactly constant speed at 1. */
-            shaped = clamped * clamped * (2F - clamped);
-        }
-        else
-        {
-            float inverse = 1F - clamped;
-
-            shaped = 1F - inverse * inverse * (2F - inverse);
-        }
-
-        return MathHelper.lerp(strength, clamped, shaped);
     }
 
     public static Vec3d replayOrigin(Replay replay, float filmTick)

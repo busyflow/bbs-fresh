@@ -10,21 +10,17 @@ import net.minecraft.util.math.Vec3d;
  * to the next keyframe's waypoint over the ticks between them, so speed is authored by moving
  * keyframes on the timeline rather than by typing a number.
  *
- * <p>A waypoint carries only what changes how the crowd gets there: how sharply it accelerates
- * and stops, how much members leave at different moments, and how far the formation is allowed
- * to loosen on the way. Everything else about the crowd's shape stays on the form.</p>
+ * <p>A waypoint carries only what changes how the crowd gets there: how ragged it is about
+ * setting off, and how far the formation is allowed to loosen on the way. How the crowd
+ * accelerates is the keyframe's own interpolation, not a setting here - there used to be one,
+ * and having two controls over the same thing meant the one nobody could see overrode the one
+ * they had picked. Everything else about the crowd's shape stays on the form.</p>
  */
 public class CrowdWalk
 {
     public float x;
     public float y;
     public float z;
-
-    /**
-     * 0 marches at a constant speed the whole way. 1 eases in and out, so the crowd starts
-     * and stops from a standstill instead of snapping to full pace.
-     */
-    public float ease = 0.75F;
 
     /**
      * How ragged the crowd is about setting off, over a few ticks at most. 0 moves them as one
@@ -56,7 +52,6 @@ public class CrowdWalk
         point.x = this.x;
         point.y = this.y;
         point.z = this.z;
-        point.ease = this.ease;
         point.stagger = this.stagger;
         point.spread = this.spread;
         point.run = this.run;
@@ -80,7 +75,6 @@ public class CrowdWalk
         data.putFloat("x", this.x);
         data.putFloat("y", this.y);
         data.putFloat("z", this.z);
-        data.putFloat("ease", this.ease);
         data.putFloat("stagger", this.stagger);
         data.putFloat("spread", this.spread);
         data.putBool("run", this.run);
@@ -106,7 +100,6 @@ public class CrowdWalk
         point.x = finite(map.getFloat("x"), 0F, -1_000_000F, 1_000_000F);
         point.y = finite(map.getFloat("y"), 0F, -1_000_000F, 1_000_000F);
         point.z = finite(map.getFloat("z"), 0F, -1_000_000F, 1_000_000F);
-        point.ease = finite(map.getFloat("ease", 0.75F), 0.75F, 0F, 1F);
         point.stagger = finite(map.getFloat("stagger", 0.3F), 0.3F, 0F, 1F);
         point.spread = finite(map.getFloat("spread", 0.2F), 0.2F, 0F, 1F);
         point.run = map.getBool("run", false);
