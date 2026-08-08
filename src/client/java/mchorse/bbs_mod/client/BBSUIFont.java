@@ -1,6 +1,7 @@
 package mchorse.bbs_mod.client;
 
 import mchorse.bbs_mod.BBSMod;
+import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.utils.MathUtils;
 import net.minecraft.client.MinecraftClient;
@@ -37,25 +38,22 @@ public class BBSUIFont
     private static final Identifier ID = new Identifier("bbs", "ui_font");
 
     /**
-     * The line box BBS lays out on, which the game reports as 9 pixels whatever font is in it.
-     * Scale multiplies this, so 1 is the size the interface was designed around.
-     */
-    private static final float BASE_SIZE = 9F;
-
-    /**
-     * How much bigger than its drawn size each glyph is rasterised.
+     * The em size a scale of 1 asks the font for.
      *
-     * <p>Four, where the game normally uses one or two. At interface sizes a glyph is only a few
-     * pixels tall and the difference between a legible letter and a smudge is entirely in this
-     * number, and the cost is a one-off larger atlas rather than anything per frame.</p>
+     * <p>Ten rather than the nine pixels BBS lays a line out in, because those are not the same
+     * measurement. Nine is the whole line, ascender and descender included; the game's own font
+     * puts a capital letter seven pixels tall inside it. A typeface asked for nine draws its
+     * capitals around six, which is a noticeably smaller and thinner word in the same space -
+     * legible, but working against the reader. Ten puts the capitals back at seven.</p>
      */
-    private static final float OVERSAMPLE = 4F;
+    private static final float BASE_SIZE = 10F;
 
     private static TextRenderer renderer;
     private static FontStorage storage;
 
-    /** What the current renderer was built for, so a settings change is noticed and nothing else is. */
+    /** What the current renderer was built for, so a change is noticed and nothing else is. */
     private static float builtScale = -1F;
+    private static float builtOversample = -1F;
     private static boolean triedAndFailed;
 
     private BBSUIFont()
@@ -79,25 +77,45 @@ public class BBSUIFont
         }
 
         float scale = (float) MathUtils.clamp(BBSSettings.uiFontScale.get(), 0.5D, 4D);
+        float oversample = oversample();
 
-        if (renderer == null || builtScale != scale)
+        if (renderer == null || builtScale != scale || builtOversample != oversample)
         {
-            if (triedAndFailed && builtScale == scale)
+            if (triedAndFailed && builtScale == scale && builtOversample == oversample)
             {
                 return vanilla;
             }
 
-            build(scale);
+            build(scale, oversample);
         }
 
         return renderer == null ? vanilla : renderer;
     }
 
-    private static void build(float scale)
+    /**
+     * How many real pixels the interface gets for each of the pixels it is laid out in.
+     *
+     * <p>This is what decides whether the text is sharp, and getting it wrong is what made the
+     * first attempt at this font worse than the game's own. A glyph is rasterised at the drawn
+     * size times this, and the atlas is sampled without any filtering - so at anything other than
+     * the interface's real scale, the drawing is picking some texels and dropping others. Four
+     * looked like the safe high-quality answer and was throwing away three pixels in every four.</p>
+     *
+     * <p>At the real scale each texel is one pixel on the screen, which is the whole of the
+     * difference: the letters are rendered at the resolution they are actually shown at, the same
+     * way everything outside the game is.</p>
+     */
+    private static float oversample()
+    {
+        return (float) MathUtils.clamp(BBSModClient.getGUIScale(), 1D, 8D);
+    }
+
+    private static void build(float scale, float oversample)
     {
         close();
 
         builtScale = scale;
+        builtOversample = oversample;
         triedAndFailed = true;
 
         File file = getFontFile();
@@ -130,7 +148,7 @@ public class BBSUIFont
                 return;
             }
 
-            TrueTypeFont font = new TrueTypeFont(buffer, info, BASE_SIZE * scale, OVERSAMPLE, 0F, 0F, "");
+            TrueTypeFont font = new TrueTypeFont(buffer, info, BASE_SIZE * scale, oversample, 0F, 0F, "");
 
             storage = new FontStorage(MinecraftClient.getInstance().getTextureManager(), ID);
             storage.setFonts(List.of(font));
