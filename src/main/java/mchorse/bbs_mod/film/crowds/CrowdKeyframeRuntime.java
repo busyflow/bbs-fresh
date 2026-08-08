@@ -20,7 +20,6 @@ import mchorse.bbs_mod.settings.values.core.ValueColor;
 import mchorse.bbs_mod.settings.values.core.ValueLink;
 import mchorse.bbs_mod.utils.colors.Color;
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.world.Heightmap;
 import net.minecraft.world.chunk.ChunkStatus;
@@ -53,6 +52,12 @@ public class CrowdKeyframeRuntime
      * crowd can do, and that is what setting the yaw outright looked like.</p>
      */
     private static final float TURN_DEGREES_PER_TICK = 18F;
+
+    /** Far enough off the floor to count as jumping rather than as rounding. */
+    private static final double AIRBORNE_EPSILON = 0.08D;
+
+    /** Vanilla jump strength, so a crowd jumps the height everything else in the world does. */
+    private static final double JUMP_VELOCITY = 0.42D;
 
     private CrowdKeyframeRuntime()
     {}
@@ -88,7 +93,7 @@ public class CrowdKeyframeRuntime
             }
 
             applyWalk(world, film, replay, crowd, members, tick);
-            applyJump(replay, members, tick);
+            applyJump(world, replay, members, tick);
             applyLook(film, replay, members, tick);
             applyTexture(replay, members, tick);
             applyColor(replay, members, tick);
@@ -146,11 +151,15 @@ public class CrowdKeyframeRuntime
                 position[1] = groundY(world, position[0], position[2], position[1]);
             }
 
-            /* A member in the air is in the middle of a jump, and the jump is real - so the
+            /* A member above the height the route puts it at is in the middle of a jump, so the
              * route drives where it is going along the ground and gravity is left to own the
              * height. Writing the route's ground height in every tick would flatten the jump the
-             * moment it left the floor. */
-            boolean airborne = !member.isOnGround();
+             * moment it left the floor.
+             *
+             * Measured against the route rather than read off isOnGround, because setPos below
+             * goes around the movement code that maintains that flag - so it says whatever it
+             * last said, which after a tick of this is nothing useful. */
+            boolean airborne = member.getY() > position[1] + AIRBORNE_EPSILON;
             double y = airborne ? member.getY() : position[1];
             double dx = position[0] - member.getX();
             double dy = airborne ? member.getVelocity().y : position[1] - member.getY();
@@ -169,6 +178,7 @@ public class CrowdKeyframeRuntime
             member.setVelocity(dx, dy, dz);
             member.velocityDirty = true;
             member.fallDistance = 0F;
+            member.setOnGround(!airborne);
 
             /* Facing follows travel unless a look keyframe overrides it below, so a walking
              * crowd does not moonwalk to its destination.
@@ -295,7 +305,7 @@ public class CrowdKeyframeRuntime
      * an authored height that disagrees with the floor by any amount puts them through it. Left
      * to the physics, a member lands on whatever is under it.</p>
      */
-    private static void applyJump(Replay replay, List<LivingEntity> members, int tick)
+    private static void applyJump(ServerWorld world, Replay replay, List<LivingEntity> members, int tick)
     {
         CrowdJumpEvaluator.Frame frame = CrowdJumpEvaluator.frame(replay, tick);
 
@@ -306,8 +316,18 @@ public class CrowdKeyframeRuntime
 
         for (LivingEntity member : members)
         {
-            /* Already in the air, or swimming, is not a place to jump from. */
-            if (!member.isOnGround() || member.isTouchingWater())
+            if (member.isTouchingWater())
+            {
+                continue;
+            }
+
+            /* Standing on the ground is measured, not asked for. A walked crowd is placed with
+             * setPos, which goes around the movement code that maintains isOnGround - so the
+             * flag reads false forever and every member was skipped here, which is a crowd that
+             * never jumps at all. */
+            double ground = groundY(world, member.getX(), member.getZ(), member.getY());
+
+            if (member.getY() > ground + AIRBORNE_EPSILON)
             {
                 continue;
             }
@@ -321,20 +341,21 @@ public class CrowdKeyframeRuntime
         }
     }
 
+    /**
+     * Push a member off the ground and let gravity have it back.
+     *
+     * <p>Done by velocity rather than through the mob's jump control, which only acts when the
+     * mob's AI is ticking - and a crowd with No mob AI on has none, so that route would jump
+     * some crowds and not others for a reason nobody could see from the outside.</p>
+     */
     private static void jump(LivingEntity entity, double power)
     {
         Vec3d velocity = entity.getVelocity();
 
-        if (entity instanceof MobEntity mob && power == 1D)
-        {
-            mob.getJumpControl().setActive();
-            mob.setJumping(true);
-
-            return;
-        }
-
-        entity.setVelocity(velocity.x, Math.max(velocity.y, 0.42D * power), velocity.z);
+        entity.setVelocity(velocity.x, Math.max(velocity.y, JUMP_VELOCITY * power), velocity.z);
         entity.velocityModified = true;
+        entity.velocityDirty = true;
+        entity.setOnGround(false);
         entity.setJumping(true);
     }
 
