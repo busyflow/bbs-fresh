@@ -11,6 +11,7 @@ import mchorse.bbs_mod.utils.clips.ClipContext;
 import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.utils.keyframes.Keyframe;
 import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
+import mchorse.bbs_mod.utils.keyframes.factories.IKeyframeFactory;
 import mchorse.bbs_mod.utils.keyframes.factories.KeyframeFactories;
 
 import java.util.HashMap;
@@ -66,11 +67,36 @@ public class CurveClip extends CameraClip
     {
         this.add(this.channels);
 
-        this.channels.addChannel(SUN_TIME);
-        this.channels.addChannel(SUN_DIRECTION);
-        this.channels.addChannel(WEATHER_STATE);
-        this.channels.addChannel(CHROMA_SKY);
-        this.channels.addChannel(CHROMA_SKY_COLOR, KeyframeFactories.COLOR);
+        this.addDefaultChannels();
+    }
+
+    /**
+     * Put the world's own controls on the clip, whichever ones are not on it already.
+     *
+     * <p>Run again after loading, because reading the channels in clears them first and rebuilds
+     * only what was written - so a film saved before these existed would come back with the one
+     * track it had and no sign of the rest, which is exactly what it did.</p>
+     */
+    private void addDefaultChannels()
+    {
+        this.addDefaultChannel(SUN_TIME, KeyframeFactories.DOUBLE);
+        this.addDefaultChannel(SUN_DIRECTION, KeyframeFactories.DOUBLE);
+        this.addDefaultChannel(WEATHER_STATE, KeyframeFactories.DOUBLE);
+        this.addDefaultChannel(CHROMA_SKY, KeyframeFactories.DOUBLE);
+        this.addDefaultChannel(CHROMA_SKY_COLOR, KeyframeFactories.COLOR);
+    }
+
+    private <T> void addDefaultChannel(String id, IKeyframeFactory<T> factory)
+    {
+        for (KeyframeChannel<?> channel : this.channels.getAllKeyframeChannels())
+        {
+            if (id.equals(channel.getId()))
+            {
+                return;
+            }
+        }
+
+        this.channels.addChannel(id, factory);
     }
 
     @Override
@@ -129,6 +155,7 @@ public class CurveClip extends CameraClip
 
         super.fromData(data);
 
+        this.addDefaultChannels();
         this.migrateSunTime();
     }
 

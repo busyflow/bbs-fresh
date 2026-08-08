@@ -92,8 +92,16 @@ public class CrowdKeyframeRuntime
                 continue;
             }
 
-            applyWalk(world, film, replay, crowd, members, tick);
-            applyJump(world, replay, members, tick);
+            /* The route places members outright, so a jump has to be part of that placement
+             * rather than a push applied afterwards - a push is undone by the next tick's
+             * placement, and anything that survives it does so by fighting the route. Only a
+             * crowd with no route left to fight gets a real jump. */
+            boolean walked = applyWalk(world, film, replay, crowd, members, tick);
+
+            if (!walked)
+            {
+                applyJump(world, replay, members, tick);
+            }
             applyLook(film, replay, members, tick);
             applyTexture(replay, members, tick);
             applyColor(replay, members, tick);
@@ -129,6 +137,7 @@ public class CrowdKeyframeRuntime
          * coordinates; spreading those about the origin is what threw members a hundred blocks
          * out and dragged them back as the walk finished. */
         Vec3d centre = crowdCentre(crowd, paint, formation, anchor, count, spacing);
+        CrowdJumpEvaluator.Frame jump = CrowdJumpEvaluator.frame(replay, tick);
 
         for (LivingEntity member : members)
         {
@@ -151,34 +160,41 @@ public class CrowdKeyframeRuntime
                 position[1] = groundY(world, position[0], position[2], position[1]);
             }
 
-            /* A member above the height the route puts it at is in the middle of a jump, so the
-             * route drives where it is going along the ground and gravity is left to own the
-             * height. Writing the route's ground height in every tick would flatten the jump the
-             * moment it left the floor.
-             *
-             * Measured against the route rather than read off isOnGround, because setPos below
-             * goes around the movement code that maintains that flag - so it says whatever it
-             * last said, which after a tick of this is nothing useful. */
-            boolean airborne = member.getY() > position[1] + AIRBORNE_EPSILON;
-            double y = airborne ? member.getY() : position[1];
-            double dx = position[0] - member.getX();
-            double dy = airborne ? member.getVelocity().y : position[1] - member.getY();
-            double dz = position[2] - member.getZ();
+            /* Jumping while walking is a lift off the route's own ground height, worked out from
+             * the tick rather than from where the member is. Handing the jump to the physics
+             * cannot work while the route is writing the position every tick, and adding a height
+             * to the member's current height is how a crowd climbs into the sky. */
+            if (jump != null)
+            {
+                position[1] += jump.walkingHeight(index);
+            }
+
+            /* A route that has produced a number that is not a number places nobody. Interpolation
+             * with degenerate handles can do it, and a NaN reaching setPos does not misplace an
+             * entity so much as remove it from the world. */
+            if (!Double.isFinite(position[0]) || !Double.isFinite(position[1]) || !Double.isFinite(position[2]))
+            {
+                continue;
+            }
 
             /* setPos lets the normal entity tracker interpolate the short per-tick steps. A
              * teleport-style refresh here is both visibly harsh and can create fall damage
              * after the entity briefly believes it has travelled vertically. */
-            member.setPos(position[0], y, position[2]);
+            member.setPos(position[0], position[1], position[2]);
 
-            /* Velocity is reported, not applied - the position above is already the whole
-             * answer. It is what the client extrapolates from between the tracker's updates,
-             * which do not arrive every tick, and it is what the mob's own walk cycle reads to
-             * decide its legs are moving. Zeroing it left the crowd sliding in steps with their
-             * feet still. */
-            member.setVelocity(dx, dy, dz);
+            /* Nothing left in the velocity. It is tempting to report the step here so the client
+             * has something to extrapolate from, and that is exactly what threw the crowd into
+             * the sky: velocity is not a report, the entity's own movement tick applies it. The
+             * step got walked twice, the second one lifted the member off the route, and the
+             * route - which decided whether it was airborne by comparing heights - then read
+             * that as a jump and stopped correcting the height at all.
+             *
+             * The route is the whole answer while it is driving, so nothing else may move a
+             * member and nothing about where it should be is read back off where it is. */
+            member.setVelocity(Vec3d.ZERO);
             member.velocityDirty = true;
             member.fallDistance = 0F;
-            member.setOnGround(!airborne);
+            member.setOnGround(true);
 
             /* Facing follows travel unless a look keyframe overrides it below, so a walking
              * crowd does not moonwalk to its destination.

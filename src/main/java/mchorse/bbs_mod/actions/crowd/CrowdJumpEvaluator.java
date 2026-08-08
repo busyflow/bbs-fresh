@@ -21,6 +21,11 @@ public final class CrowdJumpEvaluator
     private static final int ROLL_SALT = 0x9E37;
     private static final int POWER_SALT = 0x7C15;
 
+    /* A jump added on top of a route, rather than handed to the physics. */
+    private static final double WALKING_HEIGHT = 0.9D;
+    private static final double WALKING_DURATION = 12D;
+    private static final double WALKING_MAX_GAP = WALKING_DURATION * 12D;
+
     private CrowdJumpEvaluator()
     {}
 
@@ -95,6 +100,50 @@ public final class CrowdJumpEvaluator
             return this.random
                 ? 0.85D + randomFor(this.replayHash, memberIndex, POWER_SALT) * 0.3D
                 : 1D;
+        }
+
+        /**
+         * How far off the ground this member is, for a crowd whose position a route already owns.
+         *
+         * <p>A real jump cannot survive a route that writes the position every tick, so where
+         * both are keyframed the jump is a height added to the route's own ground rather than a
+         * push. Worked out from the tick alone: nothing is remembered and nothing is read back
+         * off the member, so it cannot accumulate however long the shot runs.</p>
+         */
+        public double walkingHeight(int memberIndex)
+        {
+            if (randomFor(this.replayHash, memberIndex, CHOICE_SALT) >= this.amount)
+            {
+                return 0D;
+            }
+
+            double duration = WALKING_DURATION * (this.random
+                ? 0.8D + randomFor(this.replayHash, memberIndex, POWER_SALT) * 0.5D
+                : 1D);
+            double scale = this.random ? 0.7D + randomFor(this.replayHash, memberIndex, POWER_SALT) * 0.6D : 1D;
+            double phase = randomFor(this.replayHash, memberIndex, ROLL_SALT) * duration;
+            double since = this.tick - this.anchor + phase;
+            double elapsed;
+
+            if (this.rate <= 0F)
+            {
+                elapsed = since - phase * 2D;
+            }
+            else
+            {
+                double gap = WALKING_MAX_GAP * (1D - this.rate) / this.rate;
+
+                elapsed = Math.floorMod((long) Math.floor(since), (long) Math.max(1D, duration + gap));
+            }
+
+            if (elapsed < 0D || elapsed >= duration)
+            {
+                return 0D;
+            }
+
+            double wave = Math.sin(Math.PI * (elapsed / duration));
+
+            return WALKING_HEIGHT * scale * wave * wave;
         }
 
         /** Whether this member should leave the ground on this tick. */
