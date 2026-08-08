@@ -1,6 +1,7 @@
 package mchorse.bbs_mod.network;
 
 import mchorse.bbs_mod.actions.types.crowd.CrowdClientMembers;
+import mchorse.bbs_mod.actions.types.crowd.CrowdExportPreload;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.actions.ActionState;
 import mchorse.bbs_mod.blocks.entities.ModelBlockEntity;
@@ -86,6 +87,7 @@ public class ClientNetwork
         ClientPlayNetworking.registerGlobalReceiver(ServerNetwork.CLIENT_REFRESH_MODEL_BLOCKS, (client, handler, buf, responseSender) -> handleRefreshModelBlocksPacket(client, buf));
         ClientPlayNetworking.registerGlobalReceiver(ServerNetwork.CLIENT_REQUEST_FILM_RESYNC, (client, handler, buf, responseSender) -> handleRequestFilmResync(client, buf));
         ClientPlayNetworking.registerGlobalReceiver(ServerNetwork.CLIENT_CROWD_MEMBERS, (client, handler, buf, responseSender) -> handleCrowdMembersPacket(client, buf));
+        ClientPlayNetworking.registerGlobalReceiver(ServerNetwork.CLIENT_CROWD_PRELOAD_READY, (client, handler, buf, responseSender) -> handleCrowdPreloadReadyPacket(client, buf));
     }
 
     /* Handlers */
@@ -197,6 +199,13 @@ public class ClientNetwork
         }
 
         client.execute(() -> CrowdClientMembers.add(ids));
+    }
+
+    private static void handleCrowdPreloadReadyPacket(MinecraftClient client, PacketByteBuf buf)
+    {
+        String filmId = buf.readString();
+
+        client.execute(() -> CrowdExportPreload.serverFinished(filmId));
     }
 
     private static void handleRequestFilmResync(MinecraftClient client, PacketByteBuf buf)

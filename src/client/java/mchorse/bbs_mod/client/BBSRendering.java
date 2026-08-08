@@ -687,6 +687,26 @@ public class BBSRendering
         return IrisUtils.isShaderPackEnabled();
     }
 
+    /** Whether Iris is installed at all - i.e. whether asking it to turn shaders on can do anything. */
+    public static boolean isIrisAvailable()
+    {
+        return iris;
+    }
+
+    /**
+     * Switch Iris shaders on or off, as the shader selection screen's toggle does. Iris rebuilds
+     * its pipeline and reloads the world renderer, so the picture takes a moment to settle.
+     */
+    public static void setIrisShadersEnabled(boolean enabled)
+    {
+        if (!iris)
+        {
+            return;
+        }
+
+        IrisUtils.setShadersEnabled(enabled);
+    }
+
     public static boolean isIrisShadowPass()
     {
         if (!iris)

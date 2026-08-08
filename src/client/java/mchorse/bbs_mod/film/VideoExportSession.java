@@ -11,6 +11,8 @@ import mchorse.bbs_mod.client.BBSRendering;
 import mchorse.bbs_mod.utils.StringUtils;
 import mchorse.bbs_mod.utils.VideoMuxer;
 import mchorse.bbs_mod.utils.VideoRecorder;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.render.WorldRenderer;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -36,8 +38,18 @@ public abstract class VideoExportSession
         RECORDING
     }
 
+    /**
+     * Client ticks to sit still after Iris reports its pack in use and the terrain is rebuilt.
+     * Accumulating shaders need a few settled frames before their picture is worth capturing.
+     */
+    private static final int SHADER_SETTLE_TICKS = 5;
+
     protected State state = State.IDLE;
     protected long warmupEndsAtMs;
+
+    /** Whether this export turned Iris shaders on itself, and so must turn them back off. */
+    private boolean shadersForced;
+    private int shaderSettle;
 
     protected File audioFile;
     protected int textureId;
@@ -125,8 +137,13 @@ public abstract class VideoExportSession
         }
 
         this.applyExportTarget();
+        this.beginShaders();
 
-        if (delayMs > 0L)
+        /* A subclass may still be preparing an external resource after a zero-second delay.
+         * Crowd exports use this path while the server finishes the initial population, and
+         * "export with shaders" while Iris compiles and the world rebuilds. Never bypass those
+         * readiness gates merely because the user's wall-clock delay is zero. */
+        if (delayMs > 0L || !this.warmupReady())
         {
             this.state = State.WARMUP;
             this.warmupEndsAtMs = System.currentTimeMillis() + delayMs;
@@ -151,7 +168,7 @@ public abstract class VideoExportSession
                 return;
             }
 
-            if (!this.isWarmupReady() || System.currentTimeMillis() < this.warmupEndsAtMs)
+            if (!this.warmupReady() || System.currentTimeMillis() < this.warmupEndsAtMs)
             {
                 return;
             }
@@ -165,6 +182,83 @@ public abstract class VideoExportSession
                 this.stop();
             }
         }
+    }
+
+    /**
+     * Turn Iris shaders on for this export when the setting asks for it. Only when Iris is actually
+     * installed and the shaders aren't already on - an export must never switch off a pack the user
+     * had running.
+     */
+    private void beginShaders()
+    {
+        this.shadersForced = false;
+        this.shaderSettle = 0;
+
+        if (!BBSSettings.videoExportShaders.get() || !BBSRendering.isIrisAvailable() || BBSRendering.isIrisShadersEnabled())
+        {
+            return;
+        }
+
+        BBSRendering.setIrisShadersEnabled(true);
+
+        this.shadersForced = true;
+        this.shaderSettle = SHADER_SETTLE_TICKS;
+    }
+
+    /** Hand the shaders back to whatever state the user had them in. */
+    private void endShaders()
+    {
+        if (this.shadersForced)
+        {
+            this.shadersForced = false;
+            BBSRendering.setIrisShadersEnabled(false);
+        }
+    }
+
+    /**
+     * Whether the shaders this export switched on are actually drawing: the pack is in use, the
+     * world has finished rebuilding the chunks Iris' reload invalidated, and a few ticks have
+     * passed on top. Always true when the export didn't touch the shaders.
+     */
+    private boolean shadersReady()
+    {
+        if (!this.shadersForced)
+        {
+            return true;
+        }
+
+        if (!BBSRendering.isIrisShadersEnabled())
+        {
+            return false;
+        }
+
+        WorldRenderer renderer = MinecraftClient.getInstance().worldRenderer;
+
+        if (renderer != null && !renderer.isTerrainRenderComplete())
+        {
+            return false;
+        }
+
+        if (this.shaderSettle > 0)
+        {
+            this.shaderSettle -= 1;
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Both readiness gates, evaluated (not short-circuited) so the subclass hook keeps running its
+     * own preparation - pausing the film, counting the crowd's settle renders - while the shaders
+     * are still compiling.
+     */
+    private boolean warmupReady()
+    {
+        boolean shaders = this.shadersReady();
+
+        return this.isWarmupReady() && shaders;
     }
 
     private void beginRecording()
@@ -286,6 +380,7 @@ public abstract class VideoExportSession
 
         this.state = State.IDLE;
 
+        this.endShaders();
         this.teardown(cancelled);
         this.reset();
 
@@ -442,6 +537,8 @@ public abstract class VideoExportSession
         this.deferredAudioFile = null;
         this.recordingFrameRate = 0D;
         this.recordingStartedAtMs = 0L;
+        this.shadersForced = false;
+        this.shaderSettle = 0;
     }
 
     /* Hooks */

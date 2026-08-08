@@ -7,6 +7,7 @@ import mchorse.bbs_mod.actions.types.crowd.CrowdUtils;
 import mchorse.bbs_mod.data.types.BaseType;
 import mchorse.bbs_mod.entity.ActorEntity;
 import mchorse.bbs_mod.film.Film;
+import mchorse.bbs_mod.film.FilmExportState;
 import mchorse.bbs_mod.film.crowds.CrowdKeyframeRuntime;
 import mchorse.bbs_mod.film.crowds.CrowdReconciler;
 import mchorse.bbs_mod.film.replays.Replay;
@@ -54,6 +55,7 @@ public class ActionPlayer
      * <p>Per playback rather than per film, since it tracks what this run put into the world.</p>
      */
     private final CrowdReconciler crowds = new CrowdReconciler();
+    private boolean crowdExportReadySent;
     private int duration;
 
     private Map<String, LivingEntity> actors = new HashMap<>();
@@ -275,16 +277,7 @@ public class ActionPlayer
 
     private void applyAction()
     {
-        /* Before anything acts, so that a behaviour clip firing on this tick finds the crowd it
-         * addresses already standing there. This is also why it is here rather than in tick():
-         * scrubbing replays actions through goTo without ticking, and a crowd that only appeared
-         * on a real tick would be missing from every scrubbed frame. */
-        this.crowds.reconcile(this.world, this.film, this.tick);
-
-        /* After the crowd is standing there and before the behaviour clips run, so a keyframed
-         * walk or look is what the members end the tick with rather than something a behaviour
-         * clip overwrites. */
-        CrowdKeyframeRuntime.apply(this.world, this.film, this.tick);
+        this.applyCrowds();
 
         SuperFakePlayer fakePlayer = SuperFakePlayer.get(this.world);
         List<Replay> list = this.film.replays.getList();
@@ -310,6 +303,46 @@ public class ActionPlayer
             LivingEntity actor = this.actors.get(replay.getId());
 
             replay.applyActions(actor, fakePlayer, this.film, this.tick);
+        }
+    }
+
+    /**
+     * Build and pose the crowd without advancing the film or firing any action clips.
+     *
+     * <p>The film-panel exporter deliberately pauses its server player during the configured
+     * export delay. Crowd reconciliation used to live only in {@link #applyAction()}, so the
+     * pause also postponed every expensive spawn until the first frame was already recording.
+     * Calling this immediately after an export restart lets that work consume the delay instead.
+     * The reconciler remembers the result, making the first real tick effectively free.</p>
+     */
+    public void preloadCrowdsForExport()
+    {
+        if (this.serverPlayer != null && FilmExportState.isExporting(this.serverPlayer.getUuid()))
+        {
+            this.applyCrowds();
+        }
+    }
+
+    private void applyCrowds()
+    {
+        /* Before anything acts, so that a behaviour clip firing on this tick finds the crowd it
+         * addresses already standing there. This is also why it is here rather than in tick():
+         * scrubbing replays actions through goTo without ticking, and a crowd that only appeared
+         * on a real tick would be missing from every scrubbed frame. */
+        this.crowds.reconcile(this.world, this.film, this.tick);
+
+        /* After the crowd is standing there and before the behaviour clips run, so a keyframed
+         * walk or look is what the members end the tick with rather than something a behaviour
+         * clip overwrites. */
+        CrowdKeyframeRuntime.apply(this.world, this.film, this.tick);
+
+        /* This packet is queued after every entity spawn and crowd-members packet emitted by
+         * reconciliation. The client can hold the warm-up open until it has processed them and
+         * completed one uncaptured render with the finished crowd. */
+        if (!this.crowdExportReadySent && this.serverPlayer != null && FilmExportState.isExporting(this.serverPlayer.getUuid()))
+        {
+            ServerNetwork.sendCrowdPreloadReady(this.serverPlayer, this.film.getId());
+            this.crowdExportReadySent = true;
         }
     }
 

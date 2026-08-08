@@ -123,6 +123,7 @@ public class BBSSettings {
 	public static ValueInt videoMotionBlur;
 	public static ValueInt videoHeldFrames;
 	public static ValueFloat videoDelay;
+	public static ValueBoolean videoExportShaders;
 	public static ValueBoolean videoOpenFolderAfterExport;
 	public static ValueBoolean videoPlaySoundAfterExport;
 	public static ValueBoolean videoHardwareEncoder;
@@ -750,6 +751,7 @@ public class BBSSettings {
 		videoMotionBlur = builder.getInt("motion_blur", 0, 0, 6);
 		videoHeldFrames = builder.getInt("held_frames", 1, 1, 1000);
 		videoDelay = builder.getFloat("delay", 0.5F, 0F, 30F);
+		videoExportShaders = builder.getBoolean("export_with_shaders", false);
 		videoOpenFolderAfterExport = builder.getBoolean("open_folder_after_export", false);
 		videoPlaySoundAfterExport = builder.getBoolean("play_sound_after_export", true);
 		videoHardwareEncoder = builder.getBoolean("hardware_encoder", false);

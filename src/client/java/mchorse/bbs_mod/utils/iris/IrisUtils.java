@@ -176,6 +176,11 @@ public class IrisUtils
         return IrisApi.getInstance().isShaderPackInUse();
     }
 
+    public static void setShadersEnabled(boolean enabled)
+    {
+        IrisApi.getInstance().getConfig().setShadersEnabledAndApply(enabled);
+    }
+
     public static void setMainBound(boolean bound)
     {
         WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();

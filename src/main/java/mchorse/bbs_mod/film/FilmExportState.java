@@ -44,4 +44,10 @@ public final class FilmExportState
     {
         return !EXPORTING.isEmpty();
     }
+
+    /** Whether this player is the one currently preparing or recording an export. */
+    public static boolean isExporting(UUID player)
+    {
+        return player != null && EXPORTING.contains(player);
+    }
 }
