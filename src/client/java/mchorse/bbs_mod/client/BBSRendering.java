@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.client;
 
+import mchorse.bbs_mod.utils.MathUtils;
 import com.mojang.blaze3d.systems.RenderSystem;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.BBSModClient;
@@ -788,7 +789,10 @@ public class BBSRendering
 
             if (v != null)
             {
-                return (long) (v * 1000L);
+                /* The curve is in the game's own time now - 0 dawn, 6000 noon, 18000 midnight -
+                 * rather than the thousands of ticks it used to be, where every number an
+                 * animator already knew had to be divided by a thousand first. */
+                return (long) (double) v;
             }
         }
 
@@ -832,6 +836,117 @@ public class BBSRendering
             {
                 return v;
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * How hard it is raining, from the weather curve, or null when nothing says.
+     *
+     * <p>The states run into each other rather than switching: 0 is clear, 1 is rain, 2 is a
+     * thunderstorm, and a keyframe moving from one to the next brings the weather in over those
+     * ticks instead of snapping. Rain fills in over the first half of that range and the storm
+     * over the second, which is also the order they arrive in on their own.</p>
+     */
+    public static Double getWeatherRain()
+    {
+        Double state = getWeatherState();
+
+        return state == null ? getWeather() : MathUtils.clamp(state, 0D, 1D);
+    }
+
+    /** The storm half of the weather curve - dark sky and lightning, on top of the rain. */
+    public static Double getWeatherThunder()
+    {
+        Double state = getWeatherState();
+
+        return state == null ? null : MathUtils.clamp(state - 1D, 0D, 1D);
+    }
+
+    private static Double getWeatherState()
+    {
+        if (!MinecraftClient.getInstance().isOnThread())
+        {
+            return null;
+        }
+
+        if (BBSModClient.getCameraController().getCurrent() instanceof CameraWorkCameraController controller)
+        {
+            Map<String, Double> values = CurveClip.getValues(controller.getContext());
+
+            return values == null ? null : values.get(CurveClip.WEATHER_STATE);
+        }
+
+        return null;
+    }
+
+    /**
+     * How far round the compass the sun rises, in degrees, or null when nothing says.
+     *
+     * <p>Turns the whole celestial sphere rather than the clock, so the time of day - and the
+     * light level and the colour of the sky that come with it - stays exactly where it was put.
+     * The existing sun curve could only move the sun by moving the time, which is the wrong
+     * control when the shot needs the light coming from behind a building at the same hour.</p>
+     *
+     * <p>Vanilla's sky only. A shader pack works the sun's position out for itself from the world
+     * time and will not follow this, so with Iris loaded the sun and moon move and the shading
+     * does not.</p>
+     */
+    public static Double getSunDirection()
+    {
+        if (!MinecraftClient.getInstance().isOnThread())
+        {
+            return null;
+        }
+
+        if (BBSModClient.getCameraController().getCurrent() instanceof CameraWorkCameraController controller)
+        {
+            Map<String, Double> values = CurveClip.getValues(controller.getContext());
+
+            return values == null ? null : values.get(CurveClip.SUN_DIRECTION);
+        }
+
+        return null;
+    }
+
+    /**
+     * Whether the world should be replaced by a flat colour right now.
+     *
+     * <p>The curve wins over the setting when a clip has one, so a film can drop the world away
+     * for a few seconds without the setting being switched by hand and left on afterwards. With
+     * no curve, the setting is still the answer.</p>
+     */
+    public static boolean isChromaSkyActive()
+    {
+        Double curve = getChromaSky();
+
+        return curve == null ? BBSSettings.chromaSkyEnabled.get() : curve > 0.5D;
+    }
+
+    /**
+     * Whether the terrain is still drawn under a chroma sky.
+     *
+     * <p>Never, when a curve is driving it: asking for the world to go and getting the sky alone
+     * is not what the curve is for.</p>
+     */
+    public static boolean isChromaSkyTerrainVisible()
+    {
+        return getChromaSky() == null && BBSSettings.chromaSkyTerrain.get();
+    }
+
+    private static Double getChromaSky()
+    {
+        if (!MinecraftClient.getInstance().isOnThread())
+        {
+            return null;
+        }
+
+        if (BBSModClient.getCameraController().getCurrent() instanceof CameraWorkCameraController controller)
+        {
+            Map<String, Double> values = CurveClip.getValues(controller.getContext());
+
+            return values == null ? null : values.get(CurveClip.CHROMA_SKY);
         }
 
         return null;

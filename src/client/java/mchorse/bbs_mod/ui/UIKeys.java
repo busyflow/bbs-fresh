@@ -101,6 +101,9 @@ public class UIKeys
     public static final IKey CAMERA_PANELS_CURVES_SUN_ROTATION = L10n.lang("bbs.ui.camera.panels.curves.sun_rotation");
     public static final IKey CAMERA_PANELS_CURVES_WEATHER = L10n.lang("bbs.ui.camera.panels.curves.weather");
     public static final IKey CAMERA_PANELS_CURVES_CHROMA_SKY_COLOR = L10n.lang("bbs.ui.camera.panels.curves.chroma_sky_color");
+    public static final IKey CAMERA_PANELS_CURVES_SUN_DIRECTION = L10n.lang("bbs.ui.camera.panels.curves.sun_direction");
+    public static final IKey CAMERA_PANELS_CURVES_WEATHER_STATE = L10n.lang("bbs.ui.camera.panels.curves.weather_state");
+    public static final IKey CAMERA_PANELS_CURVES_CHROMA_SKY = L10n.lang("bbs.ui.camera.panels.curves.chroma_sky");
     public static final IKey CAMERA_PANELS_CURVE_ADD = L10n.lang("bbs.ui.camera.panels.curve.add");
     public static final IKey CAMERA_PANELS_CURVE_REMOVE = L10n.lang("bbs.ui.camera.panels.curve.remove");
     public static final IKey CAMERA_PANELS_DETERMINISTIC = L10n.lang("bbs.ui.camera.panels.deterministic");

@@ -67,6 +67,9 @@ public class UICurveClip extends UIClip<CurveClip>
         if (!existing.contains(ShaderCurves.SUN_ROTATION)) list.add(new Label<>(UIKeys.CAMERA_PANELS_CURVES_SUN_ROTATION, ShaderCurves.SUN_ROTATION));
         if (!existing.contains(ShaderCurves.WEATHER)) list.add(new Label<>(UIKeys.CAMERA_PANELS_CURVES_WEATHER, ShaderCurves.WEATHER));
         if (!existing.contains(CurveClip.CHROMA_SKY_COLOR)) list.add(new Label<>(UIKeys.CAMERA_PANELS_CURVES_CHROMA_SKY_COLOR, CurveClip.CHROMA_SKY_COLOR));
+        if (!existing.contains(CurveClip.SUN_DIRECTION)) list.add(new Label<>(UIKeys.CAMERA_PANELS_CURVES_SUN_DIRECTION, CurveClip.SUN_DIRECTION));
+        if (!existing.contains(CurveClip.WEATHER_STATE)) list.add(new Label<>(UIKeys.CAMERA_PANELS_CURVES_WEATHER_STATE, CurveClip.WEATHER_STATE));
+        if (!existing.contains(CurveClip.CHROMA_SKY)) list.add(new Label<>(UIKeys.CAMERA_PANELS_CURVES_CHROMA_SKY, CurveClip.CHROMA_SKY));
 
         UILabelListOverlayPanel panel = new UILabelListOverlayPanel(UIKeys.CAMERA_PANELS_PICK_KEY, list, callback);
 

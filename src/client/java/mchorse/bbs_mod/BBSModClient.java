@@ -494,7 +494,7 @@ public class BBSModClient implements ClientModInitializer
                 BBSRendering.renderCoolStuff(context);
             }
 
-            if (BBSSettings.chromaSkyEnabled.get())
+            if (BBSRendering.isChromaSkyActive())
             {
                 float d = BBSSettings.chromaSkyBillboard.get();
 

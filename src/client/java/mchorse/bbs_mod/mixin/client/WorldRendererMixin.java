@@ -15,6 +15,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(WorldRenderer.class)
@@ -42,7 +43,7 @@ public class WorldRendererMixin
     @Inject(method = "renderSky(Lnet/minecraft/client/util/math/MatrixStack;Lorg/joml/Matrix4f;FLnet/minecraft/client/render/Camera;ZLjava/lang/Runnable;)V", at = @At("HEAD"), cancellable = true)
     public void onRenderSky(CallbackInfo info)
     {
-        if (BBSSettings.chromaSkyEnabled.get())
+        if (BBSRendering.isChromaSkyActive())
         {
             Integer fromCurve = BBSRendering.getChromaSkyColorArgb();
             int argb = fromCurve != null ? fromCurve : BBSSettings.chromaSkyColor.get();
@@ -56,6 +57,32 @@ public class WorldRendererMixin
         }
     }
 
+    /**
+     * Swing the sun, moon and stars round the compass without moving the clock.
+     *
+     * <p>This is the turn that puts the sun's path east to west - the one rotation in the sky
+     * that is about direction rather than time of day. Adding to it carries the whole celestial
+     * sphere with it, so sunrise can be made to happen in the north while the hour, the light
+     * level and the colour of the sky all stay where the film put them.</p>
+     *
+     * <p>Vanilla's sky only. A shader pack works the sun out from the world time for itself, so
+     * with Iris loaded the sun moves here and its lighting does not follow.</p>
+     */
+    @ModifyArg(
+        method = "renderSky(Lnet/minecraft/client/util/math/MatrixStack;Lorg/joml/Matrix4f;FLnet/minecraft/client/render/Camera;ZLjava/lang/Runnable;)V",
+        at = @At(
+            value = "INVOKE",
+            target = "Lnet/minecraft/util/math/RotationAxis;rotationDegrees(F)Lorg/joml/Quaternionf;",
+            ordinal = 3
+        )
+    )
+    private float bbs$rotateSunDirection(float degrees)
+    {
+        Double direction = BBSRendering.getSunDirection();
+
+        return direction == null ? degrees : degrees + direction.floatValue();
+    }
+
     @Inject(method = "renderLayer", at = @At("HEAD"), cancellable = true)
     public void onRenderLayer(RenderLayer renderLayer, MatrixStack matrices, double cameraX, double cameraY, double cameraZ, Matrix4f positionMatrix, CallbackInfo info)
     {
@@ -67,7 +94,7 @@ public class WorldRendererMixin
             FormTranslucentQueue.flush();
         }
 
-        if (BBSSettings.chromaSkyEnabled.get() && !BBSSettings.chromaSkyTerrain.get())
+        if (BBSRendering.isChromaSkyActive() && !BBSRendering.isChromaSkyTerrainVisible())
         {
             BBSRendering.onRenderChunkLayer(matrices);
 
