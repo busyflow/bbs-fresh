@@ -143,6 +143,7 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
     public UIFilmPreview preview;
 
     public UIIcon duplicateFilm;
+    public UIIcon continueFilm;
 
     /* Main editors */
     public UIClipsPanel cameraEditor;
@@ -1424,9 +1425,157 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
             UIOverlay.addOverlay(this.getContext(), panel);
         });
 
+        this.continueFilm = new UIIcon(Icons.SHIFT_FORWARD, (b) ->
+        {
+            UIPromptOverlayPanel panel = new UIPromptOverlayPanel(
+                UIKeys.FILM_CONTINUE,
+                UIKeys.FILM_CONTINUE_MODAL,
+                (str) -> this.continueData(crudPanel.namesList.getPath(str).toString())
+            );
+
+            panel.text.setText(crudPanel.namesList.getCurrentFirst().getLast());
+            panel.text.filename();
+
+            UIOverlay.addOverlay(this.getContext(), panel);
+        });
+
+        this.continueFilm.tooltip(UIKeys.FILM_CONTINUE_TOOLTIP);
+
         crudPanel.icons.add(this.duplicateFilm);
+        crudPanel.icons.add(this.continueFilm);
 
         return crudPanel;
+    }
+
+    /**
+     * Duplicate the current film so that the playhead's tick becomes the new film's tick 0 -
+     * everything before it is dropped, everything after it slides back by that many ticks.
+     * Picking up a take where the last one left off, rather than starting from a still pose
+     * like {@link #dupeData(String)} does.
+     */
+    private void continueData(String name)
+    {
+        if (this.getData() != null && !this.overlay.namesList.hasInHierarchy(name))
+        {
+            this.save();
+            this.overlay.namesList.addFile(name);
+
+            Film data = this.createContinuedFilm(name, this.data, this.getCursor());
+
+            this.fill(data);
+            this.save();
+        }
+    }
+
+    private Film createContinuedFilm(String name, Film source, int tick)
+    {
+        Film data = new Film();
+
+        /* A full copy through the data layer, so nothing the film holds is left behind -
+         * unlike createDuplicateFilm, which deliberately keeps only the pose at the cursor. */
+        data.fromData(source.toData());
+        data.setId(name);
+        data.stampCreationTimeNow();
+
+        if (tick > 0)
+        {
+            rebaseToZero(data, tick);
+        }
+
+        return data;
+    }
+
+    /** Slide every timed thing in the film back by {@code tick}, dropping what ends before it. */
+    private static void rebaseToZero(Film film, int tick)
+    {
+        rebaseClips(film.camera, tick);
+
+        for (Replay replay : film.replays.getList())
+        {
+            rebaseClips(replay.actions, tick);
+
+            for (KeyframeChannel<?> channel : replay.keyframes.getChannels())
+            {
+                rebaseChannel(channel, tick);
+            }
+
+            for (KeyframeChannel channel : replay.properties.properties.values())
+            {
+                rebaseChannel(channel, tick);
+            }
+        }
+
+        for (Crowd crowd : film.crowds.getList())
+        {
+            crowd.start.set(Math.max(0, crowd.start.get() - tick));
+        }
+    }
+
+    /**
+     * Clips that end before the cut are dropped, a clip straddling it is broken down so only its
+     * remainder survives (keeping the envelope honest), and the rest simply slide back.
+     */
+    private static void rebaseClips(Clips clips, int tick)
+    {
+        for (Clip clip : new ArrayList<>(clips.get()))
+        {
+            int start = clip.tick.get();
+            int end = start + clip.duration.get();
+
+            if (end <= tick)
+            {
+                clips.remove(clip);
+            }
+            else if (start < tick)
+            {
+                Clip tail = clip.breakDown(tick - start);
+
+                clips.remove(clip);
+
+                if (tail != null)
+                {
+                    tail.tick.set(0);
+                    clips.addClip(tail);
+                }
+            }
+            else
+            {
+                clip.tick.set(start - tick);
+            }
+        }
+    }
+
+    /**
+     * Pin the channel's value at the cut as the new keyframe 0 (carrying the outgoing keyframe's
+     * interpolation, so the curve into the next one is unchanged), drop everything before it and
+     * slide the rest back.
+     */
+    private static <T> void rebaseChannel(KeyframeChannel<T> channel, int tick)
+    {
+        if (channel.isEmpty())
+        {
+            return;
+        }
+
+        KeyframeSegment<T> segment = channel.find(tick);
+
+        if (segment != null)
+        {
+            List<Keyframe<T>> keyframes = channel.getKeyframes();
+            Keyframe<T> pinned = keyframes.get(channel.insert(tick, segment.createInterpolated()));
+
+            pinned.getInterpolation().copy(segment.a.getInterpolation());
+        }
+
+        for (int i = channel.getKeyframes().size() - 1; i >= 0; i--)
+        {
+            if (channel.getKeyframes().get(i).getTick() < tick)
+            {
+                channel.remove(i);
+            }
+        }
+
+        channel.moveX(-tick);
     }
 
     private void dupeData(String name)
@@ -1866,6 +2015,7 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         this.openCameraEditor.setEnabled(data != null);
         this.openReplayEditor.setEnabled(data != null);
         this.duplicateFilm.setEnabled(data != null);
+        this.continueFilm.setEnabled(data != null);
 
         this.actionEditor.setClips(null);
         this.runner.setWork(data == null ? null : data.camera);
