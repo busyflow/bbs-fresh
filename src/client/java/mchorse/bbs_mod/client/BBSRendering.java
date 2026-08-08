@@ -853,7 +853,16 @@ public class BBSRendering
     {
         Double state = getWeatherState();
 
-        return state == null ? getWeather() : MathUtils.clamp(state, 0D, 1D);
+        /* Spelled out rather than written as one conditional. With a boxed Double on one side and
+         * a primitive on the other, the conditional's type is the primitive, so both sides get
+         * unboxed - including the null that means "nothing is driving the weather". Which is
+         * every call from the server thread, and so every world load. */
+        if (state == null)
+        {
+            return getWeather();
+        }
+
+        return MathUtils.clamp(state, 0D, 1D);
     }
 
     /** The storm half of the weather curve - dark sky and lightning, on top of the rain. */
@@ -861,7 +870,12 @@ public class BBSRendering
     {
         Double state = getWeatherState();
 
-        return state == null ? null : MathUtils.clamp(state - 1D, 0D, 1D);
+        if (state == null)
+        {
+            return null;
+        }
+
+        return MathUtils.clamp(state - 1D, 0D, 1D);
     }
 
     private static Double getWeatherState()
@@ -921,7 +935,12 @@ public class BBSRendering
     {
         Double curve = getChromaSky();
 
-        return curve == null ? BBSSettings.chromaSkyEnabled.get() : curve > 0.5D;
+        if (curve == null)
+        {
+            return BBSSettings.chromaSkyEnabled.get();
+        }
+
+        return curve > 0.5D;
     }
 
     /**
