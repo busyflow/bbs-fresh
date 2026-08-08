@@ -3,6 +3,7 @@ package mchorse.bbs_mod.ui.film.controller;
 import com.mojang.blaze3d.systems.RenderSystem;
 import io.netty.util.collection.IntObjectMap;
 import mchorse.bbs_mod.BBSSettings;
+import mchorse.bbs_mod.actions.crowd.CrowdWalkEvaluator;
 import mchorse.bbs_mod.cubic.animation.ActionConfig;
 import mchorse.bbs_mod.cubic.animation.ActionsConfig;
 import mchorse.bbs_mod.film.BaseFilmController;
@@ -96,7 +97,9 @@ public class MotionPath
 
         String bonePath = bone == null ? null : bone.a;
 
-        Trajectory trajectory = bonePath == null ? null : boneTrajectory(controller, replay, bonePath);
+        Trajectory trajectory = controller.isCrowdMotionGizmo()
+            ? crowdTrajectory(replay)
+            : bonePath == null ? null : boneTrajectory(controller, replay, bonePath);
 
         if (trajectory == null)
         {
@@ -349,6 +352,46 @@ public class MotionPath
                 this.replay.keyframes.y.interpolate(tick),
                 this.replay.keyframes.z.interpolate(tick)
             );
+        }
+    }
+
+    private static Trajectory crowdTrajectory(Replay replay)
+    {
+        KeyframeChannel<?> channel = replay.keyframes.crowdWalk;
+        float[] range = range(channel);
+
+        if (range == null)
+        {
+            return null;
+        }
+
+        TreeSet<Float> ticks = new TreeSet<>();
+
+        collectTicks(ticks, channel);
+
+        return new CrowdTrajectory(replay, range[0], range[1], ticks);
+    }
+
+    private record CrowdTrajectory(Replay replay, float first, float last, TreeSet<Float> keyframeTicks) implements Trajectory
+    {
+        @Override
+        public void worldAt(float tick, Vector3d out)
+        {
+            CrowdWalkEvaluator.Frame frame = CrowdWalkEvaluator.frame(this.replay, tick);
+            var origin = CrowdWalkEvaluator.replayOrigin(this.replay, tick);
+
+            if (frame == null)
+            {
+                out.set(origin.x, origin.y, origin.z);
+            }
+            else
+            {
+                out.set(
+                    origin.x + frame.center().x,
+                    origin.y + frame.center().y,
+                    origin.z + frame.center().z
+                );
+            }
         }
     }
 

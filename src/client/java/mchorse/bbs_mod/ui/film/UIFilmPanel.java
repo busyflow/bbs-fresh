@@ -1,5 +1,7 @@
 package mchorse.bbs_mod.ui.film;
 
+import mchorse.bbs_mod.forms.forms.CrowdForm;
+import mchorse.bbs_mod.actions.crowd.CrowdWalk;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.logging.LogUtils;
 import mchorse.bbs_mod.BBSMod;
@@ -2227,6 +2229,7 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         this.controller.renderFrame(context);
         this.renderCrowdRadius(context);
         this.renderArea(context);
+        this.renderCrowdWalkPoles(context);
         this.renderRagdollImpact(context);
     }
 
@@ -2499,6 +2502,63 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         RenderSystem.disableBlend();
         RenderSystem.disableDepthTest();
     }
+
+    /**
+     * A pole standing at every crowd walk waypoint.
+     *
+     * <p>A waypoint is a position in an otherwise empty field, and the keyframe holding it says
+     * nothing about where it is until you scrub onto it. A pole is the cheapest way to see the
+     * whole route at once - which one is where, whether two sit on top of each other, whether one
+     * landed inside a building.</p>
+     */
+    private void renderCrowdWalkPoles(WorldRenderContext context)
+    {
+        Replay replay = this.replayEditor == null ? null : this.replayEditor.getReplay();
+
+        if (replay == null || !(replay.form.get() instanceof CrowdForm) || replay.keyframes.crowdWalk.isEmpty())
+        {
+            return;
+        }
+
+        Vec3d camera = context.camera().getPos();
+        MatrixStack stack = context.matrixStack();
+        BufferBuilder builder = Tessellator.getInstance().getBuffer();
+
+        RenderSystem.disableDepthTest();
+        RenderSystem.enableBlend();
+        RenderSystem.disableCull();
+        RenderSystem.setShader(GameRenderer::getPositionColorProgram);
+        builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+
+        for (Keyframe<CrowdWalk> keyframe : (List<Keyframe<CrowdWalk>>) replay.keyframes.crowdWalk.getKeyframes())
+        {
+            CrowdWalk walk = keyframe.getValue();
+
+            if (walk == null || !walk.showPoint)
+            {
+                continue;
+            }
+
+            double x = walk.x - camera.x;
+            double y = walk.y - camera.y;
+            double z = walk.z - camera.z;
+
+            Draw.fillBoxTo(builder, stack,
+                (float) x, (float) y, (float) z,
+                (float) x, (float) (y + CROWD_WALK_POLE_HEIGHT), (float) z,
+                CROWD_WALK_POLE_THICKNESS, 1F, 1F, 1F, 0.8F);
+        }
+
+        BufferRenderer.drawWithGlobalProgram(builder.end());
+
+        RenderSystem.disableBlend();
+        RenderSystem.enableCull();
+        RenderSystem.enableDepthTest();
+    }
+
+    /** Tall enough to clear a villager and be seen over a crowd, thin enough not to hide one. */
+    private static final float CROWD_WALK_POLE_HEIGHT = 3F;
+    private static final float CROWD_WALK_POLE_THICKNESS = 0.05F;
 
     private void renderCrowdRing(WorldRenderContext context, Vec3d center, double radius, float r, float g, float b)
     {

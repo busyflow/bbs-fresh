@@ -90,6 +90,19 @@ public class UIReplaysEditor extends UIElement
 {
     private static final Map<String, Integer> COLORS = new HashMap<>();
     private static final Map<String, Icon> ICONS = new HashMap<>();
+    /**
+     * Display names for channels whose stored id is not what anyone would call them.
+     *
+     * <p>The id is what films are written with, so it stays; only the label changes.</p>
+     */
+    private static final Map<String, String> TITLES = new HashMap<>();
+
+    static
+    {
+        /* "crowd_motion_path" described the data - a path of motion - rather than the thing being
+         * authored, which is where the crowd walks. */
+        TITLES.put("crowd_motion_path", "crowd_walk");
+    }
     private static String lastFilm = "";
     private static int lastReplay;
 
@@ -904,8 +917,9 @@ public class UIReplaysEditor extends UIElement
 
             BaseValue value = this.replay.keyframes.get(key);
             KeyframeChannel channel = (KeyframeChannel) value;
+            String title = TITLES.getOrDefault(key, key);
 
-            sheets.add(new UIKeyframeSheet(getColor(key), false, channel, null).icon(ICONS.get(key)));
+            sheets.add(new UIKeyframeSheet(key, IKey.constant(title), getColor(key), false, channel, null).icon(ICONS.get(key)));
         }
     }
 

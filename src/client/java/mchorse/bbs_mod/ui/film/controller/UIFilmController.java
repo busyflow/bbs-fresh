@@ -66,6 +66,7 @@ import mchorse.bbs_mod.ui.framework.elements.buttons.UIIcon;
 import mchorse.bbs_mod.ui.framework.elements.context.UISimpleContextMenu;
 import mchorse.bbs_mod.ui.framework.elements.input.UIPropTransform;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.UIKeyframeEditor;
+import mchorse.bbs_mod.ui.framework.elements.input.keyframes.factories.UICrowdWalkKeyframeFactory;
 import mchorse.bbs_mod.ui.framework.elements.overlay.UIOverlay;
 import mchorse.bbs_mod.ui.framework.elements.utils.FontRenderer;
 import mchorse.bbs_mod.ui.framework.elements.utils.StencilMap;
@@ -1758,6 +1759,30 @@ public class UIFilmController extends UIElement implements GizmoViewport
         return keyframeEditor != null && keyframeEditor.getAnchorLocal();
     }
 
+    /**
+     * The walk keyframe currently being edited, if one is - which is what the gizmo moves.
+     *
+     * <p>Null while the replay is being shifted, since that gizmo owns the viewport then.</p>
+     */
+    public UICrowdWalkKeyframeFactory getCrowdMotionEditor()
+    {
+        if (this.isReplayShiftGizmo())
+        {
+            return null;
+        }
+
+        UIKeyframeEditor keyframeEditor = this.panel.replayEditor.keyframeEditor;
+
+        return keyframeEditor != null && keyframeEditor.isCrowdWalkTrack()
+            ? keyframeEditor.getCrowdMotionEditor()
+            : null;
+    }
+
+    public boolean isCrowdMotionGizmo()
+    {
+        return this.getCrowdMotionEditor() != null;
+    }
+
     public boolean isReplayShiftGizmo()
     {
         return this.replayShift != null && !this.replayShift.isEmpty() && this.replayShiftTransform.getTransform() != null;
@@ -1839,7 +1864,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
     private boolean canShowGizmo()
     {
         return UIBaseMenu.shouldRenderAxes() && !this.isRecording()
-            && (this.isReplayShiftGizmo() || this.getBone() != null || this.isAnchorGizmo());
+            && (this.isReplayShiftGizmo() || this.getBone() != null || this.isAnchorGizmo() || this.isCrowdMotionGizmo());
     }
 
     private void renderStencil(WorldRenderContext renderContext, UIContext context, boolean altPressed)
@@ -1877,6 +1902,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
             List<Replay> replays = this.panel.getData().replays.getList();
             int selectedReplayIndex = this.getCurrentReplayIndex();
             Pair<String, Boolean> bone = this.getBone();
+            UICrowdWalkKeyframeFactory crowdMotion = this.getCrowdMotionEditor();
 
             for (Map.Entry<Integer, IEntity> entry : this.getEntities().entrySet())
             {
@@ -1901,7 +1927,11 @@ public class UIFilmController extends UIElement implements GizmoViewport
                     filmContext
                         .bone(bone == null ? null : bone.a, bone != null && bone.b)
                         .gizmoSpace(this.getBoneSpace(), this.getGizmoView())
-                        .anchorGizmo(this.isAnchorGizmo(), this.getAnchorLocal());
+                        .anchorGizmo(this.isAnchorGizmo(), this.getAnchorLocal())
+                        .crowdMotionGizmo(
+                            crowdMotion == null ? null : crowdMotion.getPath(),
+                            crowdMotion == null ? 0F : crowdMotion.getMotionKeyframe().getTick()
+                        );
                 }
                 else
                 {
@@ -1916,6 +1946,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
         {
             Replay replay = this.panel.replayEditor.getReplay();
             Pair<String, Boolean> bone = this.getBone();
+            UICrowdWalkKeyframeFactory crowdMotion = this.getCrowdMotionEditor();
 
             this.stencilMap.setIncrement(true);
 
@@ -1926,7 +1957,11 @@ public class UIFilmController extends UIElement implements GizmoViewport
                 .relative(replay.relative.get())
                 .bone(bone == null ? null : bone.a, bone != null && bone.b)
                 .gizmoSpace(this.getBoneSpace(), this.getGizmoView())
-                .anchorGizmo(this.isAnchorGizmo(), this.getAnchorLocal()));
+                .anchorGizmo(this.isAnchorGizmo(), this.getAnchorLocal())
+                .crowdMotionGizmo(
+                    crowdMotion == null ? null : crowdMotion.getPath(),
+                    crowdMotion == null ? 0F : crowdMotion.getMotionKeyframe().getTick()
+                ));
         }
 
         this.stencilMap.setIncrement(true);

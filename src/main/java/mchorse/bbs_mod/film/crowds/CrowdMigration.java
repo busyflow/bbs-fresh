@@ -77,13 +77,9 @@ public class CrowdMigration
         crowd.enabled.set(clip.enabled.get());
 
         /* The clip was an instant: it fired at its tick and the crowd stood there until the
-         * playback ended. A crowd is a stretch, so it gets one running from the moment it
-         * appeared to the end of the film - which is the same thing, and is a number someone
-         * can read and change. "Until playback ends" as a raw maximum is neither. */
-        int start = clip.tick.get();
-
-        crowd.start.set(start);
-        crowd.duration.set(Math.max(1, film.camera.calculateDuration() - start));
+         * playback ended. A crowd is a stretch now, running from the moment it appeared to the
+         * end of the film, which is the same thing said as a property rather than an event. */
+        crowd.start.set(clip.tick.get());
 
         /* The old centre came from whichever replay's timeline the clip happened to sit on. */
         crowd.anchor.set(replayIndex);

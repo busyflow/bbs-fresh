@@ -44,9 +44,15 @@ public class Crowd extends ValueGroup
      */
     public final ValueString crowdTag = new ValueString("crowd_tag", "crowd_1");
 
-    /* When the crowd exists, in film ticks. */
+    /**
+     * The tick the crowd appears on. It stays for the rest of the film.
+     *
+     * <p>There was a duration too, and it earned nothing: a crowd that stops existing part way
+     * through is a crowd that vanishes on camera, which is not a thing anyone was asking for.
+     * Whether a crowd is wanted at all is the enabled flag, and when it should go is the end of
+     * the film.</p>
+     */
     public final ValueInt start = new ValueInt("start", 0, 0, Integer.MAX_VALUE);
-    public final ValueInt duration = new ValueInt("duration", 1, 1, Integer.MAX_VALUE);
 
     /**
      * Which replay the crowd is placed around, by index, or -1 for none.
@@ -100,7 +106,6 @@ public class Crowd extends ValueGroup
         this.add(this.enabled);
         this.add(this.crowdTag);
         this.add(this.start);
-        this.add(this.duration);
         this.add(this.anchor);
 
         this.add(this.mobType);
@@ -156,9 +161,7 @@ public class Crowd extends ValueGroup
     /** Whether the crowd is meant to be standing there at this film tick. */
     public boolean existsAt(int tick)
     {
-        int start = this.start.get();
-
-        return this.enabled.get() && tick >= start && tick < start + this.duration.get();
+        return this.enabled.get() && tick >= this.start.get();
     }
 
     public String getDisplayName()

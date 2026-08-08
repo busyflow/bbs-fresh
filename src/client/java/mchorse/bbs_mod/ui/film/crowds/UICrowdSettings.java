@@ -65,7 +65,6 @@ public class UICrowdSettings extends UIElement
     private final UITextbox name;
     private final UIToggle enabled;
     private final UITrackpad start;
-    private final UITrackpad duration;
     private final UIButton anchor;
 
     private final UIButton mobType;
@@ -97,8 +96,6 @@ public class UICrowdSettings extends UIElement
         this.enabled = new UIToggle(IKey.constant("Enabled"), (b) -> this.edit((crowd) -> crowd.enabled.set(b.getValue())));
         this.start = new UITrackpad((value) -> this.edit((crowd) -> crowd.start.set(value.intValue())));
         this.start.integer().tooltip(IKey.constant("The tick the crowd appears on."));
-        this.duration = new UITrackpad((value) -> this.edit((crowd) -> crowd.duration.set(Math.max(1, value.intValue()))));
-        this.duration.integer().tooltip(IKey.constant("How many ticks the crowd stays for."));
         this.anchor = new UIButton(IKey.EMPTY, (b) -> this.openAnchorMenu());
         this.anchor.tooltip(IKey.constant("Which replay the crowd is placed around.\n\nPainted crowds ignore this - painted ground is drawn onto the world, so it already knows where it is."));
 
@@ -151,7 +148,6 @@ public class UICrowdSettings extends UIElement
             ),
             this.section("When",
                 this.row("Start", this.start),
-                this.row("Duration", this.duration),
                 this.row("Anchor", this.anchor)
             ),
             this.whereSection,
@@ -209,7 +205,6 @@ public class UICrowdSettings extends UIElement
         this.name.setText(crowd.name.get());
         this.enabled.setValue(crowd.enabled.get());
         this.start.setValue(crowd.start.get());
-        this.duration.setValue(crowd.duration.get());
         this.refreshAnchorLabel();
 
         this.mobType.label = IKey.constant(crowd.mobType.get());

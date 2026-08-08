@@ -111,7 +111,7 @@ public class UICrowdReplayProperties extends UIScrollView
         Crowd crowd = film.crowds.addCrowd();
 
         crowd.name.set("Crowd " + film.crowds.getList().size());
-        crowd.duration.set(Math.max(1, film.camera.calculateDuration()));
+        
 
         return crowd;
     }
