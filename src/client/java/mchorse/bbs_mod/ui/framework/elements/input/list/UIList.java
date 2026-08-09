@@ -532,13 +532,11 @@ public abstract class UIList <T> extends UIElement
 
         if (this.area.isInside(context) && context.mouseButton == 0)
         {
-            int index = this.scroll.getIndex(context.mouseX, context.mouseY);
+            /* Asked through getIndexAtCursor rather than off the scrollbar's row maths, so a
+             * subclass that lays its elements out differently - the file list's thumbnail grid
+             * puts several per row - is clicked where it is drawn. */
+            int index = this.getIndexAtCursor(context);
             boolean filtering = this.isFiltering();
-
-            if (filtering)
-            {
-                index = this.exists(this.filtered, index) ? this.filtered.get(index).b : -1;
-            }
 
             if (this.exists(index))
             {
