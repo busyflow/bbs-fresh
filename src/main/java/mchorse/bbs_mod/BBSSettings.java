@@ -18,6 +18,7 @@ import mchorse.bbs_mod.settings.values.ui.ValueOnionSkin;
 import mchorse.bbs_mod.settings.values.ui.ValuePhysicsDebug;
 import mchorse.bbs_mod.settings.values.ui.ValueOrder;
 import mchorse.bbs_mod.settings.values.ui.ValueStringKeys;
+import mchorse.bbs_mod.settings.values.ui.ValueStringList;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
 import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.colors.Colors;
@@ -44,8 +45,8 @@ public class BBSSettings {
 	public static ValueColors recentColors;
 	public static ValueStringKeys disabledSheets;
 	public static ValueStringKeys disabledMorphFormCategories;
-	/** Folders pinned in the file pickers, as "source:path". */
-	public static ValueStringKeys pinnedFolders;
+	/** Quick-access folders pinned in the texture picker (Link strings). */
+	public static ValueStringList pinnedTextureFolders;
 	/** Cell size the file pickers were last zoomed to. */
 	public static ValueInt texturePickerThumbnailSize;
 	public static ValueLanguage language;
@@ -657,8 +658,8 @@ public class BBSSettings {
 		builder.register(disabledSheets);
 		disabledMorphFormCategories = new ValueStringKeys("disabled_morph_form_categories");
 		builder.register(disabledMorphFormCategories);
-		pinnedFolders = new ValueStringKeys("pinned_folders");
-		builder.register(pinnedFolders);
+		pinnedTextureFolders = new ValueStringList("pinned_texture_folders");
+		builder.register(pinnedTextureFolders);
 		texturePickerThumbnailSize = builder.getInt("texture_picker_thumbnail_size", 16, 16, 128);
 		editorClipAutoName = builder.getBoolean("clip_auto_name", true);
 

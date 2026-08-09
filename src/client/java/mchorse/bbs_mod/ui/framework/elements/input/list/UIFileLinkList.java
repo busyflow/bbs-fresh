@@ -5,7 +5,6 @@ import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.graphics.texture.Texture;
 import mchorse.bbs_mod.graphics.window.Window;
 import mchorse.bbs_mod.resources.Link;
-import mchorse.bbs_mod.ui.UIKeys;
 import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.ui.framework.elements.utils.FontRenderer;
 import mchorse.bbs_mod.ui.utils.icons.Icon;
@@ -16,8 +15,6 @@ import mchorse.bbs_mod.utils.StringUtils;
 import mchorse.bbs_mod.utils.colors.Colors;
 
 import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -46,32 +43,6 @@ public class UIFileLinkList extends UIList<UIFileLinkList.FileLink>
     public UIFileLinkList(Consumer<Link> fileCallback)
     {
         super(null);
-
-        this.context((menu) ->
-        {
-            int index = this.getIndexAtCursor(this.getContext());
-
-            if (!this.exists(index))
-            {
-                return;
-            }
-
-            FileLink hovered = this.list.get(index);
-
-            if (!hovered.folder || hovered.title.equals(".."))
-            {
-                return;
-            }
-
-            if (isPinned(hovered.link))
-            {
-                menu.action(Icons.CLOSE, UIKeys.FILES_UNPIN, () -> this.pin(hovered.link, false));
-            }
-            else
-            {
-                menu.action(Icons.BOOKMARK, UIKeys.FILES_PIN, () -> this.pin(hovered.link, true));
-            }
-        });
 
         this.callback = (list) ->
         {
@@ -205,7 +176,7 @@ public class UIFileLinkList extends UIList<UIFileLinkList.FileLink>
         }
 
         /* Filtering renumbers what is on screen, so hand back the index into the backing list -
-         * every caller (selection, the pin menu) means that one. */
+         * every caller (selection, the context menu) means that one. */
         return this.isFiltering() ? this.filtered.get(visible).b : visible;
     }
 
@@ -300,7 +271,7 @@ public class UIFileLinkList extends UIList<UIFileLinkList.FileLink>
     {
         if (element.folder)
         {
-            context.batcher.iconArea(element.pinned ? Icons.BOOKMARK : Icons.FOLDER, Colors.setA(Colors.WHITE, 0.7F), x, y, box, box);
+            context.batcher.iconArea(Icons.FOLDER, Colors.setA(Colors.WHITE, 0.7F), x, y, box, box);
 
             return;
         }
@@ -362,7 +333,6 @@ public class UIFileLinkList extends UIList<UIFileLinkList.FileLink>
                 this.add(new FileLink(source, new Link(source, ""), true));
             }
 
-            this.addPins();
             this.sort();
         }
         else
@@ -389,7 +359,6 @@ public class UIFileLinkList extends UIList<UIFileLinkList.FileLink>
 
             this.clear();
             this.add(parent);
-            this.addPins();
 
             for (Link l : links)
             {
@@ -400,71 +369,6 @@ public class UIFileLinkList extends UIList<UIFileLinkList.FileLink>
             }
 
             this.sort();
-        }
-    }
-
-    /* Pinned folders */
-
-    private static String pinKey(Link link)
-    {
-        return link.source + ":" + link.path;
-    }
-
-    public static boolean isPinned(Link link)
-    {
-        return link != null && BBSSettings.pinnedFolders.get().contains(pinKey(link));
-    }
-
-    private void pin(Link link, boolean pinned)
-    {
-        Set<String> pins = new HashSet<>(BBSSettings.pinnedFolders.get());
-
-        if (pinned)
-        {
-            pins.add(pinKey(link));
-        }
-        else
-        {
-            pins.remove(pinKey(link));
-        }
-
-        /* set() rather than mutating what get() returns - that is what marks the setting dirty
-         * and gets it written back to disk. */
-        BBSSettings.pinnedFolders.set(pins);
-
-        this.setPath(this.path, false);
-    }
-
-    /**
-     * Add every pinned folder to the current view, so a pin is one click away from wherever you
-     * are rather than only from the root.
-     *
-     * <p>The folder you are standing in is left out - a shortcut to here is a row that does
-     * nothing, and the point of the pins is to not have to read past rows that do nothing.</p>
-     */
-    private void addPins()
-    {
-        for (String key : BBSSettings.pinnedFolders.get())
-        {
-            int colon = key.indexOf(':');
-
-            if (colon < 0)
-            {
-                continue;
-            }
-
-            Link link = new Link(key.substring(0, colon), key.substring(colon + 1));
-
-            if (link.equals(this.path))
-            {
-                continue;
-            }
-
-            FileLink pin = new FileLink(StringUtils.fileName(link.path).replaceAll("/", ""), link, true);
-
-            pin.pinned = true;
-
-            this.add(pin);
         }
     }
 
@@ -499,20 +403,6 @@ public class UIFileLinkList extends UIList<UIFileLinkList.FileLink>
     {
         this.list.sort((a, b) ->
         {
-            /* ".." keeps the top, then the pins, then the folder's own contents. */
-            boolean upA = a.folder && a.title.equals("..");
-            boolean upB = b.folder && b.title.equals("..");
-
-            if (upA != upB)
-            {
-                return upA ? -1 : 1;
-            }
-
-            if (a.pinned != b.pinned)
-            {
-                return a.pinned ? -1 : 1;
-            }
-
             if (a.folder != b.folder)
             {
                 return a.folder ? -1 : 1;
@@ -533,7 +423,7 @@ public class UIFileLinkList extends UIList<UIFileLinkList.FileLink>
 
         if (row <= TEXT_ROW)
         {
-            Icon icon = element.pinned ? Icons.BOOKMARK : (element.folder ? Icons.FOLDER : Icons.IMAGE);
+            Icon icon = element.folder ? Icons.FOLDER : Icons.IMAGE;
 
             context.batcher.icon(icon, Colors.setA(Colors.WHITE, hover ? 0.75F : 0.6F), x + 2, y);
             context.batcher.textShadow(element.title, x + 20, y + 4, color);
@@ -564,8 +454,6 @@ public class UIFileLinkList extends UIList<UIFileLinkList.FileLink>
         public String title;
         public Link link;
         public boolean folder;
-        /** A shortcut row rather than something living in this folder. */
-        public boolean pinned;
 
         public FileLink(String title, Link link, boolean folder)
         {

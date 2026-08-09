@@ -31,7 +31,9 @@ import mchorse.bbs_mod.ui.framework.elements.overlay.UIConfirmOverlayPanel;
 import mchorse.bbs_mod.ui.framework.elements.overlay.UIListOverlayPanel;
 import mchorse.bbs_mod.ui.framework.elements.overlay.UIOverlay;
 import mchorse.bbs_mod.ui.framework.elements.utils.EventPropagation;
+import mchorse.bbs_mod.ui.framework.elements.utils.Batcher2D;
 import mchorse.bbs_mod.ui.framework.elements.utils.FontRenderer;
+import mchorse.bbs_mod.ui.utils.Area;
 import mchorse.bbs_mod.ui.utils.UI;
 import mchorse.bbs_mod.ui.utils.UIUtils;
 import mchorse.bbs_mod.ui.utils.icons.Icon;
@@ -67,10 +69,17 @@ import java.util.function.Consumer;
  */
 public class UITexturePicker extends UIElement implements IImportPathProvider, IUITabs
 {
+    /** Reserved strip (relative to {@link #right}) for the pinned-folder bar. */
+    private static final int PINNED_BAR_Y = 30;
+    private static final int PINNED_BAR_H = 24;
+
+    private final Area pinnedBarArea = new Area();
+
     public UIElement right;
     public UITextbox text;
     public UIIcon close;
     public UIIcon folder;
+    public UIIcon pin;
     public UIIcon pixelEdit;
     public UIFileLinkList picker;
 
@@ -284,14 +293,18 @@ public class UITexturePicker extends UIElement implements IImportPathProvider, I
         this.remove = new UIIcon(Icons.REMOVE, (b) -> this.removeMulti());
         this.edit = new UIIcon(Icons.EDIT, (b) -> this.toggleEditor());
 
-        UIElement icons = UI.row(0, this.pixelEdit, this.folder, this.close);
+        this.pin = new UIIcon(Icons.BOOKMARK, (b) -> this.togglePinCurrentFolder());
+        this.pin.tooltip(UIKeys.TEXTURE_PIN, Direction.BOTTOM);
+
+        UIElement icons = UI.row(0, this.pixelEdit, this.pin, this.folder, this.close);
 
         icons.row().preferred(0);
         icons.relative(this.browseContent).x(1F, -10).y(10).w(60).h(20).anchorX(1F);
 
         this.right.full(this.browseContent);
         this.text.relative(this.multi).x(1F, 20).wTo(icons.area).h(20);
-        this.picker.relative(this.right).set(10, 30, 0, 0).w(1, -10).h(1, -30);
+        /* Leave a strip below the path field for the pinned-folder quick-access bar. */
+        this.picker.relative(this.right).set(10, PINNED_BAR_Y + PINNED_BAR_H + 4, 0, 0).w(1, -10).h(1, -(PINNED_BAR_Y + PINNED_BAR_H + 4));
 
         this.multi.relative(this.browseContent).set(10, 10, 100, 20);
         this.multiList.relative(this.browseContent).set(10, 35, 100, 0).hTo(this.buttons.getFlex());
@@ -1118,6 +1131,166 @@ public class UITexturePicker extends UIElement implements IImportPathProvider, I
         return true;
     }
 
+    /* ------------------------------------------------------------------ *
+     * Pinned quick-access folders
+     *
+     * A row of bookmarked folders sits above the file list so skin folders
+     * are one click away in every texture picker. The bookmark icon pins /
+     * unpins the current folder; left-click a chip to jump to it, right-click
+     * to remove it. Pins persist globally via BBSSettings.pinnedTextureFolders.
+     * ------------------------------------------------------------------ */
+
+    private void togglePinCurrentFolder()
+    {
+        Link path = this.picker.path;
+
+        if (path == null || path.source.isEmpty())
+        {
+            return;
+        }
+
+        BBSSettings.pinnedTextureFolders.toggle(path.toString());
+    }
+
+    private void updatePinnedBarArea()
+    {
+        this.pinnedBarArea.set(this.right.area.x + 10, this.right.area.y + PINNED_BAR_Y, this.right.area.w - 20, PINNED_BAR_H);
+    }
+
+    private String pinnedLabel(Link link)
+    {
+        String name = StringUtils.fileName(link.path).replaceAll("/", "");
+
+        return name.isEmpty() ? link.source : name;
+    }
+
+    private List<PinnedChip> pinnedChips(UIContext context)
+    {
+        List<PinnedChip> chips = new ArrayList<>();
+
+        this.updatePinnedBarArea();
+
+        FontRenderer font = context.batcher.getFont();
+        int x = this.pinnedBarArea.x;
+        int y = this.pinnedBarArea.y + (this.pinnedBarArea.h - 20) / 2;
+
+        for (String folder : BBSSettings.pinnedTextureFolders.getList())
+        {
+            Link link = LinkUtils.create(folder);
+
+            if (link == null)
+            {
+                continue;
+            }
+
+            String label = this.pinnedLabel(link);
+            int w = font.getWidth(label) + 24;
+
+            if (x + w > this.pinnedBarArea.ex() && !chips.isEmpty())
+            {
+                break;
+            }
+
+            chips.add(new PinnedChip(link, label, x, y, w, 20));
+            x += w + 6;
+        }
+
+        return chips;
+    }
+
+    private void renderPinnedBar(UIContext context)
+    {
+        Batcher2D batcher = context.batcher;
+
+        this.updatePinnedBarArea();
+
+        List<PinnedChip> chips = this.pinnedChips(context);
+
+        if (chips.isEmpty())
+        {
+            batcher.text(UIKeys.TEXTURE_PINNED_HINT.get(), this.pinnedBarArea.x, this.pinnedBarArea.my() - 4, Colors.setA(Colors.WHITE, 0.45F));
+
+            return;
+        }
+
+        int accent = Colors.A100 | BBSSettings.primaryColor.get();
+
+        for (PinnedChip chip : chips)
+        {
+            boolean active = chip.link.equals(this.picker.path);
+            boolean hover = context.mouseX >= chip.x && context.mouseX <= chip.x + chip.w
+                && context.mouseY >= chip.y && context.mouseY <= chip.y + chip.h;
+
+            batcher.box(chip.x, chip.y, chip.x + chip.w, chip.y + chip.h, Colors.A50);
+            batcher.outline(chip.x, chip.y, chip.x + chip.w, chip.y + chip.h, (active || hover) ? accent : Colors.setA(Colors.WHITE, 0.18F));
+            batcher.icon(Icons.BOOKMARK, active ? accent : Colors.setA(Colors.WHITE, 0.7F), chip.x + 4, chip.y + chip.h / 2, 0F, 0.5F);
+            batcher.textShadow(chip.label, chip.x + 17, chip.y + (chip.h - batcher.getFont().getHeight()) / 2 + 1, (active || hover) ? Colors.WHITE : Colors.setA(Colors.WHITE, 0.8F));
+        }
+    }
+
+    private boolean handlePinnedClick(UIContext context)
+    {
+        this.updatePinnedBarArea();
+
+        if (!this.pinnedBarArea.isInside(context))
+        {
+            return false;
+        }
+
+        for (PinnedChip chip : this.pinnedChips(context))
+        {
+            if (context.mouseX >= chip.x && context.mouseX <= chip.x + chip.w
+                && context.mouseY >= chip.y && context.mouseY <= chip.y + chip.h)
+            {
+                if (context.mouseButton == 1)
+                {
+                    BBSSettings.pinnedTextureFolders.remove(chip.link.toString());
+                }
+                else if (context.mouseButton == 0)
+                {
+                    this.picker.setPath(chip.link, false);
+                    this.updateFolderButton();
+                }
+
+                return true;
+            }
+        }
+
+        /* Swallow stray clicks on the empty part of the reserved bar strip. */
+        return context.mouseButton == 0 || context.mouseButton == 1;
+    }
+
+    @Override
+    protected boolean subMouseClicked(UIContext context)
+    {
+        if (this.currentTab == 0 && this.right.isVisible() && this.handlePinnedClick(context))
+        {
+            return true;
+        }
+
+        return super.subMouseClicked(context);
+    }
+
+    private static class PinnedChip
+    {
+        public final Link link;
+        public final String label;
+        public final int x;
+        public final int y;
+        public final int w;
+        public final int h;
+
+        public PinnedChip(Link link, String label, int x, int y, int w, int h)
+        {
+            this.link = link;
+            this.label = label;
+            this.x = x;
+            this.y = y;
+            this.w = w;
+            this.h = h;
+        }
+    }
+
     @Override
     public void render(UIContext context)
     {
@@ -1166,6 +1339,8 @@ public class UITexturePicker extends UIElement implements IImportPathProvider, I
         if (this.currentTab == 0 && this.right.isVisible())
         {
             FontRenderer font = context.batcher.getFont();
+
+            this.renderPinnedBar(context);
 
             if (this.picker.getList().isEmpty())
             {
