@@ -46,6 +46,8 @@ public class BBSSettings {
 	public static ValueStringKeys disabledMorphFormCategories;
 	/** Folders pinned in the file pickers, as "source:path". */
 	public static ValueStringKeys pinnedFolders;
+	/** Cell size the file pickers were last zoomed to. */
+	public static ValueInt texturePickerThumbnailSize;
 	public static ValueLanguage language;
 	public static ValueInt primaryColor;
 	public static ValueInt interfaceSurfaceColor;
@@ -657,6 +659,7 @@ public class BBSSettings {
 		builder.register(disabledMorphFormCategories);
 		pinnedFolders = new ValueStringKeys("pinned_folders");
 		builder.register(pinnedFolders);
+		texturePickerThumbnailSize = builder.getInt("texture_picker_thumbnail_size", 16, 16, 128);
 		editorClipAutoName = builder.getBoolean("clip_auto_name", true);
 
 		builder.category("personalization", Icons.COLOR);
