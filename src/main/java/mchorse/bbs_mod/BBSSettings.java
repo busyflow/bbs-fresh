@@ -44,6 +44,8 @@ public class BBSSettings {
 	public static ValueColors recentColors;
 	public static ValueStringKeys disabledSheets;
 	public static ValueStringKeys disabledMorphFormCategories;
+	/** Folders pinned in the file pickers, as "source:path". */
+	public static ValueStringKeys pinnedFolders;
 	public static ValueLanguage language;
 	public static ValueInt primaryColor;
 	public static ValueInt interfaceSurfaceColor;
@@ -653,6 +655,8 @@ public class BBSSettings {
 		builder.register(disabledSheets);
 		disabledMorphFormCategories = new ValueStringKeys("disabled_morph_form_categories");
 		builder.register(disabledMorphFormCategories);
+		pinnedFolders = new ValueStringKeys("pinned_folders");
+		builder.register(pinnedFolders);
 		editorClipAutoName = builder.getBoolean("clip_auto_name", true);
 
 		builder.category("personalization", Icons.COLOR);

@@ -637,6 +637,8 @@ public class UIKeys
     public static final IKey GENERAL_CUT = L10n.lang("bbs.ui.cut");
     public static final IKey GENERAL_DOWNLOAD = L10n.lang("bbs.ui.download");
     public static final IKey GENERAL_DUPE = L10n.lang("bbs.ui.dupe");
+    public static final IKey FILES_PIN = L10n.lang("bbs.ui.files.pin");
+    public static final IKey FILES_UNPIN = L10n.lang("bbs.ui.files.unpin");
     public static final IKey FILM_CONTINUE = L10n.lang("bbs.ui.film.continue");
     public static final IKey FILM_CONTINUE_TOOLTIP = L10n.lang("bbs.ui.film.continue_tooltip");
     public static final IKey FILM_CONTINUE_MODAL = L10n.lang("bbs.ui.film.continue_modal");

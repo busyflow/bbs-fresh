@@ -600,6 +600,8 @@
 	"bbs.ui.dashboard.optifine_ew-title": "Optifine DETECTED!",
 	"bbs.ui.download": "Download",
 	"bbs.ui.dupe": "Duplicate",
+	"bbs.ui.files.pin": "Pin folder",
+	"bbs.ui.files.unpin": "Unpin folder",
 	"bbs.ui.film.continue": "Continue from playhead",
 	"bbs.ui.film.continue_tooltip": "Duplicate this film starting at the playhead: the tick you're on becomes tick 0 of the new film, and everything before it is cut away.",
 	"bbs.ui.film.continue_modal": "Type in a name for the film continuing from the playhead:",
