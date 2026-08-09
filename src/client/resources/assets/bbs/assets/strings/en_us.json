@@ -600,6 +600,7 @@
 	"bbs.ui.dashboard.optifine_ew-title": "Optifine DETECTED!",
 	"bbs.ui.download": "Download",
 	"bbs.ui.dupe": "Duplicate",
+	"bbs.ui.keyframes.shape_default": "Follow default shape",
 	"bbs.ui.texture.pin": "Pin / unpin the current folder for quick access",
 	"bbs.ui.texture.pinned_hint": "Pin a folder with the bookmark icon for quick access — hold Ctrl and scroll the list to grow the PNG thumbnails",
 	"bbs.ui.texture.unpin_hint": "Right-click a pinned folder to remove it",

@@ -154,10 +154,23 @@ public abstract class UIKeyframeFactory <T> extends UIElement
 
         this.shape = new UIIcon(Icons.SHAPES, (b) ->
         {
-            KeyframeShape currentShape = keyframe.getShape() == null ? KeyframeShape.SQUARE : keyframe.getShape();
+            KeyframeShape currentShape = keyframe.getShape();
 
             this.getContext().replaceContextMenu((menu) ->
             {
+                /* Hand a keyframe back to the setting, for one that was given a shape of its own
+                 * and should follow "default keyframe shape" again. */
+                menu.action(Icons.REFRESH, UIKeys.KEYFRAMES_SHAPE_DEFAULT, keyframe.getRawShape() == null, () ->
+                {
+                    for (UIKeyframeSheet sheet : this.editor.getGraph().getSheets())
+                    {
+                        for (Keyframe kf : sheet.selection.getSelected())
+                        {
+                            kf.setShape(null);
+                        }
+                    }
+                });
+
                 for (KeyframeShape shape : KeyframeShape.values())
                 {
                     IKeyframeShapeRenderer shapeRenderer = KeyframeShapeRenderers.SHAPES.get(shape);

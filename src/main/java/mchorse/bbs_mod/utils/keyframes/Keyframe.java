@@ -29,7 +29,16 @@ public class Keyframe <T> extends BaseValue
     public List<Float> rx_m;
     public List<Float> ry_m;
 
-    private KeyframeShape shape = BBSSettings.getDefaultKeyframeShape();
+    /**
+     * The shape this keyframe was individually given, or {@code null} to follow the default
+     * shape setting.
+     *
+     * <p>Baking the setting in at creation meant the setting only ever reached keyframes made
+     * after it was changed - every keyframe already in the film kept the shape that was default
+     * on the day it was made, which is not what a setting called "default keyframe shape" reads
+     * like. Left unset, a keyframe follows the setting for as long as it exists.</p>
+     */
+    private KeyframeShape shape;
     private Color color;
 
     /**
@@ -225,6 +234,12 @@ public class Keyframe <T> extends BaseValue
 
     public KeyframeShape getShape()
     {
+        return this.shape == null ? BBSSettings.getDefaultKeyframeShape() : this.shape;
+    }
+
+    /** The shape this keyframe was individually given, or {@code null} when it follows the setting. */
+    public KeyframeShape getRawShape()
+    {
         return this.shape;
     }
 
@@ -309,7 +324,9 @@ public class Keyframe <T> extends BaseValue
         if (this.rx != 5F) data.putFloat("rx", this.rx);
         if (this.ry != 0F) data.putFloat("ry", this.ry);
         if (this.color != null) data.putInt("color", this.color.getRGBColor());
-        if (this.shape != KeyframeShape.SQUARE) data.putString("shape", this.shape.toString().toUpperCase());
+        /* Only a shape chosen for this keyframe alone is written; one that follows the setting
+         * stays unwritten so it keeps following it in the next session too. */
+        if (this.shape != null) data.putString("shape", this.shape.toString().toUpperCase());
 
         if (this.lx_m != null)
         {
@@ -342,7 +359,7 @@ public class Keyframe <T> extends BaseValue
 
         MapType map = data.asMap();
 
-        this.shape = KeyframeShape.SQUARE;
+        this.shape = null;
         this.color = null;
 
         if (map.has("tick")) this.tick = map.getFloat("tick");
@@ -378,7 +395,9 @@ public class Keyframe <T> extends BaseValue
     public void copyOverExtra(Keyframe<?> a)
     {
         this.getInterpolation().copy(a.getInterpolation());
-        this.setShape(a.getShape());
+        /* Raw, so a keyframe that follows the setting copies as one that follows the setting
+         * rather than having today's default frozen onto it. */
+        this.setShape(a.getRawShape());
         this.setColor(a.getColor() != null ? a.getColor().copy() : null);
         this.setDuration(a.getDuration());
 

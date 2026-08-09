@@ -637,6 +637,7 @@ public class UIKeys
     public static final IKey GENERAL_CUT = L10n.lang("bbs.ui.cut");
     public static final IKey GENERAL_DOWNLOAD = L10n.lang("bbs.ui.download");
     public static final IKey GENERAL_DUPE = L10n.lang("bbs.ui.dupe");
+    public static final IKey KEYFRAMES_SHAPE_DEFAULT = L10n.lang("bbs.ui.keyframes.shape_default");
     public static final IKey TEXTURE_PIN = L10n.lang("bbs.ui.texture.pin");
     public static final IKey TEXTURE_PINNED_HINT = L10n.lang("bbs.ui.texture.pinned_hint");
     public static final IKey TEXTURE_UNPIN_HINT = L10n.lang("bbs.ui.texture.unpin_hint");
