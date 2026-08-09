@@ -59,7 +59,7 @@ public abstract class UIList <T> extends UIElement
     public int background;
 
     private String filter = "";
-    private List<Pair<T, Integer>> filtered = new ArrayList<>();
+    protected List<Pair<T, Integer>> filtered = new ArrayList<>();
 
     protected int dragging = -1;
     protected long dragTime;

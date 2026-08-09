@@ -27,6 +27,12 @@ public class UIFileLinkList extends UIList<UIFileLinkList.FileLink>
     /** Biggest thumbnail worth showing; past this a folder holds too few rows to browse. */
     public static final int MAX_ROW = 128;
     private static final int ZOOM_STEP = 8;
+    /** Room under a thumbnail for its name. */
+    private static final int LABEL_BAND = 14;
+    private static final int CELL_GAP = 8;
+
+    /** Thumbnail edge. {@link #TEXT_ROW} means the plain one-per-row name list. */
+    private int thumb = TEXT_ROW;
 
     public Consumer<Link> fileCallback;
     public Link path = new Link("", "");
@@ -111,16 +117,169 @@ public class UIFileLinkList extends UIList<UIFileLinkList.FileLink>
     {
         size = MathUtils.clamp(size, TEXT_ROW, MAX_ROW);
 
-        if (size == this.scroll.scrollItemSize)
+        if (size == this.thumb)
         {
             return;
         }
 
-        this.scroll.scrollItemSize = size;
-        /* Wheel steps stay one row, the way they do at any other size. */
-        this.scroll.scrollSpeed = size;
+        this.thumb = size;
+
+        /* The list's own scrolling and hit testing are in rows of scrollItemSize, so a grid is
+         * expressed to it as taller rows - one row of cells - and the columns are handled here. */
+        this.scroll.scrollItemSize = this.cellHeight();
+        this.scroll.scrollSpeed = this.cellHeight();
 
         this.update();
+    }
+
+    /** Zoomed in, files are laid out as a grid of thumbnails with their names underneath. */
+    private boolean isGrid()
+    {
+        return this.thumb > TEXT_ROW;
+    }
+
+    private int cellHeight()
+    {
+        return this.isGrid() ? this.thumb + LABEL_BAND : TEXT_ROW;
+    }
+
+    private int cellWidth()
+    {
+        return this.isGrid() ? this.thumb + CELL_GAP : Math.max(1, this.area.w);
+    }
+
+    public int columns()
+    {
+        return this.isGrid() ? Math.max(1, this.area.w / this.cellWidth()) : 1;
+    }
+
+    private int count()
+    {
+        return this.isFiltering() ? this.filtered.size() : this.list.size();
+    }
+
+    @Override
+    public void update()
+    {
+        int columns = this.columns();
+
+        /* Scroll extent is in rows, and a grid row holds several files. */
+        this.scroll.setSize((this.count() + columns - 1) / columns);
+        this.scroll.clamp();
+    }
+
+    @Override
+    public int getHoveredIndex(UIContext context)
+    {
+        int columns = this.columns();
+
+        if (columns <= 1)
+        {
+            return super.getHoveredIndex(context);
+        }
+
+        if (!this.area.isInside(context))
+        {
+            return -1;
+        }
+
+        int column = (context.mouseX - this.area.x) / this.cellWidth();
+
+        if (column < 0 || column >= columns)
+        {
+            return -1;
+        }
+
+        int row = (context.mouseY - this.area.y + (int) this.scroll.getScroll()) / this.cellHeight();
+
+        return row * columns + column;
+    }
+
+    @Override
+    public void renderList(UIContext context)
+    {
+        int columns = this.columns();
+
+        if (columns <= 1)
+        {
+            super.renderList(context);
+
+            return;
+        }
+
+        int cellW = this.cellWidth();
+        int cellH = this.cellHeight();
+        int count = this.count();
+
+        for (int i = 0; i < count; i++)
+        {
+            int y = this.area.y + (i / columns) * cellH - (int) this.scroll.getScroll();
+
+            if (y + cellH < this.area.y)
+            {
+                /* Skip the whole row rather than each of its cells. */
+                i += columns - 1 - (i % columns);
+
+                continue;
+            }
+
+            if (y >= this.area.ey())
+            {
+                break;
+            }
+
+            int x = this.area.x + (i % columns) * cellW;
+            int index = this.isFiltering() ? this.filtered.get(i).b : i;
+            FileLink element = this.isFiltering() ? this.filtered.get(i).a : this.list.get(i);
+            boolean hover = context.mouseX >= x && context.mouseY >= y
+                && context.mouseX < x + cellW && context.mouseY < y + cellH;
+
+            this.renderCell(context, element, x, y, cellW, cellH, hover, this.current.contains(index));
+        }
+    }
+
+    private void renderCell(UIContext context, FileLink element, int x, int y, int cellW, int cellH, boolean hover, boolean selected)
+    {
+        if (selected)
+        {
+            context.batcher.box(x, y, x + cellW, y + cellH, Colors.A50 | BBSSettings.primaryColor.get());
+        }
+
+        int box = this.thumb;
+        int tx = x + (cellW - box) / 2;
+
+        if (element.folder)
+        {
+            Icon icon = element.pinned ? Icons.BOOKMARK : Icons.FOLDER;
+
+            context.batcher.icon(icon, Colors.setA(Colors.WHITE, hover ? 0.75F : 0.6F), x + (cellW - 16) / 2, y + (box - 16) / 2);
+        }
+        else
+        {
+            Texture texture = context.render.getTextures().getTexture(element.link);
+            int w = box;
+            int h = box;
+
+            if (texture.width > texture.height)
+            {
+                h = Math.max(1, (int) (texture.height / (float) texture.width * box));
+            }
+            else if (texture.height > texture.width)
+            {
+                w = Math.max(1, (int) (texture.width / (float) texture.height * box));
+            }
+
+            int ix = x + (cellW - w) / 2;
+            int iy = y + (box - h) / 2;
+
+            context.batcher.iconArea(Icons.CHECKBOARD, ix, iy, w, h);
+            context.batcher.fullTexturedBox(texture, ix, iy, w, h);
+        }
+
+        String title = context.batcher.getFont().limitToWidth(element.title, "...", cellW - 4);
+        int textX = x + (cellW - context.batcher.getFont().getWidth(title)) / 2;
+
+        context.batcher.textShadow(title, textX, y + box + 3, hover ? Colors.HIGHLIGHT : Colors.WHITE);
     }
 
     public void setPath(Link link)
@@ -306,46 +465,26 @@ public class UIFileLinkList extends UIList<UIFileLinkList.FileLink>
         return true;
     }
 
+    /** The unzoomed list. Zoomed in, {@link #renderCell} draws the grid instead. */
     @Override
     protected void renderElementPart(UIContext context, FileLink element, int i, int x, int y, boolean hover, boolean selected)
     {
-        int size = this.scroll.scrollItemSize;
-        int color = hover ? Colors.HIGHLIGHT : Colors.WHITE;
+        Icon icon = element.pinned ? Icons.BOOKMARK : (element.folder ? Icons.FOLDER : Icons.IMAGE);
 
-        if (size <= TEXT_ROW || element.folder)
+        context.batcher.icon(icon, Colors.setA(Colors.WHITE, hover ? 0.75F : 0.6F), x + 2, y);
+        context.batcher.textShadow(element.title, x + 20, y + 4, hover ? Colors.HIGHLIGHT : Colors.WHITE);
+    }
+
+    /** Columns come from the width, so a resized picker has to re-measure its scroll extent. */
+    @Override
+    public void resize()
+    {
+        super.resize();
+
+        if (this.isGrid())
         {
-            /* Folders have nothing to show, so they keep the icon and only follow the row height. */
-            int iconY = y + (size - TEXT_ROW) / 2;
-            Icon icon = element.pinned ? Icons.BOOKMARK : (element.folder ? Icons.FOLDER : Icons.IMAGE);
-
-            context.batcher.icon(icon, Colors.setA(Colors.WHITE, hover ? 0.75F : 0.6F), x + 2, iconY);
-            context.batcher.textShadow(element.title, x + 20, iconY + 4, color);
-
-            return;
+            this.update();
         }
-
-        int box = size - 4;
-        Texture texture = context.render.getTextures().getTexture(element.link);
-        int w = box;
-        int h = box;
-
-        /* Fit rather than stretch - skins are twice as wide as they are tall, and a stretched
-         * one is harder to tell from its neighbour than the filename was. */
-        if (texture.width > texture.height)
-        {
-            h = Math.max(1, (int) (texture.height / (float) texture.width * box));
-        }
-        else if (texture.height > texture.width)
-        {
-            w = Math.max(1, (int) (texture.width / (float) texture.height * box));
-        }
-
-        int tx = x + 2 + (box - w) / 2;
-        int ty = y + 2 + (box - h) / 2;
-
-        context.batcher.iconArea(Icons.CHECKBOARD, tx, ty, w, h);
-        context.batcher.fullTexturedBox(texture, tx, ty, w, h);
-        context.batcher.textShadow(element.title, x + box + 8, y + (size - context.batcher.getFont().getHeight()) / 2, color);
     }
 
     public static class FileLink
