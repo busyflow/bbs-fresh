@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.ui.framework.elements.input.keyframes;
 
+import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.ui.framework.elements.input.drag.TransformSpace;
 import mchorse.bbs_mod.camera.clips.overwrite.KeyframeClip;
 import mchorse.bbs_mod.film.replays.PerLimbService;
@@ -42,6 +43,7 @@ public class UIKeyframeEditor extends UIElement
     private boolean timelineVisible = true;
     private boolean propertiesVisible = true;
     private boolean propertiesBelow;
+    private int lastContentHeight = -1;
 
     public UIKeyframeEditor(Function<Consumer<Keyframe>, UIKeyframes> factory)
     {
@@ -100,6 +102,8 @@ public class UIKeyframeEditor extends UIElement
     private int sheetHeight()
     {
         int content = this.view.getGraph().getContentHeight();
+
+        this.lastContentHeight = content;
         int available = Math.max(0, this.area.h - BELOW_HEIGHT);
 
         if (content <= 0)
@@ -398,6 +402,26 @@ public class UIKeyframeEditor extends UIElement
     public boolean getAnchorLocal()
     {
         return this.editor instanceof UIAnchorKeyframeFactory factory && factory.transform.isLocal();
+    }
+
+    /**
+     * Follow the tracks as they grow.
+     *
+     * <p>Alt and the wheel change how thick the tracks are drawn, which changes how much room they
+     * need. Measured once, the sheet kept the height it had and the properties under it stayed
+     * put, so thickening the tracks only bought a scrollbar. The height is re-taken whenever the
+     * tracks report a different one.</p>
+     */
+    @Override
+    public void render(UIContext context)
+    {
+        if (this.propertiesBelow && this.target == null
+            && this.view.getGraph().getContentHeight() != this.lastContentHeight)
+        {
+            this.applyViewFlex();
+        }
+
+        super.render(context);
     }
 
     @Override
