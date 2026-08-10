@@ -936,6 +936,13 @@ public class UIKeyframes extends UIElement
     private static double savedZoomX;
     private static boolean hasSavedViewportX;
 
+    /**
+     * Whether a restore is still owed. Applied on switch, the axis clamps against a width that is
+     * momentarily zero and lands off-screen, so it is re-applied on the first render that has a
+     * real width - the same relayout that pressing {@code `} was doing by hand.
+     */
+    private boolean pendingViewportX;
+
     public void saveViewportX()
     {
         savedShiftX = this.xAxis.getShift();
@@ -952,6 +959,7 @@ public class UIKeyframes extends UIElement
         }
 
         this.xAxis.set(savedShiftX, savedZoomX);
+        this.pendingViewportX = true;
 
         return true;
     }
@@ -1330,6 +1338,14 @@ public class UIKeyframes extends UIElement
     @Override
     public void render(UIContext context)
     {
+        /* Re-apply the owed viewport once there is a width to clamp it against - the apply on
+         * switch happened while it was zero and slid the view off. */
+        if (this.pendingViewportX && this.area.w > 0)
+        {
+            this.xAxis.set(savedShiftX, savedZoomX);
+            this.pendingViewportX = false;
+        }
+
         /* The release is offered to the whole element tree and the first element to take it ends
          * the dispatch, so letting go over another panel leaves this one still dragging, and the
          * next click carries on from where the drag left off. Releasing outside the game window
