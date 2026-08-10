@@ -71,7 +71,10 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
         KeyframeShape keyframeShape = frame.getShape();
         IKeyframeShapeRenderer shape = KeyframeShapeRenderers.SHAPES.get(keyframeShape);
 
-        shape.renderKeyframe(context, builder, matrix, x, y, offset, c);
+        /* Every keyframe in every graph is drawn through here, so the size setting is added once
+         * and the same whole number reaches all of them - the shapes keep the size they have
+         * relative to each other, and every one stays on the pixel grid. */
+        shape.renderKeyframe(context, builder, matrix, x, y, offset + BBSSettings.keyframeSize.get(), c);
 
         return shape;
     }
@@ -233,12 +236,16 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
      */
     public static boolean isNear(double x, double y, int mouseX, int mouseY, boolean checkOnlyX)
     {
+        /* Grown with the drawn size: a bigger keyframe that still had to be clicked in its old
+         * five pixels would look grabbable well outside where it actually is. */
+        double r = BBSSettings.keyframeGrabRadiusSq();
+
         if (checkOnlyX)
         {
-            return Math.pow(mouseX - x, 2) < 25D;
+            return Math.pow(mouseX - x, 2) < r;
         }
 
-        return Math.pow(mouseX - x, 2) + Math.pow(mouseY - y, 2) < 25D;
+        return Math.pow(mouseX - x, 2) + Math.pow(mouseY - y, 2) < r;
     }
 
     /* Sheet management */

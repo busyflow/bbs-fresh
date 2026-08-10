@@ -151,6 +151,23 @@ public class BBSSettings {
 	public static ValueBoolean editorColoredKeyframeLines;
 	/** Camera keyframe clip: properties under the sheet at full width instead of a side column. */
 	public static ValueBoolean editorKeyframePropertiesBelow;
+	/**
+	 * Pixels added to the radius every keyframe is drawn at, and to the radius one can be grabbed
+	 * by. Whole pixels and the same for every shape, so they stay the size of each other and land
+	 * on the pixel grid; nothing below the stock size, which is as small as the shapes read.
+	 */
+	public static ValueInt keyframeSize;
+
+	/** Radius, in pixels, a keyframe is grabbed by before {@link #keyframeSize} widens it. */
+	public static final int KEYFRAME_GRAB_RADIUS = 5;
+
+	/** Squared grab radius, widened by the keyframe size setting. */
+	public static double keyframeGrabRadiusSq()
+	{
+		int r = KEYFRAME_GRAB_RADIUS + (keyframeSize == null ? 0 : keyframeSize.get());
+
+		return r * r;
+	}
 	public static ValueBoolean editorShowAllReplayTracks;
 	public static ValueInt editorPeriodicSave;
 	public static ValueBoolean editorHorizontalFlight;
@@ -761,7 +778,6 @@ public class BBSSettings {
 		videoMotionBlur = builder.getInt("motion_blur", 0, 0, 6);
 		videoHeldFrames = builder.getInt("held_frames", 1, 1, 1000);
 		videoDelay = builder.getFloat("delay", 0.5F, 0F, 30F);
-		videoExportShaders = builder.getBoolean("export_with_shaders", false);
 		videoOpenFolderAfterExport = builder.getBoolean("open_folder_after_export", false);
 		videoPlaySoundAfterExport = builder.getBoolean("play_sound_after_export", true);
 		videoHardwareEncoder = builder.getBoolean("hardware_encoder", false);
@@ -782,7 +798,6 @@ public class BBSSettings {
 		editorCrosshair = builder.getBoolean("crosshair", false);
 		editorSeconds = builder.getBoolean("seconds", false);
 		editorColoredKeyframeLines = builder.getBoolean("colored_keyframe_lines", true);
-		editorKeyframePropertiesBelow = builder.getBoolean("keyframe_properties_below", false);
 		keyframeDefaultInterpolation = builder.getString("keyframe_default_interpolation", Interpolations.LINEAR.getKey());
 		editorPeriodicSave = builder.getInt("periodic_save", 60, 0, 3600);
 		editorHorizontalFlight = builder.getBoolean("horizontal_flight", false);
@@ -857,5 +872,8 @@ public class BBSSettings {
 		creativeShowXpBar = builder.getBoolean("creative_show_xp_bar", false);
 		uiFont = builder.getBoolean("ui_font", true);
 		uiFontScale = builder.getFloat("ui_font_scale", 1F, 0.5F, 4F);
+		videoExportShaders = builder.getBoolean("export_with_shaders", false);
+		editorKeyframePropertiesBelow = builder.getBoolean("keyframe_properties_below", false);
+		keyframeSize = builder.getInt("keyframe_size", 0, 0, 12);
 	}
 }

@@ -67,7 +67,7 @@ public class UIKeyframeGraph implements IUIKeyframeGraph
      */
     protected boolean isNear(double x, double y, int mouseX, int mouseY)
     {
-        return Math.pow(mouseX - x, 2) + Math.pow(mouseY - y, 2) < 25D;
+        return Math.pow(mouseX - x, 2) + Math.pow(mouseY - y, 2) < BBSSettings.keyframeGrabRadiusSq();
     }
 
     public void resetViewY(UIKeyframeSheet current)
