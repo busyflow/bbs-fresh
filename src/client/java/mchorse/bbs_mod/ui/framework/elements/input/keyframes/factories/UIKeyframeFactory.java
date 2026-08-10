@@ -97,6 +97,18 @@ public abstract class UIKeyframeFactory <T> extends UIElement
         this.scroll.scroll.setScroll(SCROLLS.getOrDefault(this.keyframe.getFactory(), 0));
     }
 
+    /**
+     * Hide the values without taking the panel down.
+     *
+     * <p>Nothing selected used to remove the panel outright, so the surrounding interface jumped
+     * about as keyframes were picked and dropped. The panel keeps its place and only what it is
+     * showing goes.</p>
+     */
+    public void setValuesVisible(boolean visible)
+    {
+        this.scroll.setVisible(visible);
+    }
+
     public static <T> UIKeyframeFactory createPanel(Keyframe<T> keyframe, UIKeyframes editor)
     {
         IUIKeyframeFactoryFactory<T> factory = FACTORIES.get(keyframe.getFactory());

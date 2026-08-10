@@ -157,6 +157,8 @@ public class BBSSettings {
 	 * on the pixel grid; nothing below the stock size, which is as small as the shapes read.
 	 */
 	public static ValueInt keyframeSize;
+	/** Height of the keyframe properties panel, wherever it is shown under the keyframes. */
+	public static ValueInt keyframePropertiesHeight;
 
 	/** Radius, in pixels, a keyframe is grabbed by before {@link #keyframeSize} widens it. */
 	public static final int KEYFRAME_GRAB_RADIUS = 5;
@@ -875,5 +877,6 @@ public class BBSSettings {
 		videoExportShaders = builder.getBoolean("export_with_shaders", false);
 		editorKeyframePropertiesBelow = builder.getBoolean("keyframe_properties_below", false);
 		keyframeSize = builder.getInt("keyframe_size", 0, 0, 12);
+		keyframePropertiesHeight = builder.getInt("keyframe_properties_height", 160, 60, 500);
 	}
 }

@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.ui.framework.elements.input.keyframes;
 
+import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.ui.framework.elements.input.drag.TransformSpace;
 import mchorse.bbs_mod.camera.clips.overwrite.KeyframeClip;
@@ -36,8 +37,11 @@ public class UIKeyframeEditor extends UIElement
 
     /** Width of the properties panel when it sits beside the sheet. */
     private static final int SIDE_WIDTH = 140;
-    /** Height of the properties panel when it sits under the sheet. */
-    private static final int BELOW_HEIGHT = 160;
+    /** Height of the properties panel when it sits under the sheet, from the Fresh settings. */
+    private static int belowHeight()
+    {
+        return BBSSettings.keyframePropertiesHeight.get();
+    }
 
     private UIElement target;
     private boolean timelineVisible = true;
@@ -104,7 +108,7 @@ public class UIKeyframeEditor extends UIElement
         int content = this.view.getGraph().getContentHeight();
 
         this.lastContentHeight = content;
-        int available = Math.max(0, this.area.h - BELOW_HEIGHT);
+        int available = Math.max(0, this.area.h - belowHeight());
 
         if (content <= 0)
         {
@@ -141,6 +145,28 @@ public class UIKeyframeEditor extends UIElement
 
     private void pickKeyframe(Keyframe keyframe)
     {
+        /* Nothing picked: keep the panel where it is and empty it, rather than taking it down and
+         * letting everything around it jump. With nothing ever picked there is no panel yet, so
+         * one is built off any keyframe in the sheets purely to stand there, values hidden. */
+        boolean empty = keyframe == null;
+
+        if (empty)
+        {
+            if (this.editor != null)
+            {
+                this.editor.setValuesVisible(false);
+
+                return;
+            }
+
+            keyframe = this.firstKeyframe();
+
+            if (keyframe == null)
+            {
+                return;
+            }
+        }
+
         UIKeyframeFactory.saveScroll(this.editor);
 
         if (this.editor != null)
@@ -149,9 +175,15 @@ public class UIKeyframeEditor extends UIElement
             this.editor = null;
         }
 
-        if (keyframe != null)
         {
             this.editor = UIKeyframeFactory.createPanel(keyframe, this.view);
+
+            if (this.editor == null)
+            {
+                return;
+            }
+
+            this.editor.setValuesVisible(!empty);
 
             if (this.target != null)
             {
@@ -162,7 +194,7 @@ public class UIKeyframeEditor extends UIElement
                 /* Against the sheet's bottom edge rather than the panel's, so it follows the last
                  * track instead of sitting at the foot of the panel with a gap above it. Full
                  * width, and the same place whichever keyframe is picked. */
-                this.editor.relative(this.view).x(0).y(1F).w(1F).h(BELOW_HEIGHT);
+                this.editor.relative(this.view).x(0).y(1F).w(1F).h(belowHeight());
             }
             else
             {
@@ -187,6 +219,22 @@ public class UIKeyframeEditor extends UIElement
         {
             this.editor.restoreScroll();
         }
+    }
+
+    /** Any keyframe at all, to build an empty panel off when none has been picked yet. */
+    private Keyframe firstKeyframe()
+    {
+        for (UIKeyframeSheet sheet : this.view.getGraph().getSheets())
+        {
+            List<Keyframe> keyframes = sheet.channel.getKeyframes();
+
+            if (!keyframes.isEmpty())
+            {
+                return keyframes.get(0);
+            }
+        }
+
+        return null;
     }
 
     public void setTimelineVisible(boolean visible)

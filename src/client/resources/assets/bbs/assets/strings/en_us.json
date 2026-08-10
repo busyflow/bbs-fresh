@@ -331,6 +331,8 @@
 	"bbs.config.video.delay-comment": "Delay before export starts (seconds). Full crowds load during this time, and recording waits for them to reach the client before capturing the first frame.",
 	"bbs.config.fresh.keyframe_properties_below": "Keyframe properties below the sheet",
 	"bbs.config.fresh.keyframe_properties_below-comment": "Camera keyframe clips only. Puts the keyframe's properties (interpolation, values, easing) in a fixed full-width strip under the keyframes instead of a column beside them, so the sheet gets the whole width and the channel names move right into the freed space. Reopen the clip for the change to take effect.",
+	"bbs.config.fresh.keyframe_properties_height": "Keyframe properties height",
+	"bbs.config.fresh.keyframe_properties_height-comment": "How tall the keyframe properties panel is, in pixels, wherever it is shown beneath the keyframes. Reopen the editor for a change to take effect.",
 	"bbs.config.fresh.keyframe_size": "Keyframe size (extra pixels)",
 	"bbs.config.fresh.keyframe_size-comment": "Pixels added to the radius every keyframe is drawn at, and to the radius one can be grabbed by. Whole pixels and the same for every shape, so they stay the size of each other and land on the pixel grid. 0 is the stock size, which is the smallest the shapes read at.",
 	"bbs.config.fresh.export_with_shaders": "Export with shaders",
