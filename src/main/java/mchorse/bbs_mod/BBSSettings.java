@@ -156,7 +156,7 @@ public class BBSSettings {
 	 * by. Whole pixels and the same for every shape, so they stay the size of each other and land
 	 * on the pixel grid; nothing below the stock size, which is as small as the shapes read.
 	 */
-	public static ValueInt keyframeSize;
+	public static ValueFloat keyframeSize;
 	/** Height of the keyframe properties panel, wherever it is shown under the keyframes. */
 	public static ValueInt keyframePropertiesHeight;
 
@@ -166,7 +166,7 @@ public class BBSSettings {
 	/** Squared grab radius, widened by the keyframe size setting. */
 	public static double keyframeGrabRadiusSq()
 	{
-		int r = KEYFRAME_GRAB_RADIUS + (keyframeSize == null ? 0 : keyframeSize.get());
+		float r = KEYFRAME_GRAB_RADIUS + (keyframeSize == null ? 0F : keyframeSize.get());
 
 		return r * r;
 	}
@@ -876,7 +876,7 @@ public class BBSSettings {
 		uiFontScale = builder.getFloat("ui_font_scale", 1F, 0.5F, 4F);
 		videoExportShaders = builder.getBoolean("export_with_shaders", false);
 		editorKeyframePropertiesBelow = builder.getBoolean("keyframe_properties_below", false);
-		keyframeSize = builder.getInt("keyframe_size", 0, 0, 12);
+		keyframeSize = builder.getFloat("keyframe_size", 0F, 0F, 2F);
 		keyframePropertiesHeight = builder.getInt("keyframe_properties_height", 160, 60, 500);
 	}
 }

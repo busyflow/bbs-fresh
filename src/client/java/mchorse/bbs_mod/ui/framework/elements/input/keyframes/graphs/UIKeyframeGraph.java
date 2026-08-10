@@ -705,7 +705,7 @@ public class UIKeyframeGraph implements IUIKeyframeGraph
             int mc = c | Colors.A100;
             IKeyframeShapeRenderer shapeResult = UIKeyframeDopeSheet.renderShape(frame, context, builder, matrix, mx, y, 2, mc);
 
-            shapeResult.renderKeyframeBackground(context, builder, matrix, mx, y, 2, mc);
+            shapeResult.renderKeyframeBackground(context, builder, matrix, mx, y, 2 + BBSSettings.keyframeSize.get(), mc);
 
             if (frame.getInterpolation().getInterp() == Interpolations.BEZIER)
             {
@@ -713,7 +713,7 @@ public class UIKeyframeGraph implements IUIKeyframeGraph
                 int ry = this.toGraphY(sheet.channel.getFactory().getY(frame.getValue()) + frame.ry);
 
                 shapeResult = UIKeyframeDopeSheet.renderShape(frame, context, builder, matrix, rx, ry, 2, c | Colors.A100);
-                shapeResult.renderKeyframeBackground(context, builder, matrix, rx, ry, 2, c | Colors.A100);
+                shapeResult.renderKeyframeBackground(context, builder, matrix, rx, ry, 2 + BBSSettings.keyframeSize.get(), c | Colors.A100);
             }
 
             if (prev != null && prev.getInterpolation().getInterp() == Interpolations.BEZIER)
@@ -722,7 +722,7 @@ public class UIKeyframeGraph implements IUIKeyframeGraph
                 int ly = this.toGraphY(sheet.channel.getFactory().getY(frame.getValue()) + frame.ly);
 
                 shapeResult = UIKeyframeDopeSheet.renderShape(frame, context, builder, matrix, lx, ly, 2, c | Colors.A100);
-                shapeResult.renderKeyframeBackground(context, builder, matrix, lx, ly, 2, c | Colors.A100);
+                shapeResult.renderKeyframeBackground(context, builder, matrix, lx, ly, 2 + BBSSettings.keyframeSize.get(), c | Colors.A100);
             }
         }
     }

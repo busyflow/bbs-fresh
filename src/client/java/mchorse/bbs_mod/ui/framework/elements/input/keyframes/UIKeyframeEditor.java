@@ -46,6 +46,7 @@ public class UIKeyframeEditor extends UIElement
     private UIElement target;
     private boolean timelineVisible = true;
     private boolean propertiesVisible = true;
+    private java.util.function.BooleanSupplier propertiesBelowSupplier = () -> false;
     private boolean propertiesBelow;
     private int lastContentHeight = -1;
 
@@ -73,7 +74,17 @@ public class UIKeyframeEditor extends UIElement
      */
     public UIKeyframeEditor propertiesBelow(boolean below)
     {
-        this.propertiesBelow = below;
+        return this.propertiesBelow(() -> below);
+    }
+
+    /**
+     * Read live, so toggling the setting rearranges an open editor without reopening it. The
+     * layout is re-applied in {@link #render(UIContext)} when the answer changes.
+     */
+    public UIKeyframeEditor propertiesBelow(java.util.function.BooleanSupplier below)
+    {
+        this.propertiesBelowSupplier = below;
+        this.propertiesBelow = below.getAsBoolean();
 
         this.applyViewFlex();
 
@@ -463,10 +474,28 @@ public class UIKeyframeEditor extends UIElement
     @Override
     public void render(UIContext context)
     {
-        if (this.propertiesBelow && this.target == null
-            && this.view.getGraph().getContentHeight() != this.lastContentHeight)
+        if (this.target == null)
         {
-            this.applyViewFlex();
+            /* Toggled in settings while open: rearrange side to below (or back) without a reopen. */
+            if (this.propertiesBelowSupplier.getAsBoolean() != this.propertiesBelow)
+            {
+                this.propertiesBelow = !this.propertiesBelow;
+                this.lastContentHeight = -1;
+
+                if (this.editor != null)
+                {
+                    this.editor.removeFromParent();
+                    this.editor = null;
+                }
+
+                this.applyViewFlex();
+                this.pickKeyframe(null);
+            }
+            else if (this.propertiesBelow
+                && this.view.getGraph().getContentHeight() != this.lastContentHeight)
+            {
+                this.applyViewFlex();
+            }
         }
 
         super.render(context);

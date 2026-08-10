@@ -72,8 +72,8 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
         IKeyframeShapeRenderer shape = KeyframeShapeRenderers.SHAPES.get(keyframeShape);
 
         /* Every keyframe in every graph is drawn through here, so the size setting is added once
-         * and the same whole number reaches all of them - the shapes keep the size they have
-         * relative to each other, and every one stays on the pixel grid. */
+         * and the same amount reaches all of them - the shapes keep the size they have relative
+         * to each other whatever it is set to. */
         shape.renderKeyframe(context, builder, matrix, x, y, offset + BBSSettings.keyframeSize.get(), c);
 
         return shape;
@@ -1353,7 +1353,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
             int mc = c | Colors.A100;
             IKeyframeShapeRenderer shapeResult = renderShape(frame, context, builder, matrix, mx, my, 2, mc);
 
-            shapeResult.renderKeyframeBackground(context, builder, matrix, mx, my, 2, mc);
+            shapeResult.renderKeyframeBackground(context, builder, matrix, mx, my, 2 + BBSSettings.keyframeSize.get(), mc);
         }
 
         RenderSystem.enableBlend();
@@ -1418,7 +1418,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
             int mc = c | Colors.A100;
             IKeyframeShapeRenderer shapeResult = renderShape(frame, context, builder, matrix, mx, my, 2, mc);
 
-            shapeResult.renderKeyframeBackground(context, builder, matrix, mx, my, 2, mc);
+            shapeResult.renderKeyframeBackground(context, builder, matrix, mx, my, 2 + BBSSettings.keyframeSize.get(), mc);
         }
     }
 

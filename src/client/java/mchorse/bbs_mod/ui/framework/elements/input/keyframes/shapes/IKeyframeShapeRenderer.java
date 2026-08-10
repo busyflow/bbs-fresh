@@ -12,8 +12,8 @@ public interface IKeyframeShapeRenderer
 
     public Icon getIcon();
 
-    public void renderKeyframe(UIContext uiContext, BufferBuilder builder, Matrix4f matrix4f, int x, int y, int offset, int c);
+    public void renderKeyframe(UIContext uiContext, BufferBuilder builder, Matrix4f matrix4f, int x, int y, float offset, int c);
 
-    public default void renderKeyframeBackground(UIContext uiContext, BufferBuilder builder, Matrix4f matrix4f, int x, int y, int offset, int c)
+    public default void renderKeyframeBackground(UIContext uiContext, BufferBuilder builder, Matrix4f matrix4f, int x, int y, float offset, int c)
     {}
 }
