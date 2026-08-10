@@ -928,6 +928,42 @@ public class UIKeyframes extends UIElement
         return this.xAxis;
     }
 
+    /* Where the timeline was last left along its length, kept across editors so opening one, or
+     * switching replays or clips, lands where it was rather than being reframed onto the
+     * keyframes - which threw the view behind tick 0 and zoomed it in. Saved on teardown, put
+     * back at open in place of a fit. */
+    private static double savedShiftX;
+    private static double savedZoomX;
+    private static boolean hasSavedViewportX;
+
+    public void saveViewportX()
+    {
+        savedShiftX = this.xAxis.getShift();
+        savedZoomX = this.xAxis.getZoom();
+        hasSavedViewportX = true;
+    }
+
+    /** Put the remembered horizontal viewport back. False, and left alone, if none is saved yet. */
+    public boolean restoreViewportX()
+    {
+        if (!hasSavedViewportX)
+        {
+            return false;
+        }
+
+        this.xAxis.set(savedShiftX, savedZoomX);
+
+        return true;
+    }
+
+    @Override
+    public void removeFromParent()
+    {
+        this.saveViewportX();
+
+        super.removeFromParent();
+    }
+
     public int getDuration()
     {
         return this.duration == null ? 0 : this.duration.get();

@@ -855,7 +855,7 @@ public class UIReplaysEditor extends UIElement
 
         this.resize();
 
-        if (this.keyframeEditor != null && lastEditor == null)
+        if (this.keyframeEditor != null && lastEditor == null && !this.keyframeEditor.view.restoreViewportX())
         {
             this.keyframeEditor.view.resetView();
         }

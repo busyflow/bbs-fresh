@@ -63,7 +63,7 @@ public class UIKeyframeClip extends UIClip<KeyframeClip>
         this.edit = new UIButton(UIKeys.GENERAL_EDIT, (b) ->
         {
             this.editor.embedView(this.keyframes);
-            this.keyframes.view.resetView();
+            if (!this.keyframes.view.restoreViewportX()) this.keyframes.view.resetView();
             this.keyframes.view.getGraph().clearSelection();
         });
         this.edit.keys().register(Keys.FORMS_EDIT, () -> this.edit.clickItself());
@@ -138,7 +138,7 @@ public class UIKeyframeClip extends UIClip<KeyframeClip>
         if (data.getString("embed").equals("keyframe"))
         {
             this.editor.embedView(this.keyframes);
-            this.keyframes.view.resetView();
+            if (!this.keyframes.view.restoreViewportX()) this.keyframes.view.resetView();
         }
     }
 
