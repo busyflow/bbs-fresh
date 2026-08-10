@@ -928,49 +928,6 @@ public class UIKeyframes extends UIElement
         return this.xAxis;
     }
 
-    /* Where the timeline was last left along its length, kept across editors so opening one, or
-     * switching replays or clips, lands where it was rather than being reframed onto the
-     * keyframes - which threw the view behind tick 0 and zoomed it in. Saved on teardown, put
-     * back at open in place of a fit. */
-    private static double savedShiftX;
-    private static double savedZoomX;
-    private static boolean hasSavedViewportX;
-
-    /**
-     * Whether a restore is still owed. Applied on switch, the axis clamps against a width that is
-     * momentarily zero and lands off-screen, so it is re-applied on the first render that has a
-     * real width - the same relayout that pressing {@code `} was doing by hand.
-     */
-    private boolean pendingViewportX;
-
-    public void saveViewportX()
-    {
-        savedShiftX = this.xAxis.getShift();
-        savedZoomX = this.xAxis.getZoom();
-        hasSavedViewportX = true;
-    }
-
-    /** Put the remembered horizontal viewport back. False, and left alone, if none is saved yet. */
-    public boolean restoreViewportX()
-    {
-        if (!hasSavedViewportX)
-        {
-            return false;
-        }
-
-        this.xAxis.set(savedShiftX, savedZoomX);
-        this.pendingViewportX = true;
-
-        return true;
-    }
-
-    @Override
-    public void removeFromParent()
-    {
-        this.saveViewportX();
-
-        super.removeFromParent();
-    }
 
     public int getDuration()
     {
@@ -1094,9 +1051,16 @@ public class UIKeyframes extends UIElement
     @Override
     public void resize()
     {
-        /* Save horizontal view range, and restore it after resize */
-        double minValue = this.xAxis.getMinValue();
-        double maxValue = this.xAxis.getMaxValue();
+        /* Save horizontal view range, and restore it after resize.
+         *
+         * Only when there is a width to read it against. A freshly built editor - the one made
+         * when replays are switched - resizes once while still zero-width; getMinValue/getMaxValue
+         * are degenerate there, and restoring that range would refit the axis onto it, throwing
+         * the view behind tick 0 and zooming it in. Skipped, the axis keeps the shift and zoom it
+         * was given (copied from the outgoing editor) until a real width arrives. */
+        boolean hadWidth = this.area.w > 0;
+        double minValue = hadWidth ? this.xAxis.getMinValue() : 0;
+        double maxValue = hadWidth ? this.xAxis.getMaxValue() : 0;
 
         int labelWidth = this.getLabelWidth();
         boolean showLabelResizer = this.currentGraph == this.dopeSheet && !this.isReplayKeyframeEditor();
@@ -1120,7 +1084,7 @@ public class UIKeyframes extends UIElement
 
         this.currentGraph.resize();
 
-        if (!Operation.equals(minValue, maxValue))
+        if (hadWidth && !Operation.equals(minValue, maxValue))
         {
             this.xAxis.view(minValue, maxValue);
         }
@@ -1338,14 +1302,6 @@ public class UIKeyframes extends UIElement
     @Override
     public void render(UIContext context)
     {
-        /* Re-apply the owed viewport once there is a width to clamp it against - the apply on
-         * switch happened while it was zero and slid the view off. */
-        if (this.pendingViewportX && this.area.w > 0)
-        {
-            this.xAxis.set(savedShiftX, savedZoomX);
-            this.pendingViewportX = false;
-        }
-
         /* The release is offered to the whole element tree and the first element to take it ends
          * the dispatch, so letting go over another panel leaves this one still dragging, and the
          * next click carries on from where the drag left off. Releasing outside the game window
