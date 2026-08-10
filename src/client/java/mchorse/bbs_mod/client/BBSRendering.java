@@ -1,5 +1,11 @@
 package mchorse.bbs_mod.client;
 
+import net.minecraft.client.render.VertexFormats;
+import net.minecraft.client.render.VertexFormat;
+import net.minecraft.client.render.Tessellator;
+import net.minecraft.client.render.BufferRenderer;
+import net.minecraft.client.render.BufferBuilder;
+import mchorse.bbs_mod.graphics.Draw;
 import mchorse.bbs_mod.utils.MathUtils;
 import com.mojang.blaze3d.systems.RenderSystem;
 import mchorse.bbs_mod.BBSMod;
@@ -580,6 +586,11 @@ public class BBSRendering
 
     public static void renderCoolStuff(WorldRenderContext worldRenderContext)
     {
+        /* Before anything the film draws, so the colour covers the world and the replays sit on
+         * top of it. Here rather than at the event, because with Iris loaded this is reached from
+         * a different call site and the colour has to go in front of the same things either way. */
+        renderChromaSkyOverlay(worldRenderContext);
+
         if (MinecraftClient.getInstance().currentScreen instanceof UIScreen screen)
         {
             screen.renderInWorld(worldRenderContext);
@@ -953,14 +964,94 @@ public class BBSRendering
      */
     public static boolean isChromaSkyActive()
     {
+        return getChromaSkyStrength() > 0D;
+    }
+
+    /**
+     * How far the chroma colour has come in, 0 to 1.
+     *
+     * <p>The curve used to be read as a switch at the halfway mark, so a keyframe from 0 to 1
+     * spent its whole length doing nothing and then swapped the world for a colour in a single
+     * frame. It is the amount of colour instead, which is what makes it possible to fade one in.
+     * Without a curve the setting still answers, as fully on or fully off.</p>
+     */
+    public static double getChromaSkyStrength()
+    {
         Double curve = getChromaSky();
 
         if (curve == null)
         {
-            return BBSSettings.chromaSkyEnabled.get();
+            return BBSSettings.chromaSkyEnabled.get() ? 1D : 0D;
         }
 
-        return curve > 0.5D;
+        return MathUtils.clamp(curve, 0D, 1D);
+    }
+
+    /**
+     * Whether the colour is solid enough to stand in for the world entirely - the point at which
+     * the sky and the terrain can be skipped outright rather than covered over. Below it they
+     * have to be drawn, or there would be nothing to fade out of.
+     */
+    public static boolean isChromaSkyOpaque()
+    {
+        return getChromaSkyStrength() >= 1D;
+    }
+
+    /**
+     * Lay the chroma colour over the whole frame, at whatever strength the curve is at.
+     *
+     * <p>Drawn without depth testing after the world and its entities and before the film's own
+     * forms, so it covers blocks, mobs, particles and everything else the world drew, and the
+     * replays land on top of it.</p>
+     */
+    public static void renderChromaSkyOverlay(WorldRenderContext context)
+    {
+        double strength = getChromaSkyStrength();
+
+        if (strength <= 0D)
+        {
+            return;
+        }
+
+        Integer fromCurve = getChromaSkyColorArgb();
+        Color color = Colors.COLOR.set(fromCurve != null ? fromCurve : BBSSettings.chromaSkyColor.get());
+        MatrixStack stack = context.matrixStack();
+
+        stack.push();
+
+        MatrixStack.Entry peek = stack.peek();
+
+        /* Identity, so the quad is in front of the camera rather than somewhere in the world. */
+        peek.getPositionMatrix().identity();
+        peek.getNormalMatrix().identity();
+        stack.translate(0F, 0F, -1F);
+
+        RenderSystem.disableDepthTest();
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+
+        BufferBuilder builder = Tessellator.getInstance().getBuffer();
+
+        builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+
+        /* Comfortably past the corners of any field of view - this is a curtain, not a shape. */
+        float d = 8F;
+
+        Draw.fillQuad(builder, stack,
+            -d, -d, 0,
+            d, -d, 0,
+            d, d, 0,
+            -d, d, 0,
+            color.r, color.g, color.b, (float) strength
+        );
+
+        RenderSystem.setShader(GameRenderer::getPositionColorProgram);
+
+        BufferRenderer.drawWithGlobalProgram(builder.end());
+
+        RenderSystem.disableBlend();
+
+        stack.pop();
     }
 
     /**

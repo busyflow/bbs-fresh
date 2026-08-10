@@ -43,7 +43,7 @@ public class WorldRendererMixin
     @Inject(method = "renderSky(Lnet/minecraft/client/util/math/MatrixStack;Lorg/joml/Matrix4f;FLnet/minecraft/client/render/Camera;ZLjava/lang/Runnable;)V", at = @At("HEAD"), cancellable = true)
     public void onRenderSky(CallbackInfo info)
     {
-        if (BBSRendering.isChromaSkyActive())
+        if (BBSRendering.isChromaSkyOpaque())
         {
             Integer fromCurve = BBSRendering.getChromaSkyColorArgb();
             int argb = fromCurve != null ? fromCurve : BBSSettings.chromaSkyColor.get();
@@ -94,7 +94,7 @@ public class WorldRendererMixin
             FormTranslucentQueue.flush();
         }
 
-        if (BBSRendering.isChromaSkyActive() && !BBSRendering.isChromaSkyTerrainVisible())
+        if (BBSRendering.isChromaSkyOpaque() && !BBSRendering.isChromaSkyTerrainVisible())
         {
             BBSRendering.onRenderChunkLayer(matrices);
 
