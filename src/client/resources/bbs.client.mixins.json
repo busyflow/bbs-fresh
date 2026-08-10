@@ -22,6 +22,8 @@
         "LivingEntityCrowdClientBodyMixin",
         "LivingEntityRendererMixin",
         "iris.SystemTimeUniformsTimerMixin",
+        "iris.CelestialUniformsAccessor",
+        "iris.CelestialUniformsMixin",
         "ClientPlayerInteractionManagerMixin",
         "InGameHudMixin",
         "KeyboardMixin",
