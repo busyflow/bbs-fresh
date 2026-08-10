@@ -640,6 +640,14 @@ public class UIReplaysEditor extends UIElement
     {
         UIKeyframes lastEditor = this.keyframeEditor != null ? this.keyframeEditor.view : null;
 
+        /* The tick window on screen right now, taken while the old editor still has its width, so
+         * the same window - and the playhead's place in it - can be put back on the new one after
+         * it is laid out. Read raw shift/zoom (copyViewport) survives a rebuild but not the
+         * zero-width resize in between; a value range re-applied afterwards does. */
+        boolean hadWindow = lastEditor != null && lastEditor.area.w > 0;
+        double windowMin = hadWindow ? lastEditor.getXAxis().getMinValue() : 0;
+        double windowMax = hadWindow ? lastEditor.getXAxis().getMaxValue() : 0;
+
         if (this.keyframeEditor != null)
         {
             this.keyframeEditor.removeFromParent();
@@ -855,11 +863,19 @@ public class UIReplaysEditor extends UIElement
 
         this.resize();
 
-        /* Only fit the keyframes on the first open. On a switch the outgoing view was copied over
-         * (copyViewport above) and is preserved through the resize, so it must not be refitted. */
-        if (this.keyframeEditor != null && lastEditor == null)
+        if (this.keyframeEditor != null)
         {
-            this.keyframeEditor.view.resetView();
+            if (hadWindow && windowMin < windowMax)
+            {
+                /* Put the exact window back, now the new editor has a real width. Keeps the tick,
+                 * and the playhead sitting on it, where it was left. */
+                this.keyframeEditor.view.getXAxis().view(windowMin, windowMax);
+            }
+            else if (lastEditor == null)
+            {
+                /* First open with nothing to carry over: fit the keyframes. */
+                this.keyframeEditor.view.resetView();
+            }
         }
     }
 
