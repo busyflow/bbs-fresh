@@ -36,7 +36,7 @@ public class UIKeyframeEditor extends UIElement
     /** Width of the properties panel when it sits beside the sheet. */
     private static final int SIDE_WIDTH = 140;
     /** Height of the properties panel when it sits under the sheet. */
-    private static final int BELOW_HEIGHT = 80;
+    private static final int BELOW_HEIGHT = 160;
 
     private UIElement target;
     private boolean timelineVisible = true;
@@ -82,7 +82,7 @@ public class UIKeyframeEditor extends UIElement
         }
         else if (this.propertiesBelow)
         {
-            this.view.resetFlex().full(this).w(1F).h(1F, -BELOW_HEIGHT);
+            this.view.resetFlex().full(this).w(1F).h(this.sheetHeight());
         }
         else
         {
@@ -90,6 +90,24 @@ public class UIKeyframeEditor extends UIElement
         }
 
         this.resize();
+    }
+
+    /**
+     * How tall to make the sheet when the properties go under it: as tall as its tracks, so the
+     * properties sit directly beneath the last one rather than at the far bottom of the panel with
+     * an empty gap between. Falls back to filling the space when the graph cannot measure itself.
+     */
+    private int sheetHeight()
+    {
+        int content = this.view.getGraph().getContentHeight();
+        int available = Math.max(0, this.area.h - BELOW_HEIGHT);
+
+        if (content <= 0)
+        {
+            return available;
+        }
+
+        return available <= 0 ? content : Math.min(content, available);
     }
 
     /**
@@ -137,9 +155,10 @@ public class UIKeyframeEditor extends UIElement
             }
             else if (this.propertiesBelow)
             {
-                /* Pinned to the bottom edge and the full width of the editor, so it stays where
-                 * it is whichever keyframe is picked. */
-                this.editor.relative(this).x(0).y(1F, -BELOW_HEIGHT).w(1F).h(BELOW_HEIGHT);
+                /* Against the sheet's bottom edge rather than the panel's, so it follows the last
+                 * track instead of sitting at the foot of the panel with a gap above it. Full
+                 * width, and the same place whichever keyframe is picked. */
+                this.editor.relative(this.view).x(0).y(1F).w(1F).h(BELOW_HEIGHT);
             }
             else
             {
@@ -199,6 +218,12 @@ public class UIKeyframeEditor extends UIElement
             KeyframeChannel channel = clip.channels[i];
 
             this.view.addSheet(new UIKeyframeSheet(COLORS[i], false, channel, null));
+        }
+
+        /* Re-measure now the tracks exist - the height set before them had nothing to measure. */
+        if (this.propertiesBelow && this.target == null)
+        {
+            this.applyViewFlex();
         }
 
         this.pickKeyframe(null);

@@ -20,6 +20,15 @@ public interface IUIKeyframeGraph
 {
     public static final int TOP_MARGIN = 25;
 
+    /**
+     * Height the tracks actually occupy, as opposed to the height the graph was given. Zero when
+     * the graph has no row layout to measure - a curve graph fills whatever it is handed.
+     */
+    public default int getContentHeight()
+    {
+        return 0;
+    }
+
     public void resetView();
 
     public UIKeyframeSheet getLastSheet();

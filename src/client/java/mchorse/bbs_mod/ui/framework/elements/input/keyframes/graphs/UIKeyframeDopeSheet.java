@@ -205,6 +205,12 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
         return this.dopeSheet;
     }
 
+    @Override
+    public int getContentHeight()
+    {
+        return this.dopeSheet.scrollSize;
+    }
+
     public int getDopeSheetY()
     {
         return this.keyframes.area.y + TOP_MARGIN - (int) this.dopeSheet.getScroll();
