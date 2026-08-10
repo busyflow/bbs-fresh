@@ -25,24 +25,26 @@ public abstract class ActionClip extends Clip
         return false;
     }
 
-    public final void applyClient(IEntity entity, Film film, Replay replay, int tick)
+    /**
+     * Whether this clip acts on the given tick: once at its start, or every {@link #frequency}
+     * ticks when one is set.
+     */
+    public final boolean firesAt(int tick)
     {
         if (!this.enabled.get())
         {
-            return;
+            return false;
         }
 
-        int relaive = tick - this.tick.get();
+        int relative = tick - this.tick.get();
         int frequency = this.frequency.get();
 
-        if (frequency == 0)
-        {
-            if (relaive == 0)
-            {
-                this.applyClientAction(entity, film, replay, tick);
-            }
-        }
-        else if (relaive % frequency == 0)
+        return frequency == 0 ? relative == 0 : relative % frequency == 0;
+    }
+
+    public final void applyClient(IEntity entity, Film film, Replay replay, int tick)
+    {
+        if (this.firesAt(tick))
         {
             this.applyClientAction(entity, film, replay, tick);
         }

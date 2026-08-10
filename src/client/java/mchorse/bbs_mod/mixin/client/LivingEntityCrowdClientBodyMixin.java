@@ -46,8 +46,13 @@ public abstract class LivingEntityCrowdClientBodyMixin extends Entity
         {
             LivingEntity self = (LivingEntity) (Object) this;
 
-            self.bodyYaw = self.getYaw();
+            /* Carry last tick's angle into prev rather than flattening both to the new one. The
+             * renderer draws lerp(tickDelta, prevBodyYaw, bodyYaw), so a member whose prev always
+             * equalled its current turned in a single frame per tick and stood still for the rest
+             * of it - a crowd rotating in twenty visible steps a second, which reads as dropped
+             * frames however fast the turn is. */
             self.prevBodyYaw = self.bodyYaw;
+            self.bodyYaw = self.getYaw();
 
             info.setReturnValue(headRotation);
         }
@@ -60,8 +65,11 @@ public abstract class LivingEntityCrowdClientBodyMixin extends Entity
         {
             LivingEntity self = (LivingEntity) (Object) this;
 
+            /* The sent angle is taken outright - a posed crowd must not ease toward it over the
+             * next few ticks - but the angle it is coming FROM is kept, so the frames inside this
+             * tick still interpolate across the turn instead of jumping at the start of it. */
+            self.prevHeadYaw = self.getHeadYaw();
             self.setHeadYaw(yaw);
-            self.prevHeadYaw = yaw;
 
             info.cancel();
         }
