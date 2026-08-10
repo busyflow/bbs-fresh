@@ -855,7 +855,10 @@ public class UIReplaysEditor extends UIElement
 
         this.resize();
 
-        if (this.keyframeEditor != null && lastEditor == null && !this.keyframeEditor.view.restoreViewportX())
+        /* After the resize above, so the axis is put back against a real width - copyViewport
+         * ran before it and left the view at a stale offset. Restore on every switch, not only
+         * the first open; the fit is the fallback for when nothing has been remembered yet. */
+        if (this.keyframeEditor != null && !this.keyframeEditor.view.restoreViewportX() && lastEditor == null)
         {
             this.keyframeEditor.view.resetView();
         }
