@@ -149,6 +149,8 @@ public class BBSSettings {
 	public static ValueBoolean editorTimelineMajorLines;
 	public static ValueBoolean editorTimelineMinorLines;
 	public static ValueBoolean editorColoredKeyframeLines;
+	/** Camera keyframe clip: properties under the sheet at full width instead of a side column. */
+	public static ValueBoolean editorKeyframePropertiesBelow;
 	public static ValueBoolean editorShowAllReplayTracks;
 	public static ValueInt editorPeriodicSave;
 	public static ValueBoolean editorHorizontalFlight;
@@ -780,6 +782,7 @@ public class BBSSettings {
 		editorCrosshair = builder.getBoolean("crosshair", false);
 		editorSeconds = builder.getBoolean("seconds", false);
 		editorColoredKeyframeLines = builder.getBoolean("colored_keyframe_lines", true);
+		editorKeyframePropertiesBelow = builder.getBoolean("keyframe_properties_below", false);
 		keyframeDefaultInterpolation = builder.getString("keyframe_default_interpolation", Interpolations.LINEAR.getKey());
 		editorPeriodicSave = builder.getInt("periodic_save", 60, 0, 3600);
 		editorHorizontalFlight = builder.getBoolean("horizontal_flight", false);

@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.ui.film.clips;
 
+import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.camera.clips.overwrite.KeyframeClip;
 import mchorse.bbs_mod.camera.data.Position;
 import mchorse.bbs_mod.data.types.MapType;
@@ -11,7 +12,8 @@ import mchorse.bbs_mod.ui.film.replays.UIReplaysEditor;
 import mchorse.bbs_mod.ui.film.utils.keyframes.UIFilmKeyframes;
 import mchorse.bbs_mod.ui.framework.elements.buttons.UIButton;
 import mchorse.bbs_mod.ui.framework.elements.buttons.UIToggle;
-import mchorse.bbs_mod.ui.framework.elements.input.keyframes.UIKeyframeEditor;import mchorse.bbs_mod.utils.MathUtils;
+import mchorse.bbs_mod.ui.framework.elements.input.keyframes.UIKeyframeEditor;
+import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.clips.Clips;
 import mchorse.bbs_mod.utils.joml.Matrices;
 import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
@@ -47,7 +49,10 @@ public class UIKeyframeClip extends UIClip<KeyframeClip>
     {
         super.registerUI();
 
-        this.keyframes = new UIKeyframeEditor((consumer) -> new UIFilmKeyframes(this.editor, consumer));
+        /* Camera keyframe clips only - the setting is about this sheet, which is the wide one
+         * read across, not about every keyframe panel in the mod. */
+        this.keyframes = new UIKeyframeEditor((consumer) -> new UIFilmKeyframes(this.editor, consumer))
+            .propertiesBelow(BBSSettings.editorKeyframePropertiesBelow.get());
         this.keyframes.view.rulerRenderer((context) ->
         {
             UIReplaysEditor.renderRuler(context, this.keyframes.view, (UIClipsPanel) this.editor, (Clips) this.clip.getParent(), this.clip.tick.get());

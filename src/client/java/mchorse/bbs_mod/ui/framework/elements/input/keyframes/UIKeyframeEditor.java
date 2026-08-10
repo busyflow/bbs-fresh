@@ -33,9 +33,15 @@ public class UIKeyframeEditor extends UIElement
     public UIKeyframes view;
     public UIKeyframeFactory editor;
 
+    /** Width of the properties panel when it sits beside the sheet. */
+    private static final int SIDE_WIDTH = 140;
+    /** Height of the properties panel when it sits under the sheet. */
+    private static final int BELOW_HEIGHT = 80;
+
     private UIElement target;
     private boolean timelineVisible = true;
     private boolean propertiesVisible = true;
+    private boolean propertiesBelow;
 
     public UIKeyframeEditor(Function<Consumer<Keyframe>, UIKeyframes> factory)
     {
@@ -48,7 +54,42 @@ public class UIKeyframeEditor extends UIElement
             }
         });
 
-        this.add(this.view.full(this).w(1F, -140));
+        this.add(this.view.full(this).w(1F, -SIDE_WIDTH));
+    }
+
+    /**
+     * Put the keyframe's properties under the sheet rather than beside it.
+     *
+     * <p>Beside it, the panel takes a fixed column out of the width for as long as the editor is
+     * open, and the sheet - the thing actually being read across - gets what is left. Underneath,
+     * it spans the full width instead, and the channel names go with the sheet's right edge into
+     * the space the column had.</p>
+     */
+    public UIKeyframeEditor propertiesBelow(boolean below)
+    {
+        this.propertiesBelow = below;
+
+        this.applyViewFlex();
+
+        return this;
+    }
+
+    private void applyViewFlex()
+    {
+        if (this.target != null)
+        {
+            this.view.resetFlex().full(this).w(1F);
+        }
+        else if (this.propertiesBelow)
+        {
+            this.view.resetFlex().full(this).w(1F).h(1F, -BELOW_HEIGHT);
+        }
+        else
+        {
+            this.view.resetFlex().full(this).w(1F, -SIDE_WIDTH);
+        }
+
+        this.resize();
     }
 
     /**
@@ -71,7 +112,7 @@ public class UIKeyframeEditor extends UIElement
     {
         this.target = target;
 
-        this.view.resetFlex().full(this).w(1F);
+        this.applyViewFlex();
 
         return this;
     }
@@ -94,9 +135,15 @@ public class UIKeyframeEditor extends UIElement
             {
                 this.editor.relative(this.target).x(0).y(0).w(1F).h(1F);
             }
+            else if (this.propertiesBelow)
+            {
+                /* Pinned to the bottom edge and the full width of the editor, so it stays where
+                 * it is whichever keyframe is picked. */
+                this.editor.relative(this).x(0).y(1F, -BELOW_HEIGHT).w(1F).h(BELOW_HEIGHT);
+            }
             else
             {
-                this.editor.relative(this).x(1F, -140).w(140).h(1F);
+                this.editor.relative(this).x(1F, -SIDE_WIDTH).w(SIDE_WIDTH).h(1F);
             }
 
             /* The panel lives in whichever element it is laid out over, so it stays visible when
