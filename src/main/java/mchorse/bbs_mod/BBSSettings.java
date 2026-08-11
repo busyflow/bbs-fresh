@@ -157,6 +157,23 @@ public class BBSSettings {
 	 * on the pixel grid; nothing below the stock size, which is as small as the shapes read.
 	 */
 	public static ValueFloat keyframeSize;
+	/** Draw keyframes that carry no colour of their own in one chosen colour, not the track's. */
+	public static ValueBoolean keyframeUnusedTint;
+	public static ValueInt keyframeUnusedColor;
+
+	/**
+	 * The colour a keyframe with no colour of its own is drawn in - the chosen tint when it is on,
+	 * otherwise the track's own colour as before.
+	 */
+	public static int keyframeBaseColor(int trackColor)
+	{
+		if (keyframeUnusedTint != null && keyframeUnusedTint.get())
+		{
+			return keyframeUnusedColor.get() | Colors.A100;
+		}
+
+		return trackColor;
+	}
 	/** Height of the keyframe properties panel, wherever it is shown under the keyframes. */
 	public static ValueInt keyframePropertiesHeight;
 
@@ -877,6 +894,8 @@ public class BBSSettings {
 		videoExportShaders = builder.getBoolean("export_with_shaders", false);
 		editorKeyframePropertiesBelow = builder.getBoolean("keyframe_properties_below", false);
 		keyframeSize = builder.getFloat("keyframe_size", 0F, 0F, 2F);
+		keyframeUnusedTint = builder.getBoolean("keyframe_unused_tint", false);
+		keyframeUnusedColor = builder.getInt("keyframe_unused_color", 0xffaaaaaa).color();
 		keyframePropertiesHeight = builder.getInt("keyframe_properties_height", 160, 60, 500);
 	}
 }

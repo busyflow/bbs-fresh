@@ -1331,7 +1331,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
                 isPointHover = isPointHover || this.keyframes.getGrabbingArea(context).isInside(x1, my);
             }
 
-            int kc = frame.getColor() != null ? frame.getColor().getRGBColor() | Colors.A100 : sheet.color;
+            int kc = frame.getColor() != null ? frame.getColor().getRGBColor() | Colors.A100 : BBSSettings.keyframeBaseColor(sheet.color);
             int c = (sheet.selection.has(j) || isPointHover ? Colors.WHITE : kc) | Colors.A100;
 
             if (toRemove)
@@ -1397,7 +1397,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
                 isPointHover = isPointHover || this.keyframes.getGrabbingArea(context).isInside(x1, my);
             }
 
-            int kc = frame.getColor() != null ? frame.getColor().getRGBColor() | Colors.A100 : sheet.color;
+            int kc = frame.getColor() != null ? frame.getColor().getRGBColor() | Colors.A100 : BBSSettings.keyframeBaseColor(sheet.color);
             int c = (sheet.selection.has(j) || isPointHover ? Colors.WHITE : kc) | Colors.A100;
 
             if (toRemove)

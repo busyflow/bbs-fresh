@@ -72,6 +72,7 @@ import mchorse.bbs_mod.ui.film.utils.undo.UIUndoHistoryOverlay;
 import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.ui.framework.elements.IUIElement;
 import mchorse.bbs_mod.ui.framework.elements.UIElement;
+import mchorse.bbs_mod.ui.framework.elements.buttons.UIButton;
 import mchorse.bbs_mod.ui.framework.elements.buttons.UIIcon;
 import mchorse.bbs_mod.ui.framework.elements.layout.ILayoutSource;
 import mchorse.bbs_mod.ui.framework.elements.layout.UIDockLayout;
@@ -152,6 +153,7 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
 
     /* Icon bar buttons */
     public UIIcon openFilmMenu;
+    public UIButton openFilms;
     public UIIcon openCameraEditor;
     public UIIcon openReplayEditor;
 
@@ -200,7 +202,9 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
     private static final int FILM_TOP_BAR_BUTTON_SIZE = UIDataTabs.TABS_HEIGHT_PX;
     private static final int FILM_TOP_BAR_SEPARATOR_WIDTH = 8;
     /** Three editor buttons and the film menu. The row is fixed width, so this has to count. */
-    private static final int FILM_TOP_BAR_ACTIONS_WIDTH = FILM_TOP_BAR_BUTTON_SIZE * 3 + FILM_TOP_BAR_SEPARATOR_WIDTH;
+    /** The wide, labelled Films button sitting to the left of the editor buttons. */
+    private static final int FILM_TOP_BAR_FILMS_WIDTH = 54;
+    private static final int FILM_TOP_BAR_ACTIONS_WIDTH = FILM_TOP_BAR_FILMS_WIDTH + FILM_TOP_BAR_SEPARATOR_WIDTH + FILM_TOP_BAR_BUTTON_SIZE * 3 + FILM_TOP_BAR_SEPARATOR_WIDTH;
     private UIElement selectedMainEditorPanel;
     private boolean switchingMainEditor;
     private UIElement topBarActions;
@@ -263,6 +267,12 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
             .builtIn("BBS Layout 1 (Built-in)", this::getBBSLayoutOnePresetData)
             .builtIn("BBS Default (Built-in)", this::getDefaultFilmLayoutPresetData);
 
+        /* A wide, always-there Films button so the list is one click off the top bar; right-click
+         * offers the continue-from-playhead duplicate that otherwise lives in the films overlay. */
+        this.openFilms = new UIButton(UIKeys.FILM_TITLE, (b) -> this.openFilmListOverlay());
+        this.openFilms.context((menu) -> menu.action(Icons.SHIFT_FORWARD, UIKeys.FILM_CONTINUE, this::continueFromPlayheadPrompt));
+        this.openFilms.wh(FILM_TOP_BAR_FILMS_WIDTH, FILM_TOP_BAR_BUTTON_SIZE).tooltip(UIKeys.FILM_CONTINUE_TOOLTIP, Direction.BOTTOM);
+
         this.openFilmMenu.wh(FILM_TOP_BAR_BUTTON_SIZE, FILM_TOP_BAR_BUTTON_SIZE).tooltip(UIKeys.FILM_OPTIONS, Direction.BOTTOM);
         this.openCameraEditor.wh(FILM_TOP_BAR_BUTTON_SIZE, FILM_TOP_BAR_BUTTON_SIZE).tooltip(UIKeys.FILM_OPEN_CAMERA_EDITOR, Direction.BOTTOM);
         this.openReplayEditor.wh(FILM_TOP_BAR_BUTTON_SIZE, FILM_TOP_BAR_BUTTON_SIZE).tooltip(UIKeys.FILM_OPEN_REPLAY_EDITOR, Direction.BOTTOM);
@@ -271,7 +281,9 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         this.topBarActions.relative(this.tabBar).x(1F, -FILM_TOP_BAR_ACTIONS_WIDTH).w(FILM_TOP_BAR_ACTIONS_WIDTH).h(UIDataTabs.TABS_HEIGHT_PX).row(0).resize();
         this.topBarSeparator = new UIElement();
         this.topBarSeparator.wh(FILM_TOP_BAR_SEPARATOR_WIDTH, UIDataTabs.TABS_HEIGHT_PX);
-        this.topBarActions.add(new UIRenderable(this::renderTopBarActions), this.openCameraEditor, this.openReplayEditor, this.topBarSeparator, this.openFilmMenu);
+        UIElement filmsSeparator = new UIElement();
+        filmsSeparator.wh(FILM_TOP_BAR_SEPARATOR_WIDTH, UIDataTabs.TABS_HEIGHT_PX);
+        this.topBarActions.add(new UIRenderable(this::renderTopBarActions), this.openFilms, filmsSeparator, this.openCameraEditor, this.openReplayEditor, this.topBarSeparator, this.openFilmMenu);
         this.tabBar.add(this.topBarActions);
 
         /* Setup elements */
@@ -1453,6 +1465,26 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
      * Picking up a take where the last one left off, rather than starting from a still pose
      * like {@link #dupeData(String)} does.
      */
+    /** The films-overlay's continue-from-playhead prompt, reachable from the top-bar Films button. */
+    private void continueFromPlayheadPrompt()
+    {
+        if (this.getData() == null)
+        {
+            return;
+        }
+
+        UIPromptOverlayPanel panel = new UIPromptOverlayPanel(
+            UIKeys.FILM_CONTINUE,
+            UIKeys.FILM_CONTINUE_MODAL,
+            (str) -> this.continueData(this.overlay.namesList.getPath(str).toString())
+        );
+
+        panel.text.setText(this.overlay.namesList.getCurrentFirst().getLast());
+        panel.text.filename();
+
+        UIOverlay.addOverlay(this.getContext(), panel);
+    }
+
     private void continueData(String name)
     {
         if (this.getData() != null && !this.overlay.namesList.hasInHierarchy(name))
