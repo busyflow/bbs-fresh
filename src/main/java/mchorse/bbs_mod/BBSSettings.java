@@ -157,13 +157,13 @@ public class BBSSettings {
 	 * on the pixel grid; nothing below the stock size, which is as small as the shapes read.
 	 */
 	public static ValueFloat keyframeSize;
-	/** Draw keyframes that carry no colour of their own in one chosen colour, not the track's. */
+	/** Draw the line of a channel with no keyframes in one chosen colour, not the channel's own. */
 	public static ValueBoolean keyframeUnusedTint;
 	public static ValueInt keyframeUnusedColor;
 
 	/**
-	 * The colour a keyframe with no colour of its own is drawn in - the chosen tint when it is on,
-	 * otherwise the track's own colour as before.
+	 * The colour an empty channel's line is drawn in - the chosen tint when it is on, otherwise
+	 * the channel's own colour as before.
 	 */
 	public static int keyframeBaseColor(int trackColor)
 	{

@@ -79,6 +79,16 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
         return shape;
     }
 
+    /**
+     * The colour a channel's line is drawn in: its own colour once it holds a keyframe, or the
+     * chosen "unused" colour while it is empty - so an empty track reads as a plain line and only
+     * takes on its colour when a keyframe lands on it. The setting off, it is always its own.
+     */
+    private int channelLineColor(UIKeyframeSheet sheet)
+    {
+        return sheet.channel.isEmpty() ? BBSSettings.keyframeBaseColor(sheet.color) : sheet.color;
+    }
+
     public UIKeyframeDopeSheet(UIKeyframes keyframes)
     {
         this.keyframes = keyframes;
@@ -1115,7 +1125,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
 
         if (unified && this.hasPersistentChannelLines())
         {
-            int channelColor = Colors.setA(sheet.color, hover ? 1F : 0.45F);
+            int channelColor = Colors.setA(this.channelLineColor(sheet), hover ? 1F : 0.45F);
 
             context.batcher.box(this.keyframes.graphArea.ex(), my - 1, area.ex(), my + 1, channelColor);
         }
@@ -1271,7 +1281,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
 
         if (this.hasPersistentChannelLines())
         {
-            int channelColor = Colors.setA(sheet.color, hover ? 1F : 0.45F);
+            int channelColor = Colors.setA(this.channelLineColor(sheet), hover ? 1F : 0.45F);
 
             context.batcher.fillRect(builder, matrix, area.x, my - 1, area.w, 2, channelColor, channelColor, channelColor, channelColor);
         }
@@ -1331,7 +1341,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
                 isPointHover = isPointHover || this.keyframes.getGrabbingArea(context).isInside(x1, my);
             }
 
-            int kc = frame.getColor() != null ? frame.getColor().getRGBColor() | Colors.A100 : BBSSettings.keyframeBaseColor(sheet.color);
+            int kc = frame.getColor() != null ? frame.getColor().getRGBColor() | Colors.A100 : sheet.color;
             int c = (sheet.selection.has(j) || isPointHover ? Colors.WHITE : kc) | Colors.A100;
 
             if (toRemove)
@@ -1397,7 +1407,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
                 isPointHover = isPointHover || this.keyframes.getGrabbingArea(context).isInside(x1, my);
             }
 
-            int kc = frame.getColor() != null ? frame.getColor().getRGBColor() | Colors.A100 : BBSSettings.keyframeBaseColor(sheet.color);
+            int kc = frame.getColor() != null ? frame.getColor().getRGBColor() | Colors.A100 : sheet.color;
             int c = (sheet.selection.has(j) || isPointHover ? Colors.WHITE : kc) | Colors.A100;
 
             if (toRemove)
