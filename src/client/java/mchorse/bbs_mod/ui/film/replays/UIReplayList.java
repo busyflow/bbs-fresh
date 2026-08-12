@@ -244,7 +244,6 @@ public class UIReplayList extends UIList<ReplayListEntry>
             .category(UIKeys.FILM_REPLAY_TITLE);
         this.keys().register(Keys.REPLAYS_TOGGLE_VISIBLE, this::toggleReplayVisibility)
             .label(UIKeys.FILM_REPLAY_TOGGLE_VISIBLE)
-            .active(this::hasReplaySelection)
             .category(UIKeys.FILM_REPLAY_TITLE);
         this.keys().register(Keys.FORMS_EDIT, () ->
         {
@@ -738,26 +737,60 @@ public class UIReplayList extends UIList<ReplayListEntry>
     }
 
     /**
-     * Flip the selected replays' visibility, same effect as the Enabled toggle. All on turns them
-     * all off, otherwise all on, so a mixed group ends up shown together.
+     * Flip visibility, same effect as the Enabled toggle. Acts on whatever the cursor is over - a
+     * single replay, or every replay in a group when over its header - regardless of the selection;
+     * falls back to the selection when the cursor is off the rows. All on turns them off, else on.
      */
     private void toggleReplayVisibility()
     {
-        List<Replay> selected = this.getSelectedReplays();
+        List<Replay> targets = new ArrayList<>();
+        UIContext context = this.getContext();
 
-        if (selected.isEmpty())
+        if (context != null && this.area.isInside(context))
+        {
+            int index = this.scroll.getIndex(context.mouseX, context.mouseY);
+
+            if (this.exists(index))
+            {
+                ReplayListEntry entry = this.list.get(index);
+
+                if (entry.isReplay())
+                {
+                    targets.add(entry.replay);
+                }
+                else if (this.panel != null && this.panel.getData() != null)
+                {
+                    String cat = Replay.normalizeCategory(entry.folderName);
+
+                    for (Replay r : this.panel.getData().replays.getList())
+                    {
+                        if (cat.equals(Replay.normalizeCategory(r.category.get())))
+                        {
+                            targets.add(r);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (targets.isEmpty())
+        {
+            targets.addAll(this.getSelectedReplays());
+        }
+
+        if (targets.isEmpty())
         {
             return;
         }
 
         boolean allOn = true;
 
-        for (Replay replay : selected)
+        for (Replay replay : targets)
         {
             allOn &= replay.enabled.get();
         }
 
-        for (Replay replay : selected)
+        for (Replay replay : targets)
         {
             replay.enabled.set(!allOn);
         }
@@ -765,7 +798,13 @@ public class UIReplayList extends UIList<ReplayListEntry>
         if (this.panel != null)
         {
             this.panel.getController().createEntities();
-            this.panel.replayEditor.replayProperties.setReplay(selected.get(0));
+
+            List<Replay> selected = this.getSelectedReplays();
+
+            if (!selected.isEmpty() && targets.contains(selected.get(0)))
+            {
+                this.panel.replayEditor.replayProperties.setReplay(selected.get(0));
+            }
         }
 
         this.update();
