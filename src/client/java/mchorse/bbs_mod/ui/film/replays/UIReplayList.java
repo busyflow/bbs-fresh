@@ -242,6 +242,10 @@ public class UIReplayList extends UIList<ReplayListEntry>
         this.keys().register(Keys.REPLAYS_SELECT_ALL, this::selectAllReplays)
             .inside()
             .category(UIKeys.FILM_REPLAY_TITLE);
+        this.keys().register(Keys.REPLAYS_TOGGLE_VISIBLE, this::toggleReplayVisibility)
+            .label(UIKeys.FILM_REPLAY_TOGGLE_VISIBLE)
+            .active(this::hasReplaySelection)
+            .category(UIKeys.FILM_REPLAY_TITLE);
         this.keys().register(Keys.FORMS_EDIT, () ->
         {
             Replay r = this.getSelectedReplayFirst();
@@ -733,6 +737,63 @@ public class UIReplayList extends UIList<ReplayListEntry>
         return false;
     }
 
+    /**
+     * Flip the selected replays' visibility, same effect as the Enabled toggle. All on turns them
+     * all off, otherwise all on, so a mixed group ends up shown together.
+     */
+    private void toggleReplayVisibility()
+    {
+        List<Replay> selected = this.getSelectedReplays();
+
+        if (selected.isEmpty())
+        {
+            return;
+        }
+
+        boolean allOn = true;
+
+        for (Replay replay : selected)
+        {
+            allOn &= replay.enabled.get();
+        }
+
+        for (Replay replay : selected)
+        {
+            replay.enabled.set(!allOn);
+        }
+
+        if (this.panel != null)
+        {
+            this.panel.getController().createEntities();
+            this.panel.replayEditor.replayProperties.setReplay(selected.get(0));
+        }
+
+        this.update();
+    }
+
+    /** Fold or unfold a category by name, keeping the selection. False if the name is the root (no group). */
+    private boolean toggleCategoryCollapse(String category)
+    {
+        String name = Replay.normalizeCategory(category);
+
+        if (name.isEmpty())
+        {
+            return false;
+        }
+
+        if (!this.collapsedCategories.remove(name))
+        {
+            this.collapsedCategories.add(name);
+        }
+
+        List<Replay> keep = new ArrayList<>(this.getSelectedReplays());
+        this.refreshReplayList();
+        this.restoreReplaySelection(keep);
+        this.update();
+
+        return true;
+    }
+
     @Override
     public boolean subMouseClicked(UIContext context)
     {
@@ -746,6 +807,23 @@ public class UIReplayList extends UIList<ReplayListEntry>
             return true;
         }
 
+        /* Middle click anywhere on a group - the header or any replay in it - folds that group. */
+        if (this.area.isInside(context) && context.mouseButton == 2)
+        {
+            int index = this.scroll.getIndex(context.mouseX, context.mouseY);
+
+            if (this.exists(index))
+            {
+                ReplayListEntry entry = this.list.get(index);
+                String cat = entry.isFolder() ? entry.folderName : entry.replay.category.get();
+
+                if (this.toggleCategoryCollapse(cat))
+                {
+                    return true;
+                }
+            }
+        }
+
         if (this.area.isInside(context) && context.mouseButton == 0)
         {
             int index = this.scroll.getIndex(context.mouseX, context.mouseY);
@@ -756,21 +834,7 @@ public class UIReplayList extends UIList<ReplayListEntry>
 
                 if (entry.isFolder())
                 {
-                    String name = Replay.normalizeCategory(entry.folderName);
-
-                    if (this.collapsedCategories.contains(name))
-                    {
-                        this.collapsedCategories.remove(name);
-                    }
-                    else
-                    {
-                        this.collapsedCategories.add(name);
-                    }
-
-                    List<Replay> keep = new ArrayList<>(this.getSelectedReplays());
-                    this.refreshReplayList();
-                    this.restoreReplaySelection(keep);
-                    this.update();
+                    this.toggleCategoryCollapse(entry.folderName);
 
                     return true;
                 }
@@ -2234,6 +2298,17 @@ public class UIReplayList extends UIList<ReplayListEntry>
             super.renderElementPart(context, element, i, x + 12, y, hover, selected);
 
             return;
+        }
+
+        /* A short branch - down then right, in the playhead colour - from the group into an
+         * indented row, so a grouped replay reads as belonging above it. Purely a cue. */
+        if (element.indent > 0)
+        {
+            int lineX = x + 5;
+            int my = y + this.scroll.scrollItemSize / 2;
+
+            context.batcher.box(lineX, y - this.scroll.scrollItemSize / 2, lineX + 1, my, Colors.CURSOR);
+            context.batcher.box(lineX, my, x + element.indent - 2, my + 1, Colors.CURSOR);
         }
 
         x += element.indent;
