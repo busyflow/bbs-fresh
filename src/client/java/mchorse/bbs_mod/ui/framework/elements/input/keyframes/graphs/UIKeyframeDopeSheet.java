@@ -981,7 +981,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
                 {
                     boolean hover = area.isInside(context) && context.mouseY >= y && context.mouseY < y + this.trackHeight;
                     int my = y + (int) this.trackHeight / 2;
-                    int color = Colors.setA(sheet.color, hover ? 1F : 0.45F);
+                    int color = Colors.setA(this.channelLineColor(sheet), hover ? 1F : 0.45F);
 
                     context.batcher.box(area.x, my - 1, area.ex(), my + 1, color);
                 }
