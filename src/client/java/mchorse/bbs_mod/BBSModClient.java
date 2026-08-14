@@ -90,7 +90,10 @@ import net.minecraft.util.Hand;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.io.InputStream;
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Collections;
 import java.util.List;
 
@@ -361,9 +364,40 @@ public class BBSModClient implements ClientModInitializer
         }
     }
 
+    /**
+     * Ship a file with the mod: on first launch of a fresh config it is written from the jar, so the
+     * interface font and the stock body-part presets are there in every modpack without the user
+     * carrying them across. Only writes when absent, so edits to a seeded file are never clobbered.
+     */
+    private static void seedDefault(String resource, File target)
+    {
+        if (target.isFile())
+        {
+            return;
+        }
+
+        try (InputStream in = BBSModClient.class.getClassLoader().getResourceAsStream(resource))
+        {
+            if (in == null)
+            {
+                return;
+            }
+
+            target.getParentFile().mkdirs();
+            Files.copy(in, target.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        }
+        catch (Exception e)
+        {
+            System.err.println("BBS: failed to seed default " + resource + ": " + e);
+        }
+    }
+
     @Override
     public void onInitializeClient()
     {
+        seedDefault("bbs_defaults/fonts/ui.ttf", BBSMod.getSettingsPath("fonts/ui.ttf"));
+        seedDefault("bbs_defaults/presets/body_parts/Nametag.json", BBSMod.getSettingsPath("presets/body_parts/Nametag.json"));
+
         AssetProvider provider = BBSMod.getProvider();
 
         textures = new TextureManager(provider);
