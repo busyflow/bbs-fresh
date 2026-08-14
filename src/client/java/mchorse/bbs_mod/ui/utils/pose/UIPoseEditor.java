@@ -49,6 +49,9 @@ public class UIPoseEditor extends UIElement
 
     private String group = "";
     private Pose pose;
+    /** Whether the anchor stays armed as the pick moves from bone to bone; see {@link #pickBones}. */
+    private boolean stickyAnchor;
+    private boolean armingAnchor;
     protected IModel model;
     protected Map<String, String> flippedParts;
 
@@ -447,6 +450,32 @@ public class UIPoseEditor extends UIElement
 
         PickedBone.set(primary);
 
+        /* Armed once, the anchor carries to each bone picked after it, so posing a pair of legs from
+         * their feet is one press rather than one per limb. Only bones that do not already have it are
+         * written, so picking through a limb already set costs no edit, and turning it back off disarms
+         * it - after which picking a bone leaves its setting alone. */
+        if (this.stickyAnchor && !this.armingAnchor)
+        {
+            /* Notifying the keyframe re-reads the selection and lands back here, so the pass is
+             * flagged for its duration - the bones it writes would not be written twice anyway. */
+            this.armingAnchor = true;
+
+            try
+            {
+                this.forEachSelectedPose((pt) ->
+                {
+                    if (!pt.secondaryAnchor)
+                    {
+                        this.setSecondaryAnchor(pt, true);
+                    }
+                });
+            }
+            finally
+            {
+                this.armingAnchor = false;
+            }
+        }
+
         PoseTransform poseTransform = this.pose.get(primary);
 
         this.fix.setValue(poseTransform.fix);
@@ -647,6 +676,8 @@ public class UIPoseEditor extends UIElement
         }
 
         boolean next = !this.isSecondaryAnchorSelected();
+
+        this.stickyAnchor = next;
 
         this.forEachSelectedPose((pt) -> this.setSecondaryAnchor(pt, next));
     }
