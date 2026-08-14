@@ -19,6 +19,7 @@ import mchorse.bbs_mod.ui.framework.elements.input.drag.TransformSpace;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
 import mchorse.bbs_mod.ui.utils.pose.UIPoseEditor;
 import mchorse.bbs_mod.utils.StringUtils;
+import mchorse.bbs_mod.utils.pose.PoseTransform;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -86,24 +87,60 @@ public class UIModelForm extends UIForm<ModelForm>
     @Override
     public Matrix4f getOrigin(float transition)
     {
-        return this.getOrigin(transition, this.bonePath(), this.modelPanel.poseEditor.transform.isLocal());
+        return this.withAnchorOffset(this.getOrigin(transition, this.bonePath(), this.activeEditor().transform.isLocal()));
     }
 
     @Override
     public Matrix4f getOriginMatrix(float transition)
     {
-        return this.getOrigin(transition, this.bonePath(), true);
+        return this.withAnchorOffset(this.getOrigin(transition, this.bonePath(), true));
     }
 
     @Override
     public TransformSpace getGizmoSpace()
     {
-        return this.modelPanel.poseEditor.transform.getSpace();
+        return this.activeEditor().transform.getSpace();
+    }
+
+    /**
+     * Which of the two bone lists the gizmo answers to. They clear each other's selection, so at most
+     * one is ever picked; the anchors list wins while it holds the pick, otherwise it is the pose.
+     */
+    private UIPoseEditor activeEditor()
+    {
+        boolean anchors = !this.modelPanel.anchorsEditor.groups.list.getCurrent().isEmpty();
+
+        return anchors ? this.modelPanel.anchorsEditor : this.modelPanel.poseEditor;
+    }
+
+    /**
+     * Slide the gizmo out to where the anchor being edited actually sits, so the handles mark the point
+     * the bone would rotate about rather than the bone's own origin - which is the only way to see an
+     * anchor, it having no geometry of its own. Model units are sixteenths of a block, and the X axis
+     * runs the other way in this space (see ICubicRenderer#moveToGroupPivot).
+     */
+    private Matrix4f withAnchorOffset(Matrix4f matrix)
+    {
+        if (matrix == null || this.modelPanel.anchorsEditor.groups.list.getCurrent().isEmpty())
+        {
+            return matrix;
+        }
+
+        PoseTransform anchor = this.form.secondaryAnchors.get().transforms.get(this.modelPanel.anchorsEditor.groups.list.getCurrentFirst());
+
+        if (anchor == null)
+        {
+            return matrix;
+        }
+
+        Vector3f offset = anchor.translate;
+
+        return new Matrix4f(matrix).translate(-offset.x / 16F, offset.y / 16F, offset.z / 16F);
     }
 
     private String bonePath()
     {
-        return StringUtils.combinePaths(FormUtils.getPath(this.form), this.modelPanel.poseEditor.groups.list.getCurrentFirst());
+        return StringUtils.combinePaths(FormUtils.getPath(this.form), this.activeEditor().groups.list.getCurrentFirst());
     }
 
     /**

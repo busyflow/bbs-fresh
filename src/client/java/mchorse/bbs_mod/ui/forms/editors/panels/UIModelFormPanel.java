@@ -10,7 +10,9 @@ import mchorse.bbs_mod.resources.Link;
 import mchorse.bbs_mod.ui.UIKeys;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
 import mchorse.bbs_mod.ui.forms.editors.forms.UIForm;
+import mchorse.bbs_mod.ui.forms.editors.panels.widgets.UIModelAnchorsEditor;
 import mchorse.bbs_mod.ui.forms.editors.panels.widgets.UIModelPoseEditor;
+import mchorse.bbs_mod.ui.utils.pose.UIPoseEditor;
 import mchorse.bbs_mod.ui.framework.elements.UISection;
 import mchorse.bbs_mod.ui.framework.elements.buttons.UIButton;
 import mchorse.bbs_mod.ui.framework.elements.input.UIColor;
@@ -38,7 +40,7 @@ public class UIModelFormPanel extends UIFormPanel<ModelForm>
      * point instead: put one at the bottom of a leg and the leg swings from the foot, which reads as the
      * knee driving forward.
      */
-    public UIModelPoseEditor anchorsEditor;
+    public UIModelAnchorsEditor anchorsEditor;
     public UISection anchorsSection;
 
     public UIButton pickModel;
@@ -84,12 +86,14 @@ public class UIModelFormPanel extends UIFormPanel<ModelForm>
         /* Its own collapsed section: the same bone list and XYZ fields as the pose editor, but the
          * numbers mean "where this bone rotates from" rather than a pose, so it stays out of the way
          * of the pose editor above until it is wanted. */
-        this.anchorsEditor = new UIModelPoseEditor();
+        /* Only each entry's position is read here, so this list carries no secondary-anchor toggle of
+         * its own (see UIModelAnchorsEditor). Picking a bone in either list clears the other, so the
+         * gizmo is unambiguously driving one of them - a pose, or the anchor that pose rotates about. */
+        this.anchorsEditor = new UIModelAnchorsEditor();
         this.anchorsEditor.transform.barBackground();
-        /* Only each entry's position is read here, so the pose-only controls would be dead weight -
-         * and a "Secondary anchor" tick inside the anchor list itself would just be confusing. */
-        this.anchorsEditor.secondaryAnchor.removeFromParent();
         this.anchorsEditor.tooltip(UIKeys.MODEL_EDITOR_ANCHORS_TOOLTIP);
+        this.exclusiveWith(this.anchorsEditor, this.poseEditor);
+        this.exclusiveWith(this.poseEditor, this.anchorsEditor);
         this.anchorsSection = this.section(UIKeys.MODEL_EDITOR_ANCHORS, "model.secondary_anchors", false);
         this.anchorsSection.fields.add(this.anchorsEditor);
         this.pick = new UIButton(UIKeys.FORMS_EDITOR_MODEL_PICK_TEXTURE, (b) ->
@@ -161,6 +165,28 @@ public class UIModelFormPanel extends UIFormPanel<ModelForm>
         {
             picker.withModelPreview(this.form.model.get());
         }
+    }
+
+    /**
+     * Make picking a bone in one editor drop the other's selection, wrapping its existing callback
+     * rather than replacing it so the editor still picks the bone up as usual.
+     */
+    private void exclusiveWith(UIPoseEditor editor, UIPoseEditor other)
+    {
+        Consumer<List<String>> previous = editor.groups.list.callback;
+
+        editor.groups.list.callback = (bones) ->
+        {
+            if (previous != null)
+            {
+                previous.accept(bones);
+            }
+
+            if (!bones.isEmpty() && !other.groups.list.getCurrent().isEmpty())
+            {
+                other.groups.list.deselect();
+            }
+        };
     }
 
     private void pickGroup(String group)

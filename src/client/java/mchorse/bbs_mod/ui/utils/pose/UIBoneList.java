@@ -16,6 +16,7 @@ import mchorse.bbs_mod.utils.Direction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -35,6 +36,11 @@ public class UIBoneList extends UIElement
     private final UITextbox search;
     private final UIIcon mirror;
     private final UIIcon invert;
+    /** Sits beside the mirror toggles once a host opts in; null until then. */
+    private UIIcon anchor;
+    private BooleanSupplier anchorState;
+    /** The search-and-toggles row, kept so a toggle can still be appended after construction. */
+    private final UIElement header;
 
     /** Unfiltered source kept so the list can be re-filtered as the query changes; {@link #sort}
      *  remembers whether that source should be sorted alphabetically. */
@@ -61,15 +67,33 @@ public class UIBoneList extends UIElement
         this.invert.tooltip(UIKeys.TRANSFORMS_ALTERNATE_INVERT);
         this.invert.wh(20, 20);
 
-        UIElement header = new UIElement();
-        header.h(20).row(0).height(20);
-        /* The search fills the row; the two toggles sit fixed-width at the right (all 20px tall). */
-        header.add(this.search, this.mirror, this.invert);
+        this.header = new UIElement();
+        this.header.h(20).row(0).height(20);
+        /* The search fills the row; the toggles sit fixed-width at the right (all 20px tall). */
+        this.header.add(this.search, this.mirror, this.invert);
 
         this.keys().register(Keys.TRANSFORMATIONS_MIRROR_EDIT, this::toggleMirrorEdit).category(UIKeys.TRANSFORMS_KEYS_CATEGORY);
 
         this.column().vertical().stretch();
-        this.add(header, this.list.marginTop(-UIConstants.MARGIN));
+        this.add(this.header, this.list.marginTop(-UIConstants.MARGIN));
+    }
+
+    /**
+     * Put a secondary-anchor toggle beside the mirror ones. It reads its lit state back from the pose
+     * every frame rather than holding its own, so it always shows the selected bone's setting; hosts
+     * that never call this (the anchor list itself) keep the plain two-button header.
+     */
+    public UIBoneList withSecondaryAnchor(BooleanSupplier state, Runnable toggle)
+    {
+        this.anchorState = state;
+        this.anchor = new UIIcon(Icons.SHIFT_TO, (b) -> toggle.run());
+        this.anchor.tooltip(UIKeys.POSE_CONTEXT_SECONDARY_ANCHOR_TOOLTIP);
+        this.anchor.wh(20, 20);
+
+        this.header.add(this.anchor);
+        this.header.resize();
+
+        return this;
     }
 
     /** Whether the source holds any bones at all (independent of the current search query). */
@@ -144,6 +168,11 @@ public class UIBoneList extends UIElement
         if (BBSSettings.poseAlternateInvert.get())
         {
             UIDashboardPanels.renderHighlight(context.batcher, this.invert.area, Direction.BOTTOM);
+        }
+
+        if (this.anchor != null && this.anchorState.getAsBoolean())
+        {
+            UIDashboardPanels.renderHighlight(context.batcher, this.anchor.area, Direction.BOTTOM);
         }
 
         super.render(context);
