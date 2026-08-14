@@ -34,7 +34,9 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public class UIPoseEditor extends UIElement
 {
@@ -52,6 +54,8 @@ public class UIPoseEditor extends UIElement
     /** Whether the anchor stays armed as the pick moves from bone to bone; see {@link #pickBones}. */
     private boolean stickyAnchor;
     private boolean armingAnchor;
+    /** The form's secondary anchors, so switching the aid off can bake its result into the pose. */
+    private Supplier<Pose> anchors;
     protected IModel model;
     protected Map<String, String> flippedParts;
 
@@ -496,6 +500,15 @@ public class UIPoseEditor extends UIElement
         }
     }
 
+    /** As {@link #forEachSelectedPose} but naming each bone, for edits that depend on which one it is. */
+    private void applyToSelectedBones(BiConsumer<String, PoseTransform> consumer)
+    {
+        for (String bone : new ArrayList<>(this.groups.list.getCurrent()))
+        {
+            consumer.accept(bone, this.pose.get(bone));
+        }
+    }
+
     /** How a single bone should receive an edit: reflected onto its left/right
      *  counterpart ({@link #mirror}) and/or with its rotation flipped ({@link #invert}). */
     public static class BoneEdit
@@ -679,7 +692,48 @@ public class UIPoseEditor extends UIElement
 
         this.stickyAnchor = next;
 
-        this.forEachSelectedPose((pt) -> this.setSecondaryAnchor(pt, next));
+        if (next)
+        {
+            this.forEachSelectedPose((pt) -> this.setSecondaryAnchor(pt, true));
+
+            return;
+        }
+
+        /* Switching the aid off keeps what it drew. Turning about the anchor is the bone's own turn
+         * plus a shift of (I - R) * anchor, and a pose carries both a rotation and a translation, so
+         * that shift is folded into the translation and the flag dropped - same limb in the same
+         * place, now expressed against its real origin. Without this the bone would snap, the angles
+         * suddenly being read about a different point. */
+        this.applyToSelectedBones((bone, pt) ->
+        {
+            Vector3f anchor = this.secondaryAnchorFor(bone);
+
+            if (anchor != null)
+            {
+                Vector3f shift = pt.createRotation().transform(new Vector3f(anchor)).negate().add(anchor);
+
+                /* Pose translation runs the opposite way on X from the anchors (see
+                 * ICubicRenderer#translateGroup against #moveToGroupPivot). */
+                this.setTranslate(pt, pt.translate.x - shift.x, pt.translate.y + shift.y, pt.translate.z + shift.z);
+            }
+
+            this.setSecondaryAnchor(pt, false);
+        });
+    }
+
+    /** The offset configured for a bone, or null when it has none (or the host exposes no anchors). */
+    private Vector3f secondaryAnchorFor(String bone)
+    {
+        Pose pose = this.anchors == null ? null : this.anchors.get();
+        PoseTransform anchor = pose == null ? null : pose.transforms.get(bone);
+
+        return anchor == null ? null : anchor.translate;
+    }
+
+    /** Where the form's secondary anchors are read from; hosts that know the form supply it. */
+    public void secondaryAnchors(Supplier<Pose> anchors)
+    {
+        this.anchors = anchors;
     }
 
     private void toggleFix()
@@ -707,6 +761,12 @@ public class UIPoseEditor extends UIElement
     protected void setLighting(PoseTransform poseTransform, boolean value)
     {
         poseTransform.lighting = value ? 0F : 1F;
+    }
+
+    /** Overridden where a pose is keyframed, so a baked translation is written through the keyframe. */
+    protected void setTranslate(PoseTransform transform, float x, float y, float z)
+    {
+        transform.translate.set(x, y, z);
     }
 
     protected void setSecondaryAnchor(PoseTransform poseTransform, boolean value)

@@ -53,6 +53,7 @@ public class UIPoseKeyframeFactory extends UIKeyframeFactory<Pose>
             {
                 this.poseEditor.setPose(keyframe.getValue(), model.getPoseGroup());
                 this.poseEditor.fillGroups(model.model, model.getFlippedParts(), false, model.getDisabledBones());
+                this.poseEditor.secondaryAnchors(modelForm.secondaryAnchors::get);
             }
         }
         else if (FormUtils.getForm(sheet.property) instanceof MobForm mobForm)
@@ -223,6 +224,12 @@ public class UIPoseKeyframeFactory extends UIKeyframeFactory<Pose>
         protected void setSecondaryAnchor(PoseTransform poseTransform, boolean value)
         {
             apply(this.editor, this.keyframe, this.getGroup(poseTransform), (poseT) -> poseT.secondaryAnchor = value);
+        }
+
+        @Override
+        protected void setTranslate(PoseTransform poseTransform, float x, float y, float z)
+        {
+            apply(this.editor, this.keyframe, this.getGroup(poseTransform), (poseT) -> poseT.translate.set(x, y, z));
         }
     }
 
