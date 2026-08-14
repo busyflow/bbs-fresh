@@ -68,6 +68,11 @@ public class PoseTransform extends Transform
             );
 
             this.lighting = (float) interp.interpolate(IInterp.context.set(preA1.lighting, a1.lighting, b1.lighting, postB1.lighting, x));
+
+            /* A bone pivots about one point or the other, never half way between, so the flag steps
+             * at the keyframe instead of blending: it holds the keyframe being left until the next
+             * one is reached. Without this the interpolated pose the render reads never carries it. */
+            this.secondaryAnchor = a1.secondaryAnchor;
         }
     }
 
@@ -92,6 +97,9 @@ public class PoseTransform extends Transform
             );
 
             this.lighting = (float) AutoBezier.get(preA1.lighting, a1.lighting, b1.lighting, postB1.lighting, pt, at, bt, qt, clamped, x);
+
+            /* Stepped, like the plain lerp above - see the note there. */
+            this.secondaryAnchor = a1.secondaryAnchor;
         }
     }
 

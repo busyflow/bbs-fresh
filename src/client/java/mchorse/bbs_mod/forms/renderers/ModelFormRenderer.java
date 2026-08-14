@@ -227,6 +227,12 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
                 poseTransform.scale.add(value.scale).sub(1, 1, 1);
                 poseTransform.addRotation(value);
             }
+
+            /* The flag rides along with the layer that set it, so ticking it on a pose overlay
+             * keyframe - which is where a pose is usually animated - reaches the render the same
+             * as ticking it on the form's own pose. Any layer asking for the anchor wins; the
+             * merged result is one rotation, so it cannot pivot two ways at once. */
+            poseTransform.secondaryAnchor |= value.secondaryAnchor;
         }
     }
 
