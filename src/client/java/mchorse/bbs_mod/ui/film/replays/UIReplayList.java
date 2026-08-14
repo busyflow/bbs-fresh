@@ -773,11 +773,8 @@ public class UIReplayList extends UIList<ReplayListEntry>
             }
         }
 
-        if (targets.isEmpty())
-        {
-            targets.addAll(this.getSelectedReplays());
-        }
-
+        /* Only ever act on what the cursor is actually over. No falling back to the selection - that made
+         * the bind fire on a right-click anywhere in the menu and toggle whatever replay was selected. */
         if (targets.isEmpty())
         {
             return;
