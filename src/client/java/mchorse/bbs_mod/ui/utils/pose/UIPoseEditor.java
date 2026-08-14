@@ -45,6 +45,8 @@ public class UIPoseEditor extends UIElement
     public UISliderTrackpad fix;
     public UIColor color;
     public UIToggle lighting;
+    /** Rotate the selected bones about the form's secondary anchor rather than their own origin. */
+    public UIToggle secondaryAnchor;
     public UIPropTransform transform;
 
     private String group = "";
@@ -95,6 +97,16 @@ public class UIPoseEditor extends UIElement
                 this.applyChildren((p) -> this.setLighting(p, this.lighting.getValue()));
             });
         });
+        this.secondaryAnchor = new UIToggle(UIKeys.POSE_CONTEXT_SECONDARY_ANCHOR, (b) -> this.applySecondaryAnchorToSelection(b.getValue()));
+        this.secondaryAnchor.h(UIConstants.CONTROL_HEIGHT);
+        this.secondaryAnchor.tooltip(UIKeys.POSE_CONTEXT_SECONDARY_ANCHOR_TOOLTIP);
+        this.secondaryAnchor.context((menu) ->
+        {
+            menu.action(Icons.DOWNLOAD, UIKeys.POSE_CONTEXT_APPLY, () ->
+            {
+                this.applyChildren((p) -> this.setSecondaryAnchor(p, this.secondaryAnchor.getValue()));
+            });
+        });
         this.transform = this.createTransformEditor();
         this.transform.setModel();
 
@@ -109,6 +121,7 @@ public class UIPoseEditor extends UIElement
             this.groups,
             UI.labelRow(UIKeys.POSE_CONTEXT_FIX, this.fix),
             UI.labelRow(this.lighting, this.color),
+            this.secondaryAnchor,
             this.transform
         );
     }
@@ -439,6 +452,7 @@ public class UIPoseEditor extends UIElement
         this.fix.setValue(poseTransform.fix);
         this.color.setColor(poseTransform.color.getARGBColor());
         this.lighting.setValue(poseTransform.lighting == 0F);
+        this.secondaryAnchor.setValue(poseTransform.secondaryAnchor);
         this.transform.setTransform(poseTransform);
     }
 
@@ -609,6 +623,12 @@ public class UIPoseEditor extends UIElement
         this.lighting.setValue(value);
     }
 
+    private void applySecondaryAnchorToSelection(boolean value)
+    {
+        this.forEachSelectedPose((pt) -> this.setSecondaryAnchor(pt, value));
+        this.secondaryAnchor.setValue(value);
+    }
+
     private void toggleFix()
     {
         if (this.groups.list.getCurrent().isEmpty())
@@ -634,5 +654,10 @@ public class UIPoseEditor extends UIElement
     protected void setLighting(PoseTransform poseTransform, boolean value)
     {
         poseTransform.lighting = value ? 0F : 1F;
+    }
+
+    protected void setSecondaryAnchor(PoseTransform poseTransform, boolean value)
+    {
+        poseTransform.secondaryAnchor = value;
     }
 }

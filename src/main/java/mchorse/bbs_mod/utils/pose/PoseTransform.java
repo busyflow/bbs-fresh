@@ -15,6 +15,8 @@ public class PoseTransform extends Transform
     public float fix;
     public final Color color = new Color().set(Colors.WHITE);
     public float lighting;
+    /** When set, this bone's rotation pivots about its form's secondary anchor, not its origin. */
+    public boolean secondaryAnchor;
 
     @Override
     public void identity()
@@ -24,6 +26,7 @@ public class PoseTransform extends Transform
         this.fix = 0F;
         this.color.set(Colors.WHITE);
         this.lighting = 0F;
+        this.secondaryAnchor = false;
     }
 
     @Override
@@ -102,6 +105,7 @@ public class PoseTransform extends Transform
             result = result && this.fix == poseTransform.fix;
             result = result && this.color.equals(poseTransform.color);
             result = result && this.lighting == poseTransform.lighting;
+            result = result && this.secondaryAnchor == poseTransform.secondaryAnchor;
         }
 
         return result;
@@ -125,6 +129,7 @@ public class PoseTransform extends Transform
             this.fix = poseTransform.fix;
             this.color.copy(poseTransform.color);
             this.lighting = poseTransform.lighting;
+            this.secondaryAnchor = poseTransform.secondaryAnchor;
         }
 
         super.copy(transform);
@@ -151,6 +156,11 @@ public class PoseTransform extends Transform
         data.putFloat("fix", this.fix);
         data.putInt("color", this.color.getARGBColor());
         data.putFloat("lighting", this.lighting);
+
+        if (this.secondaryAnchor)
+        {
+            data.putBool("secondary_anchor", true);
+        }
     }
 
     @Override
@@ -161,6 +171,7 @@ public class PoseTransform extends Transform
         this.fix = data.getFloat("fix");
         this.color.set(data.getInt("color", Colors.WHITE));
         this.lighting = data.getFloat("lighting");
+        this.secondaryAnchor = data.getBool("secondary_anchor");
     }
 
     @Override

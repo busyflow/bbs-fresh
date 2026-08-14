@@ -31,8 +31,15 @@ public class ModelForm extends Form
     public final ValueLink texture = new ValueLink("texture", null);
     public final ValueLinks materialTextures = new ValueLinks("material_textures");
     public final ValueString model = new ValueString("model", "");
+    /* PoseTransform is referenced by the secondaryAnchors javadoc below. */
     public final ValuePose pose = new ValuePose("pose", new Pose());
     public final ValuePose poseOverlay = new ValuePose("pose_overlay", new Pose());
+    /**
+     * Per-bone secondary anchor points. Only each entry's {@code translate} is used - the offset,
+     * in bone-local space, of the alternative pivot from the bone's origin. A pose keyframe with
+     * {@link PoseTransform#secondaryAnchor} set rotates that bone about this point instead.
+     */
+    public final ValuePose secondaryAnchors = new ValuePose("secondary_anchors", new Pose());
     public final ValueActionsConfig actions = new ValueActionsConfig("actions", new ActionsConfig());
     public final ValueColor color = new ValueColor("color", Color.white());
     public final ValueShapeKeys shapeKeys = new ValueShapeKeys("shape_keys", new ShapeKeys());
@@ -76,6 +83,8 @@ public class ModelForm extends Form
         this.add(this.model);
         this.add(this.pose);
         this.add(this.poseOverlay);
+        this.secondaryAnchors.invisible();
+        this.add(this.secondaryAnchors);
 
         for (int i = 0; i < BBSSettings.recordingPoseTransformOverlays.get(); i++)
         {

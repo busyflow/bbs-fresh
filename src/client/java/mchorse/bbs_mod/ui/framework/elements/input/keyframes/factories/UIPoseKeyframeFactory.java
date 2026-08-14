@@ -218,6 +218,12 @@ public class UIPoseKeyframeFactory extends UIKeyframeFactory<Pose>
         {
             apply(this.editor, this.keyframe, this.getGroup(poseTransform), (poseT) -> poseT.lighting = value ? 0F : 1F);
         }
+
+        @Override
+        protected void setSecondaryAnchor(PoseTransform poseTransform, boolean value)
+        {
+            apply(this.editor, this.keyframe, this.getGroup(poseTransform), (poseT) -> poseT.secondaryAnchor = value);
+        }
     }
 
     public static class UIPoseTransforms extends UIKeyframePropTransform

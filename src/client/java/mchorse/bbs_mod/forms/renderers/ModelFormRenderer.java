@@ -245,9 +245,45 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
      */
     private void evaluateChannels(IEntity entity, ModelInstance model, float transition)
     {
+        Pose pose = this.getPose();
+
         model.model.resetPose();
         this.animator.applyActions(entity, model, transition);
-        model.model.applyPose(this.getPose());
+        model.model.applyPose(pose);
+        this.applySecondaryPivots(model, pose);
+    }
+
+    /**
+     * Hands every bone whose pose keyframe asked for the secondary anchor the offset the form keeps for
+     * it, which the renderer then rotates that bone about instead of its own origin. Runs after the
+     * channels are settled and before any constraint stage, and touches nothing when a bone has either
+     * no flag or no anchor configured - so a model that never sets one renders exactly as before.
+     */
+    private void applySecondaryPivots(ModelInstance model, Pose pose)
+    {
+        Pose anchors = this.form.secondaryAnchors.get();
+
+        if (pose.isEmpty() || anchors.isEmpty())
+        {
+            return;
+        }
+
+        for (ModelGroup group : model.model.getAllGroups())
+        {
+            PoseTransform transform = pose.transforms.get(group.id);
+
+            if (transform == null || !transform.secondaryAnchor)
+            {
+                continue;
+            }
+
+            PoseTransform anchor = anchors.transforms.get(group.id);
+
+            if (anchor != null)
+            {
+                group.secondaryPivot = new Vector3f(anchor.translate);
+            }
+        }
     }
 
     public void ensureAnimator(float transition)

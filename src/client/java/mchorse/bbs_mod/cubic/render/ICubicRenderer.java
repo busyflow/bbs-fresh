@@ -37,8 +37,18 @@ public interface ICubicRenderer
     public static void moveToGroupPivot(MatrixStack stack, ModelGroup group)
     {
         Vector3f pivot = group.initial.translate;
+        Vector3f secondary = group.secondaryPivot;
 
-        stack.translate(pivot.x / 16F, pivot.y / 16F, pivot.z / 16F);
+        if (secondary == null)
+        {
+            stack.translate(pivot.x / 16F, pivot.y / 16F, pivot.z / 16F);
+        }
+        else
+        {
+            /* Rotating about a different point along the bone is just this pair of moves shifted;
+             * moveBackFromGroupPivot subtracts the same shift, so an unrotated bone is untouched. */
+            stack.translate((pivot.x + secondary.x) / 16F, (pivot.y + secondary.y) / 16F, (pivot.z + secondary.z) / 16F);
+        }
     }
 
     public static void rotateGroup(MatrixStack stack, ModelGroup group)
@@ -77,8 +87,16 @@ public interface ICubicRenderer
     public static void moveBackFromGroupPivot(MatrixStack stack, ModelGroup group)
     {
         Vector3f pivot = group.initial.translate;
+        Vector3f secondary = group.secondaryPivot;
 
-        stack.translate(-pivot.x / 16F, -pivot.y / 16F, -pivot.z / 16F);
+        if (secondary == null)
+        {
+            stack.translate(-pivot.x / 16F, -pivot.y / 16F, -pivot.z / 16F);
+        }
+        else
+        {
+            stack.translate(-(pivot.x + secondary.x) / 16F, -(pivot.y + secondary.y) / 16F, -(pivot.z + secondary.z) / 16F);
+        }
     }
 
     public default void applyGroupTransformations(MatrixStack stack, ModelGroup group)

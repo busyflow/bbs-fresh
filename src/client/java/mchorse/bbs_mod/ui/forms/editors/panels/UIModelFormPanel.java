@@ -32,6 +32,14 @@ public class UIModelFormPanel extends UIFormPanel<ModelForm>
     public UIModelPoseEditor poseEditor;
     public UIShapeKeys shapeKeys;
     public UISection shapeKeysSection;
+    /**
+     * Where each bone's secondary anchor sits, as an offset from its own origin - only the translation
+     * of each entry is read. A pose keyframe with "Secondary anchor" ticked rotates that bone about this
+     * point instead: put one at the bottom of a leg and the leg swings from the foot, which reads as the
+     * knee driving forward.
+     */
+    public UIModelPoseEditor anchorsEditor;
+    public UISection anchorsSection;
 
     public UIButton pickModel;
     public UIButton pick;
@@ -73,6 +81,17 @@ public class UIModelFormPanel extends UIFormPanel<ModelForm>
         this.shapeKeys.title.removeFromParent();
         this.shapeKeysSection = this.section(UIKeys.SHAPE_KEYS_TITLE, "model.shape_keys", false);
         this.shapeKeysSection.fields.add(this.shapeKeys);
+        /* Its own collapsed section: the same bone list and XYZ fields as the pose editor, but the
+         * numbers mean "where this bone rotates from" rather than a pose, so it stays out of the way
+         * of the pose editor above until it is wanted. */
+        this.anchorsEditor = new UIModelPoseEditor();
+        this.anchorsEditor.transform.barBackground();
+        /* Only each entry's position is read here, so the pose-only controls would be dead weight -
+         * and a "Secondary anchor" tick inside the anchor list itself would just be confusing. */
+        this.anchorsEditor.secondaryAnchor.removeFromParent();
+        this.anchorsEditor.tooltip(UIKeys.MODEL_EDITOR_ANCHORS_TOOLTIP);
+        this.anchorsSection = this.section(UIKeys.MODEL_EDITOR_ANCHORS, "model.secondary_anchors", false);
+        this.anchorsSection.fields.add(this.anchorsEditor);
         this.pick = new UIButton(UIKeys.FORMS_EDITOR_MODEL_PICK_TEXTURE, (b) ->
         {
             ModelInstance model = ModelFormRenderer.getModel(this.form);
@@ -163,8 +182,14 @@ public class UIModelFormPanel extends UIFormPanel<ModelForm>
 
         Set<String> modelShapeKeys = model == null ? Collections.emptySet() : model.model.getShapeKeys();
 
+        this.anchorsEditor.setValuePose(form.secondaryAnchors);
+        this.anchorsEditor.setPose(form.secondaryAnchors.get(), model == null ? this.form.model.get() : model.getPoseGroup());
+        this.anchorsEditor.fillGroups(model == null ? null : model.model, model == null ? null : model.getFlippedParts(), true, model == null ? null : model.getDisabledBones());
+
         this.shapeKeysSection.removeFromParent();
+        this.anchorsSection.removeFromParent();
         this.options.add(this.shapeKeysSection);
+        this.options.add(this.anchorsSection);
         this.shapeKeys.setShapeKeys(model == null ? "" : model.getPoseGroup(), modelShapeKeys, this.form.shapeKeys.get());
 
         this.options.resize();

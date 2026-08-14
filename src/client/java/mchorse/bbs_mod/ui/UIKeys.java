@@ -836,6 +836,8 @@ public class UIKeys
     public static final IKey MODEL_EDITOR_LOOK_AT_PITCH = L10n.lang("bbs.ui.model_editor.look_at.pitch");
     public static final IKey MODEL_EDITOR_LOOK_AT_LIMIT = L10n.lang("bbs.ui.model_editor.look_at.limit");
     public static final IKey MODEL_EDITOR_BONES = L10n.lang("bbs.ui.model_editor.bones");
+    public static final IKey MODEL_EDITOR_ANCHORS = L10n.lang("bbs.ui.model_editor.anchors");
+    public static final IKey MODEL_EDITOR_ANCHORS_TOOLTIP = L10n.lang("bbs.ui.model_editor.anchors-tooltip");
     public static final IKey MODEL_EDITOR_PICK_BONE = L10n.lang("bbs.ui.model_editor.pick_bone");
     public static final IKey BONE_PICKER_CLICK_BONE = L10n.lang("bbs.ui.bone_picker.click_bone");
     public static final IKey MODEL_EDITOR_FACE_FRONT = L10n.lang("bbs.ui.model_editor.face.front");
@@ -917,6 +919,8 @@ public class UIKeys
     public static final IKey POSE_CONTEXT_COPY = L10n.lang("bbs.ui.pose.context.copy");
     public static final IKey POSE_CONTEXT_FIX = L10n.lang("bbs.ui.pose.context.fix");
     public static final IKey POSE_CONTEXT_FIX_TOOLTIP = L10n.lang("bbs.ui.pose.context.fix-tooltip");
+    public static final IKey POSE_CONTEXT_SECONDARY_ANCHOR = L10n.lang("bbs.ui.pose.context.secondary_anchor");
+    public static final IKey POSE_CONTEXT_SECONDARY_ANCHOR_TOOLTIP = L10n.lang("bbs.ui.pose.context.secondary_anchor-tooltip");
     public static final IKey POSE_CONTEXT_FLIP_POSE = L10n.lang("bbs.ui.pose.context.flip_pose");
     public static final IKey POSE_CONTEXT_NAME = L10n.lang("bbs.ui.pose.context.name");
     public static final IKey POSE_CONTEXT_PASTE = L10n.lang("bbs.ui.pose.context.paste");

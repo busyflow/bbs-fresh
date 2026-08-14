@@ -53,6 +53,15 @@ public class ModelGroup implements IMapSerializable
      * orient, never a channel; null when the bone has no shift this frame. */
     public Vector3f offset;
 
+    /**
+     * Where this bone rotates from this frame, as an offset from its own origin, when a pose keyframe
+     * asked for the form's secondary anchor instead of the default one. The renderer moves to the origin
+     * plus this before rotating and back after, so the bone swings about a point somewhere else along
+     * itself - the bottom of a leg, say, which reads as the knee driving forward. Cancels out exactly
+     * while the bone is unrotated, and null the rest of the time.
+     */
+    public Vector3f secondaryPivot;
+
     public ModelGroup(String id)
     {
         this.id = id;
@@ -65,6 +74,7 @@ public class ModelGroup implements IMapSerializable
         this.current.copy(this.initial);
         this.orient = null;
         this.offset = null;
+        this.secondaryPivot = null;
     }
 
     /**
