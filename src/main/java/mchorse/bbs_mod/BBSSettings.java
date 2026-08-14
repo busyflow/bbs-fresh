@@ -33,6 +33,8 @@ public class BBSSettings {
 	public static ValueInt crowdPreviewCount;
 	public static ValueBoolean creativeShowHearts;
 	public static ValueBoolean creativeShowHunger;
+	public static ValueBoolean pauseHealthRegen;
+	public static ValueBoolean pauseHunger;
 	public static ValueBoolean creativeShowXpBar;
 	public static ValueBoolean uiFont;
 	public static ValueFloat uiFontScale;
@@ -888,6 +890,8 @@ public class BBSSettings {
 		crowdPreviewCount = builder.getInt("crowd_preview_count", 500, 0, 100000);
 		creativeShowHearts = builder.getBoolean("creative_show_hearts", false);
 		creativeShowHunger = builder.getBoolean("creative_show_hunger", false);
+		pauseHealthRegen = builder.getBoolean("pause_health_regen", false);
+		pauseHunger = builder.getBoolean("pause_hunger", false);
 		creativeShowXpBar = builder.getBoolean("creative_show_xp_bar", false);
 		uiFont = builder.getBoolean("ui_font", true);
 		uiFontScale = builder.getFloat("ui_font_scale", 1F, 0.5F, 4F);

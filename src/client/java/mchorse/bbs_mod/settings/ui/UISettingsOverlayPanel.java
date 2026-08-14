@@ -232,6 +232,23 @@ public class UISettingsOverlayPanel extends UIOverlayPanel
                 continue;
             }
 
+            /* The two "pause regeneration" toggles share one horizontal row rather than stacking (only
+             * outside a search, where each is shown on its own so it can be matched independently). */
+            if (!filtered && value == BBSSettings.pauseHealthRegen)
+            {
+                this.options.add(UI.row(
+                    UIValueMap.create(value, this).get(0),
+                    UIValueMap.create(BBSSettings.pauseHunger, this).get(0)
+                ));
+
+                continue;
+            }
+
+            if (!filtered && value == BBSSettings.pauseHunger)
+            {
+                continue;
+            }
+
             for (UIElement element : UIValueMap.create(value, this))
             {
                 this.options.add(element);
