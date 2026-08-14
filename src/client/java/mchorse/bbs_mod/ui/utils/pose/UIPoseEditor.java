@@ -106,6 +106,13 @@ public class UIPoseEditor extends UIElement
 
         this.keys().register(Keys.TRANSFORMATIONS_TOGGLE_FIX, this::toggleFix).category(UIKeys.TRANSFORMS_KEYS_CATEGORY);
 
+        if (this.hasSecondaryAnchorToggle())
+        {
+            this.keys().register(Keys.TRANSFORMATIONS_SECONDARY_ANCHOR, this::toggleSecondaryAnchor)
+                .label(UIKeys.POSE_CONTEXT_SECONDARY_ANCHOR)
+                .category(UIKeys.TRANSFORMS_KEYS_CATEGORY);
+        }
+
         this.column().vertical().stretch();
         /* Both rows ride the same labelRow grid, so the fix trackpad and the colour
          * swatch pin to one divider column. The lighting toggle keeps its own name
@@ -625,7 +632,7 @@ public class UIPoseEditor extends UIElement
     }
 
     /** The selected bone's flag, read live by the header button so it always shows the current bone. */
-    private boolean isSecondaryAnchorSelected()
+    public boolean isSecondaryAnchorSelected()
     {
         List<String> bones = this.groups.list.getCurrent();
 

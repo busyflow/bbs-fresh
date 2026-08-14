@@ -121,12 +121,25 @@ public class UIModelForm extends UIForm<ModelForm>
      */
     private Matrix4f withAnchorOffset(Matrix4f matrix)
     {
-        if (matrix == null || this.modelPanel.anchorsEditor.groups.list.getCurrent().isEmpty())
+        UIPoseEditor editor = this.activeEditor();
+        String bone = editor.groups.list.getCurrentFirst();
+
+        if (matrix == null || bone == null)
         {
             return matrix;
         }
 
-        PoseTransform anchor = this.form.secondaryAnchors.get().transforms.get(this.modelPanel.anchorsEditor.groups.list.getCurrentFirst());
+        /* While the anchors list drives, the gizmo marks the anchor being placed. While the pose list
+         * drives it only moves out for a bone actually set to pivot there, so the handles sit where the
+         * rotation happens - anywhere else the gizmo belongs on the bone's own origin. */
+        boolean anchored = editor == this.modelPanel.anchorsEditor || editor.isSecondaryAnchorSelected();
+
+        if (!anchored)
+        {
+            return matrix;
+        }
+
+        PoseTransform anchor = this.form.secondaryAnchors.get().transforms.get(bone);
 
         if (anchor == null)
         {
