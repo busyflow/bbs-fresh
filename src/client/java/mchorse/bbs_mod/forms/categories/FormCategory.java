@@ -11,6 +11,7 @@ import mchorse.bbs_mod.settings.values.numeric.ValueBoolean;
 import mchorse.bbs_mod.ui.forms.UIFormList;
 import mchorse.bbs_mod.ui.forms.categories.UIFormCategory;
 import mchorse.bbs_mod.utils.CollectionUtils;
+import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.StringUtils;
 
 import java.util.ArrayList;
@@ -63,6 +64,15 @@ public class FormCategory implements IMapSerializable
         if (form != null && CollectionUtils.inRange(this.forms, index))
         {
             this.forms.set(index, form);
+        }
+    }
+
+    /** Insert at a position rather than appending - the drop target of a drag reorder. */
+    public void insertForm(int index, Form form)
+    {
+        if (form != null)
+        {
+            this.forms.add(MathUtils.clamp(index, 0, this.forms.size()), form);
         }
     }
 

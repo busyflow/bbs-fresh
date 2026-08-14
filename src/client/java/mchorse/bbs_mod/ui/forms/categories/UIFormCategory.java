@@ -259,6 +259,14 @@ public class UIFormCategory extends UIElement
             if (i >= 0 && i < forms.size())
             {
                 this.select(forms.get(i), true);
+
+                /* Begin a possible drag reorder. Only when the category can be reordered and nothing is
+                 * being searched (the grid then shows filtered results, not the real order); the list
+                 * decides on release whether the pointer actually moved far enough to be a drag. */
+                if (this.list != null && this.category.canModify(null) && this.search.isEmpty() && context.mouseButton == 0)
+                {
+                    this.list.beginFormDrag(this, forms.get(i), context.mouseX, context.mouseY);
+                }
             }
             else
             {

@@ -4,6 +4,7 @@ import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.forms.FormCategories;
 import mchorse.bbs_mod.forms.FormUtils;
+import mchorse.bbs_mod.forms.FormUtilsClient;
 import mchorse.bbs_mod.forms.categories.FormCategory;
 import mchorse.bbs_mod.forms.forms.Form;
 import mchorse.bbs_mod.ui.Keys;
@@ -21,6 +22,7 @@ import mchorse.bbs_mod.ui.framework.elements.utils.FontRenderer;
 import mchorse.bbs_mod.ui.utils.UI;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
 import mchorse.bbs_mod.utils.Direction;
+import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.colors.Colors;
 import net.minecraft.client.render.DiffuseLighting;
 
@@ -46,6 +48,13 @@ public class UIFormList extends UIElement
     private long lastUpdate;
     private int lastScroll;
     private boolean pendingScrollToSelected;
+
+    /* Drag reorder. Coordinated here rather than per category because a drag can cross from one
+     * category into another; the source category and the form being carried are held until release. */
+    private UIFormCategory dragSource;
+    private Form dragForm;
+    private int dragStartX;
+    private int dragStartY;
 
     public UIFormList(IUIFormList palette)
     {
@@ -300,6 +309,104 @@ public class UIFormList extends UIElement
         this.forms.scroll.setScroll(contentY - (this.forms.area.h - itemHeight) / 2);
     }
 
+    public void beginFormDrag(UIFormCategory source, Form form, int mouseX, int mouseY)
+    {
+        this.dragSource = source;
+        this.dragForm = form;
+        this.dragStartX = mouseX;
+        this.dragStartY = mouseY;
+    }
+
+    /** The category whose grid the pointer sits over, if it can take a dropped form. */
+    private UIFormCategory categoryAt(int mouseX, int mouseY)
+    {
+        for (UIFormCategory category : this.categories)
+        {
+            if (category.category.canModify(null) && category.category.visible.get()
+                && mouseX >= category.area.x && mouseX <= category.area.ex()
+                && mouseY >= category.area.y && mouseY < category.area.ey())
+            {
+                return category;
+            }
+        }
+
+        return null;
+    }
+
+    /** Slot 0..size in a category where the pointer sits, rounded to the nearest gap between cells. */
+    private int insertionIndex(UIFormCategory category, int mouseX, int mouseY)
+    {
+        int perRow = this.perRow(category);
+        int size = category.category.getForms().size();
+        int localY = mouseY - category.area.y - UIFormCategory.HEADER_HEIGHT;
+
+        if (localY < 0)
+        {
+            return 0;
+        }
+
+        int row = localY / UIFormCategory.CELL_HEIGHT;
+        int col = MathUtils.clamp((mouseX - category.area.x + UIFormCategory.CELL_WIDTH / 2) / UIFormCategory.CELL_WIDTH, 0, perRow);
+
+        return MathUtils.clamp(row * perRow + col, 0, size);
+    }
+
+    private int perRow(UIFormCategory category)
+    {
+        return Math.max(1, Math.max(UIFormCategory.CELL_WIDTH, category.area.w) / UIFormCategory.CELL_WIDTH);
+    }
+
+    @Override
+    public boolean subMouseReleased(UIContext context)
+    {
+        if (this.dragForm != null)
+        {
+            this.finishFormDrag(context);
+        }
+
+        return super.subMouseReleased(context);
+    }
+
+    private void finishFormDrag(UIContext context)
+    {
+        UIFormCategory source = this.dragSource;
+        Form form = this.dragForm;
+
+        this.dragSource = null;
+        this.dragForm = null;
+
+        UIFormCategory target = this.categoryAt(context.mouseX, context.mouseY);
+
+        if (source == null || target == null)
+        {
+            return;
+        }
+
+        int from = source.category.getForms().indexOf(form);
+        int insert = this.insertionIndex(target, context.mouseX, context.mouseY);
+
+        if (from == -1)
+        {
+            return;
+        }
+
+        /* Dropped onto its own slot (either edge of where it already sits): nothing to do. */
+        if (source == target && (insert == from || insert == from + 1))
+        {
+            return;
+        }
+
+        /* Same category and dropped after itself: removing it first shifts the target down one. */
+        if (source == target && insert > from)
+        {
+            insert -= 1;
+        }
+
+        source.category.removeForm(form);
+        target.category.insertForm(insert, form);
+        target.select(form, false);
+    }
+
     @Override
     public void render(UIContext context)
     {
@@ -352,5 +459,45 @@ public class UIFormList extends UIElement
             context.batcher.textShadow(displayName, x + 4, y + 4);
             context.batcher.textShadow(id, x + 4, y + 14, Colors.LIGHTEST_GRAY);
         }
+
+        this.renderDrag(context);
+    }
+
+    /** While a form is being dragged, mark the drop slot and draw the form riding under the cursor. */
+    private void renderDrag(UIContext context)
+    {
+        if (this.dragForm == null)
+        {
+            return;
+        }
+
+        int mx = context.mouseX;
+        int my = context.mouseY;
+
+        /* A press that never moved is a plain click - no ghost, so selecting a form does not flicker. */
+        if (Math.abs(mx - this.dragStartX) <= 4 && Math.abs(my - this.dragStartY) <= 4)
+        {
+            return;
+        }
+
+        UIFormCategory target = this.categoryAt(mx, my);
+
+        if (target != null)
+        {
+            int insert = this.insertionIndex(target, mx, my);
+            int perRow = this.perRow(target);
+            int markerX = target.area.x + (insert % perRow) * UIFormCategory.CELL_WIDTH;
+            int markerY = target.area.y + UIFormCategory.HEADER_HEIGHT + (insert / perRow) * UIFormCategory.CELL_HEIGHT;
+
+            context.batcher.clip(this.forms.area.x, this.forms.area.y, this.forms.area.w, this.forms.area.h, context);
+            context.batcher.box(markerX - 1, markerY, markerX + 1, markerY + UIFormCategory.CELL_HEIGHT, 0xff000000 | BBSSettings.accentColor());
+            context.batcher.unclip(context);
+        }
+
+        int gx = mx - UIFormCategory.CELL_WIDTH / 2;
+        int gy = my - UIFormCategory.CELL_HEIGHT / 2;
+
+        context.batcher.box(gx, gy, gx + UIFormCategory.CELL_WIDTH, gy + UIFormCategory.CELL_HEIGHT, Colors.A50);
+        FormUtilsClient.renderUI(this.dragForm, context, gx, gy, gx + UIFormCategory.CELL_WIDTH, gy + UIFormCategory.CELL_HEIGHT);
     }
 }

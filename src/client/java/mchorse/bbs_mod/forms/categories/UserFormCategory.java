@@ -48,6 +48,14 @@ public class UserFormCategory extends FormCategory
     }
 
     @Override
+    public void insertForm(int index, Form form)
+    {
+        super.insertForm(index, form);
+
+        this.section.writeUserCategories(this);
+    }
+
+    @Override
     public void removeForm(Form form)
     {
         super.removeForm(form);
