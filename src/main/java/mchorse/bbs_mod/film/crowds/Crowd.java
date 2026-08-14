@@ -99,6 +99,9 @@ public class Crowd extends ValueGroup
     public final ValueInt brushSize = new ValueInt("brush_size", 4, 1, 64);
     public final ValueBoolean showOutline = new ValueBoolean("show_outline", true);
 
+    /** Per-member armour: profiles a member rolls into, mixed independently per slot. */
+    public final ValueCrowdArmor armor = new ValueCrowdArmor("armor");
+
     public Crowd(String id)
     {
         super(id);
@@ -128,6 +131,7 @@ public class Crowd extends ValueGroup
         this.add(this.cells);
         this.add(this.brushSize);
         this.add(this.showOutline);
+        this.add(this.armor);
     }
 
     public Long2IntOpenHashMap getCells()

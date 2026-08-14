@@ -26,6 +26,8 @@ import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.SpawnReason;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
@@ -40,6 +42,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 /**
  * Puts a {@link Crowd}'s members into the world.
@@ -218,6 +221,7 @@ public class CrowdSpawner
             entity.setSprinting(false);
             entity.setSneaking(false);
             CrowdUtils.tag(entity, film, tag, i);
+            equipArmor(entity, crowd, i);
 
             world.spawnEntity(entity);
             spawned.add(entity.getId());
@@ -233,6 +237,35 @@ public class CrowdSpawner
         }
 
         return spawned.size();
+    }
+
+    /**
+     * Roll and put on this member's armour. Seeded off the crowd seed and the member's number so the
+     * same member wears the same kit every spawn; mob members also drop nothing, since a filmed crowd
+     * is not loot. No profiles configured means nothing is touched - vanilla-equipped mobs keep theirs.
+     */
+    private static void equipArmor(LivingEntity entity, Crowd crowd, int index)
+    {
+        CrowdArmor armor = crowd.armor.get();
+
+        if (armor == null || armor.isEmpty())
+        {
+            return;
+        }
+
+        ItemStack[] stacks = armor.roll(new Random(crowd.seed.get() * 0x9E3779B1L + index));
+
+        for (int i = 0; i < CrowdArmor.SLOTS.length; i++)
+        {
+            EquipmentSlot slot = CrowdArmor.SLOTS[i];
+
+            entity.equipStack(slot, stacks[i]);
+
+            if (entity instanceof MobEntity mob)
+            {
+                mob.setEquipmentDropChance(slot, 0F);
+            }
+        }
     }
 
     /**

@@ -70,6 +70,7 @@ public class UICrowdSettings extends UIElement
     private final UIButton mobType;
     private final UIToggle useActorForm;
     private final UINestedEdit actorForm;
+    private final UIButton armor;
     private final UITrackpad count;
     private final UITrackpad seed;
     private final UITrackpad spacing;
@@ -101,6 +102,8 @@ public class UICrowdSettings extends UIElement
         this.anchor.tooltip(IKey.constant("Which replay the crowd is placed around.\n\nPainted crowds ignore this - painted ground is drawn onto the world, so it already knows where it is."));
 
         this.mobType = new UIButton(IKey.EMPTY, (b) -> this.openMobPicker());
+        this.armor = new UIButton(IKey.constant("Armor..."), (b) -> this.openArmor());
+        this.armor.tooltip(IKey.constant("Dress the crowd: weighted armour profiles a member rolls into, mixed per slot."));
         this.useActorForm = new UIToggle(IKey.constant("BBS model"), (b) -> this.edit((crowd) -> crowd.useActorForm.set(b.getValue())));
         this.actorForm = new UINestedEdit((edit) -> this.openFormPicker(edit)).keybinds();
         this.count = new UITrackpad((value) -> this.edit((crowd) -> crowd.count.set(value.intValue())));
@@ -143,29 +146,48 @@ public class UICrowdSettings extends UIElement
 
         this.column(3).vertical().stretch();
 
+        /* Short sections ride two-up to a row to spend the vertical space better; "Where" stays full
+         * width so the paint section can still slot in right under it. */
         this.add(
-            this.section("Crowd",
-                this.row("Name", this.name),
-                this.enabled,
-                this.row("Count", this.count),
-                this.row("Seed", this.seed)
-            ),
-            this.section("When",
-                this.row("Start", this.start),
-                this.row("Anchor", this.anchor)
+            UI.row(5,
+                this.section("Crowd",
+                    this.row("Name", this.name),
+                    this.enabled,
+                    this.row("Count", this.count),
+                    this.row("Seed", this.seed)
+                ),
+                this.section("When",
+                    this.row("Start", this.start),
+                    this.row("Anchor", this.anchor)
+                )
             ),
             this.whereSection,
             this.paintSection,
-            this.section("Placement",
-                UI.row(1, this.spawnOnBlock, this.skipUnsafe),
-                UI.row(1, this.randomYaw, this.disableAi)
-            ),
-            this.section("NPC Model",
-                this.row("Mob", this.mobType),
-                this.useActorForm,
-                this.row("Model", this.actorForm)
+            UI.row(5,
+                this.section("Placement",
+                    UI.row(1, this.spawnOnBlock, this.skipUnsafe),
+                    UI.row(1, this.randomYaw, this.disableAi)
+                ),
+                this.section("NPC Model",
+                    this.row("Mob", this.mobType),
+                    this.useActorForm,
+                    this.row("Model", this.actorForm),
+                    this.armor
+                )
             )
         );
+    }
+
+    private void openArmor()
+    {
+        if (this.crowd == null)
+        {
+            return;
+        }
+
+        UICrowdArmorOverlayPanel panel = new UICrowdArmorOverlayPanel(this.crowd.armor.get(), () -> this.edit((crowd) -> {}));
+
+        UIOverlay.addOverlay(this.getContext(), panel, 0.85F, 0.85F);
     }
 
     public Crowd getCrowd()
