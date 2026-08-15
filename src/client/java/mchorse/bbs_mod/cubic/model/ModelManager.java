@@ -8,6 +8,7 @@ import mchorse.bbs_mod.cubic.constraints.ModelConstraintsRuntime;
 import mchorse.bbs_mod.cubic.ik.ModelIKRuntime;
 import mchorse.bbs_mod.cubic.physics.ModelPhysicsRuntime;
 import mchorse.bbs_mod.cubic.model.loaders.BOBJModelLoader;
+import mchorse.bbs_mod.cubic.model.loaders.GLTFModelLoader;
 import mchorse.bbs_mod.cubic.model.loaders.CubicModelLoader;
 import mchorse.bbs_mod.cubic.model.loaders.GeoCubicModelLoader;
 import mchorse.bbs_mod.cubic.model.loaders.IModelLoader;
@@ -60,6 +61,7 @@ public class ModelManager implements IWatchDogListener
     {
         this.loaders.clear();
         this.loaders.add(new BOBJModelLoader());
+        this.loaders.add(new GLTFModelLoader());
         this.loaders.add(new CubicModelLoader());
         this.loaders.add(new GeoCubicModelLoader());
         this.loaders.add(new VoxModelLoader());
@@ -215,6 +217,8 @@ public class ModelManager implements IWatchDogListener
             || link.path.endsWith(".geo.json")
             || link.path.endsWith(".bobj")
             || link.path.endsWith(".obj")
+            || link.path.endsWith(".gltf")
+            || link.path.endsWith(".glb")
             || link.path.endsWith(".animation.json")
             || link.path.endsWith(".vox")
             || link.path.endsWith("/config.json");
