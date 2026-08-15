@@ -1190,6 +1190,13 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
 
     private boolean hasPersistentChannelLines()
     {
+        /* The Fresh toggle wins over every reason to draw them: it hides the per-channel track lines
+         * outright. The same-value bars and forced-duration markers are drawn separately and stay. */
+        if (BBSSettings.keyframeHideChannelLines != null && BBSSettings.keyframeHideChannelLines.get())
+        {
+            return false;
+        }
+
         return this.isUnifiedReplayLayout() || BBSSettings.isOriginalBBSTheme() || BBSSettings.editorColoredKeyframeLines.get();
     }
 

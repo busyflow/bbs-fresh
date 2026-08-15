@@ -222,6 +222,8 @@
 	"bbs.config.editor.speed-comment": "Flight speed when moving the camera around",
 	"bbs.config.editor.title": "Camera editor",
 	"bbs.config.editor.tooltip": "Config options which are used within camera editor",
+	"bbs.config.fresh.keyframe_hide_channel_lines": "Hide keyframe track lines",
+	"bbs.config.fresh.keyframe_hide_channel_lines-comment": "Hide the horizontal line drawn along each keyframe channel. The same-value bars and the forced-duration markers stay - only the plain track lines go.",
 	"bbs.config.fresh.pause_health_regen": "Pause health regen",
 	"bbs.config.fresh.pause_health_regen-comment": "Stop hearts from healing back, even on peaceful. Damage still lands - health just never regenerates. Server side; takes effect on the world you are playing.",
 	"bbs.config.fresh.pause_hunger": "Pause hunger",
