@@ -692,18 +692,15 @@ public class UIPoseEditor extends UIElement
 
         this.stickyAnchor = next;
 
-        if (next)
-        {
-            this.forEachSelectedPose((pt) -> this.setSecondaryAnchor(pt, true));
+        /* Toggling must never move the limb - it only changes where a rotation pivots. While the flag is
+         * on the render pivots about the anchor, which is the bone's own turn plus a shift of (I - R) *
+         * anchor; a pose carries a translation too, so we fold the OPPOSITE of that shift into the
+         * translation when enabling and fold it back when disabling. Symmetric, so on-off-on returns
+         * exactly where it started instead of creeping forward each time. A rotation made while the flag
+         * is on still swings about the anchor, because the baked shift is fixed at the angle it was
+         * enabled and the render's shift tracks the live angle - the difference is the pivoted turn. */
+        float sign = next ? -1F : 1F;
 
-            return;
-        }
-
-        /* Switching the aid off keeps what it drew. Turning about the anchor is the bone's own turn
-         * plus a shift of (I - R) * anchor, and a pose carries both a rotation and a translation, so
-         * that shift is folded into the translation and the flag dropped - same limb in the same
-         * place, now expressed against its real origin. Without this the bone would snap, the angles
-         * suddenly being read about a different point. */
         this.applyToSelectedBones((bone, pt) ->
         {
             Vector3f anchor = this.secondaryAnchorFor(bone);
@@ -714,10 +711,10 @@ public class UIPoseEditor extends UIElement
 
                 /* Pose translation runs the opposite way on X from the anchors (see
                  * ICubicRenderer#translateGroup against #moveToGroupPivot). */
-                this.setTranslate(pt, pt.translate.x - shift.x, pt.translate.y + shift.y, pt.translate.z + shift.z);
+                this.setTranslate(pt, pt.translate.x - sign * shift.x, pt.translate.y + sign * shift.y, pt.translate.z + sign * shift.z);
             }
 
-            this.setSecondaryAnchor(pt, false);
+            this.setSecondaryAnchor(pt, next);
         });
     }
 
