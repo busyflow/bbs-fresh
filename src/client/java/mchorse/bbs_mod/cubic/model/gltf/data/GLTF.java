@@ -96,9 +96,11 @@ public class GLTF
     {
         public String name;
         public GLTFPBR pbrMetallicRoughness;
-        public int normalTexture = -1;
-        public int occlusionTexture = -1;
-        public int emissiveTexture = -1;
+        /* glTF spec makes these textureInfo objects ({index, texCoord}), not bare ints - typing them
+         * as int made Gson throw on any material that actually sets one. Unused by the converter. */
+        public GLTFTextureInfo normalTexture;
+        public GLTFTextureInfo occlusionTexture;
+        public GLTFTextureInfo emissiveTexture;
         public float[] emissiveFactor;
         public String alphaMode = "OPAQUE";
         public float alphaCutoff = 0.5f;
