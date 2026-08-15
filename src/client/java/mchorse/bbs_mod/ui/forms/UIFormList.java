@@ -51,6 +51,9 @@ public class UIFormList extends UIElement
 
     /* Drag reorder. Coordinated here rather than per category because a drag can cross from one
      * category into another; the source category and the form being carried are held until release. */
+    /** Pixels the pointer must travel before a press turns into a drag rather than a plain click. */
+    private static final int DRAG_THRESHOLD = 6;
+
     private UIFormCategory dragSource;
     private Form dragForm;
     private int dragStartX;
@@ -367,13 +370,27 @@ public class UIFormList extends UIElement
         return super.subMouseReleased(context);
     }
 
+    /** A press only counts as a drag once the pointer has left a small dead-zone around where it went down. */
+    private boolean dragMovedEnough(UIContext context)
+    {
+        return Math.abs(context.mouseX - this.dragStartX) > DRAG_THRESHOLD
+            || Math.abs(context.mouseY - this.dragStartY) > DRAG_THRESHOLD;
+    }
+
     private void finishFormDrag(UIContext context)
     {
         UIFormCategory source = this.dragSource;
         Form form = this.dragForm;
+        boolean moved = this.dragMovedEnough(context);
 
         this.dragSource = null;
         this.dragForm = null;
+
+        /* A click that never really moved is just a selection (already handled on press) - never a reorder. */
+        if (!moved)
+        {
+            return;
+        }
 
         UIFormCategory target = this.categoryAt(context.mouseX, context.mouseY);
 
@@ -474,8 +491,9 @@ public class UIFormList extends UIElement
         int mx = context.mouseX;
         int my = context.mouseY;
 
-        /* A press that never moved is a plain click - no ghost, so selecting a form does not flicker. */
-        if (Math.abs(mx - this.dragStartX) <= 4 && Math.abs(my - this.dragStartY) <= 4)
+        /* Only show the drag UI once the pointer has actually left the dead-zone - a plain click that
+         * selects a form must not flash the ghost or marker. */
+        if (!this.dragMovedEnough(context))
         {
             return;
         }
@@ -484,10 +502,17 @@ public class UIFormList extends UIElement
 
         if (target != null)
         {
-            int insert = this.insertionIndex(target, mx, my);
             int perRow = this.perRow(target);
-            int markerX = target.area.x + (insert % perRow) * UIFormCategory.CELL_WIDTH;
-            int markerY = target.area.y + UIFormCategory.HEADER_HEIGHT + (insert / perRow) * UIFormCategory.CELL_HEIGHT;
+            int size = target.category.getForms().size();
+            int maxRow = size == 0 ? 0 : (size - 1) / perRow;
+
+            /* Draw the marker in the row the pointer is physically over, at the nearest column gap. Deriving
+             * the row from the linear insert index instead let a right-side hover (col == perRow) wrap the
+             * bar down onto the next row - which read as "too low". */
+            int row = MathUtils.clamp((my - target.area.y - UIFormCategory.HEADER_HEIGHT) / UIFormCategory.CELL_HEIGHT, 0, maxRow);
+            int col = MathUtils.clamp((mx - target.area.x + UIFormCategory.CELL_WIDTH / 2) / UIFormCategory.CELL_WIDTH, 0, perRow);
+            int markerX = target.area.x + col * UIFormCategory.CELL_WIDTH;
+            int markerY = target.area.y + UIFormCategory.HEADER_HEIGHT + row * UIFormCategory.CELL_HEIGHT;
 
             context.batcher.clip(this.forms.area.x, this.forms.area.y, this.forms.area.w, this.forms.area.h, context);
             context.batcher.box(markerX - 1, markerY, markerX + 1, markerY + UIFormCategory.CELL_HEIGHT, 0xff000000 | BBSSettings.accentColor());
