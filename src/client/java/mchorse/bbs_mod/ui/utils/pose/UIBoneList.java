@@ -73,6 +73,7 @@ public class UIBoneList extends UIElement
         this.header.add(this.search, this.mirror, this.invert);
 
         this.keys().register(Keys.TRANSFORMATIONS_MIRROR_EDIT, this::toggleMirrorEdit).category(UIKeys.TRANSFORMS_KEYS_CATEGORY);
+        this.keys().register(Keys.TRANSFORMATIONS_ALTERNATE_INVERT, this::toggleAlternateInvert).category(UIKeys.TRANSFORMS_KEYS_CATEGORY);
 
         this.column().vertical().stretch();
         this.add(this.header, this.list.marginTop(-UIConstants.MARGIN));

@@ -139,6 +139,8 @@ public class Keys
     public static final KeyCombo TRANSFORMATIONS_MIRROR_EDIT = new KeyCombo("mirror_edit", UIKeys.TRANSFORMS_KEYS_MIRROR_EDIT, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_LEFT_SHIFT).categoryKey("transformations");
     /* A for anchor, shifted like its neighbour above. Nothing else in this category uses A. */
     public static final KeyCombo TRANSFORMATIONS_SECONDARY_ANCHOR = new KeyCombo("secondary_anchor", UIKeys.POSE_CONTEXT_SECONDARY_ANCHOR, GLFW.GLFW_KEY_A, GLFW.GLFW_KEY_LEFT_SHIFT).categoryKey("transformations");
+    /* Unbound by default - the alternate-invert toggle beside mirror-edit in the bone list. */
+    public static final KeyCombo TRANSFORMATIONS_ALTERNATE_INVERT = new KeyCombo("alternate_invert", UIKeys.TRANSFORMS_KEYS_ALTERNATE_INVERT).categoryKey("transformations");
     public static final KeyCombo TRANSFORMATIONS_COPY_WORLD = new KeyCombo("copy_world", UIKeys.TRANSFORMS_CONTEXT_COPY_WORLD, GLFW.GLFW_KEY_C, GLFW.GLFW_KEY_LEFT_CONTROL, GLFW.GLFW_KEY_LEFT_SHIFT, GLFW.GLFW_KEY_LEFT_ALT).categoryKey("transformations");
     public static final KeyCombo TRANSFORMATIONS_PASTE_WORLD = new KeyCombo("paste_world", UIKeys.TRANSFORMS_CONTEXT_PASTE_WORLD, GLFW.GLFW_KEY_V, GLFW.GLFW_KEY_LEFT_CONTROL, GLFW.GLFW_KEY_LEFT_SHIFT, GLFW.GLFW_KEY_LEFT_ALT).categoryKey("transformations");
 
