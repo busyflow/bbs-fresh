@@ -2141,7 +2141,7 @@ public class UIReplayList extends UIList<ReplayListEntry>
         /* Fill the content area between the message (top) and the Ok button (bottom) so the list
          * stays inside the panel and its rows are clickable, instead of floating above the Ok
          * button where it overflowed the panel top. */
-        search.relative(panel.content).x(0.5F).y(30).w(1F, -20).h(1F, -70).anchor(0.5F, 0F);
+        search.relative(panel.content).x(0.5F).y(45).w(1F, -20).h(16 * 9 + 20).anchor(0.5F, 0F);
 
         panel.content.add(search);
 
