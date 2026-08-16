@@ -1400,6 +1400,13 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
             BufferBuilder builder = Tessellator.getInstance().getBuffer();
             Matrix4f matrix = context.batcher.getContext().getMatrices().peek().getPositionMatrix();
 
+            /* Solid backing for the name column, drawn over the keyframes and under the labels, so the
+             * names read against a flat surface instead of the tracks showing through. */
+            Area labelArea = this.keyframes.area;
+            int labelWidth = this.keyframes.getLabelWidth();
+
+            context.batcher.box(labelArea.x, labelArea.y, labelArea.x + labelWidth, labelArea.ey(), BBSSettings.deepSurface());
+
             this.renderLabels(context, builder, matrix, this.elements, 0, this.getDopeSheetY());
         }
 

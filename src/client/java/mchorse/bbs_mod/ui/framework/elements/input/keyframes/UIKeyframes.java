@@ -1063,11 +1063,13 @@ public class UIKeyframes extends UIElement
         double maxValue = hadWidth ? this.xAxis.getMaxValue() : 0;
 
         int labelWidth = this.getLabelWidth();
-        boolean showLabelResizer = this.currentGraph == this.dopeSheet && !this.isReplayKeyframeEditor();
+        /* Upstream layout: the label column sits on the left and the graph starts after it, so keyframes
+         * never render behind the names (and clicks/hover in the label column don't reach them). */
+        boolean showLabelResizer = this.currentGraph == this.dopeSheet;
         this.labelResizer.setVisible(showLabelResizer);
         if (showLabelResizer)
         {
-            this.labelResizer.relative(this).x(1F, -labelWidth - 3).y(0.35F).w(6).h(0.3F);
+            this.labelResizer.relative(this).x(labelWidth - 3).y(0.35F).w(6).h(0.3F);
         }
 
         super.resize();
@@ -1075,6 +1077,7 @@ public class UIKeyframes extends UIElement
         if (showLabelResizer)
         {
             this.graphArea.copy(this.area);
+            this.graphArea.x += labelWidth;
             this.graphArea.w -= labelWidth;
         }
         else
