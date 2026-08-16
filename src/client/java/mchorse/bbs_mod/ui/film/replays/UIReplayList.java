@@ -2138,14 +2138,18 @@ public class UIReplayList extends UIList<ReplayListEntry>
         }
 
         list.background();
-        /* Fill the content area between the message (top) and the Ok button (bottom) so the list
-         * stays inside the panel and its rows are clickable, instead of floating above the Ok
-         * button where it overflowed the panel top. */
-        search.relative(panel.content).x(0.5F).y(45).w(1F, -20).h(16 * 9 + 20).anchor(0.5F, 0F);
+        /* The list sits below the message and stretches down to just above the Ok button, so it
+         * always fits whatever height the panel ends up with and its rows stay clickable. */
+        search.relative(panel.content).x(0.5F).y(45).w(1F, -20).h(1F, -80).anchor(0.5F, 0F);
 
         panel.content.add(search);
 
-        UIOverlay.addOverlay(this.getContext(), panel, 260, 340);
+        /* Grown downwards only: the panel keeps the top edge a 340-tall centred panel had, and the
+         * extra height goes to the bottom, so opening it doesn't shift the whole dialog down. */
+        UIOverlay overlay = new UIOverlay();
+
+        panel.relative(overlay).x(0.5F).y(0.5F, -170).w(260).h(440).anchorX(0.5F).bounds(overlay, 0);
+        UIOverlay.setupPanel(this.getContext(), overlay, panel);
     }
 
     private void fromModelBlock(ModelBlockEntity modelBlock)
