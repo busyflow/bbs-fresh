@@ -153,6 +153,7 @@ public class BBSSettings {
 	public static ValueBoolean editorColoredKeyframeLines;
 	/** Camera keyframe clip: properties under the sheet at full width instead of a side column. */
 	public static ValueBoolean editorKeyframePropertiesBelow;
+	public static ValueBoolean editorTimelineGrid;
 	public static ValueBoolean editorShowAllReplayTracks;
 	public static ValueInt editorPeriodicSave;
 	public static ValueBoolean editorHorizontalFlight;
@@ -641,6 +642,7 @@ public class BBSSettings {
 		builder.category("appearance", Icons.LAYOUT);
 		builder.register(language = new ValueLanguage("language"));
 		/* Keep this high in Settings because it changes the replay editor's everyday layout. */
+		editorTimelineGrid = builder.getBoolean("timeline_grid", false);
 		editorShowAllReplayTracks = builder.getBoolean("show_all_replay_tracks", false);
 		enableTrackpadIncrements = builder.getBoolean("trackpad_increments", false);
 		enableTrackpadScrolling = builder.getBoolean("trackpad_scrolling", false);

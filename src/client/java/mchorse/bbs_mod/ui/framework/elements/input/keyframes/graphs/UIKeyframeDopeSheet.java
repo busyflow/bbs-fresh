@@ -13,7 +13,6 @@ import mchorse.bbs_mod.ui.framework.elements.input.keyframes.UIKeyframes;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.shapes.IKeyframeShapeRenderer;
 import mchorse.bbs_mod.ui.framework.elements.input.keyframes.shapes.KeyframeShapeRenderers;
 import mchorse.bbs_mod.ui.framework.elements.utils.FontRenderer;
-import mchorse.bbs_mod.ui.film.replays.UIReplaysEditor;
 import mchorse.bbs_mod.ui.utils.Area;
 import mchorse.bbs_mod.ui.utils.Scale;
 import mchorse.bbs_mod.ui.utils.Scroll;
@@ -47,10 +46,11 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
     private static final int POSE_TAB_DEPTH_STEP = 4;
     private static final float TRACK_BAR_ALPHA = 0.3F;
 
-    /** Track-name column layout: icons stay fixed on the left while names align on the right. */
-    private static final int LABEL_ICON_LEFT = 4;
+    /** Track-name column layout: left text indent, right padding, right-side icon slot, text/icon gap. */
+    private static final int LABEL_TEXT_LEFT = 5;
     private static final int LABEL_RIGHT_PAD = 2;
     private static final int LABEL_ICON_SIZE = 16;
+    private static final int LABEL_TEXT_ICON_GAP = 3;
 
     private UIKeyframes keyframes;
 
@@ -399,7 +399,6 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
         }
 
         this.pickKeyframe(null);
-        this.keyframes.triggerChange();
     }
 
     private void flatten(UIKeyframeElement element)
@@ -586,15 +585,9 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
             return true;
         }
 
-        /* Replay-editor labels are visual overlays: let the graph select keyframes beneath them. */
-        if (this.isUnifiedReplayLayout())
-        {
-            return false;
-        }
-
         if (context.mouseButton == 0 && this.keyframes.area.isInside(context))
         {
-            if (context.mouseX < this.keyframes.area.ex() - this.keyframes.getLabelWidth())
+            if (context.mouseX > this.keyframes.area.x + this.keyframes.getLabelWidth())
             {
                 return false;
             }
@@ -744,7 +737,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
      */
     private void renderTimelineGrid(UIContext context)
     {
-        if (!BBSSettings.editorTimelineMajorLines.get() && !BBSSettings.editorTimelineMinorLines.get())
+        if (!BBSSettings.editorTimelineGrid.get())
         {
             return;
         }
@@ -943,36 +936,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
         context.batcher.clipBox(area.x, rulerBottom, area.ex(), area.ey(), context);
         this.renderElements(context, builder, matrix, area, this.elements, 0, this.getDopeSheetY());
         this.renderOutOfRangeShading(context, builder, matrix, area);
-        this.renderPersistentSheetLines(context, area, this.elements, this.getDopeSheetY());
         context.batcher.unclip(context);
-    }
-
-    /** Keep each replay track identifiable even in the dimmed area beyond its duration. */
-    private int renderPersistentSheetLines(UIContext context, Area area, List<UIKeyframeElement> elements, int y)
-    {
-        for (UIKeyframeElement element : elements)
-        {
-            if (element instanceof UIKeyframeSheet sheet && this.isVisible(sheet))
-            {
-                if (y + this.trackHeight >= area.y && y <= area.ey() && this.hasPersistentChannelLines())
-                {
-                    boolean hover = area.isInside(context) && context.mouseY >= y && context.mouseY < y + this.trackHeight;
-                    int my = y + (int) this.trackHeight / 2;
-                    int color = Colors.setA(sheet.color, hover ? 1F : 0.45F);
-
-                    context.batcher.box(area.x, my - 1, area.ex(), my + 1, color);
-                }
-            }
-
-            y += this.getElementHeight(element);
-
-            if (element instanceof UIKeyframeGroup group && !group.collapsed)
-            {
-                y = this.renderPersistentSheetLines(context, area, group.children, y);
-            }
-        }
-
-        return y;
     }
 
     private void renderOutOfRangeShading(UIContext context, BufferBuilder builder, Matrix4f matrix, Area area)
@@ -1008,16 +972,9 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
         int w = this.keyframes.getLabelWidth();
 
         /* Render background */
-        int labelX = area.ex() - w;
+        context.batcher.box(area.x + w - 1, area.y, area.x + w, area.ey(), BBSSettings.dividerColor());
 
-        boolean unified = this.isUnifiedReplayLayout();
-
-        if (!unified)
-        {
-            context.batcher.box(labelX, area.y, labelX + 1, area.ey(), BBSSettings.dividerColor());
-        }
-
-        context.batcher.clipBox(unified ? area.x : labelX, area.y, area.ex(), area.ey(), context);
+        context.batcher.clipBox(area.x, area.y, area.x + w, area.ey(), context);
 
         for (UIKeyframeElement element : elements)
         {
@@ -1056,28 +1013,20 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
         /* Hover: whole row (label + track area) */
         boolean hover = area.isInside(context) && context.mouseY >= y && context.mouseY < y + this.trackHeight;
         int my = y + (int) this.trackHeight / 2;
-        int lx = area.ex() - w;
+        int lx = area.x;
 
         if (hover)
         {
-            context.batcher.gradientHBox(lx, y, lx + w, y + (int) this.trackHeight, Colors.setA(group.color, 0.04F), Colors.setA(group.color, 0.2F));
+            context.batcher.gradientHBox(lx, y, lx + w, y + (int) this.trackHeight, Colors.setA(group.color, 0.2F), Colors.setA(group.color, 0.04F));
         }
 
-        boolean unified = this.isUnifiedReplayLayout();
+        context.batcher.box(lx, y, lx + 3, y + (int) this.trackHeight, group.color | Colors.A100);
 
-        if (!unified)
-        {
-            context.batcher.box(lx, y, lx + 3, y + (int) this.trackHeight, group.color | Colors.A100);
-        }
-
-        int arrowX = unified ? area.x + LABEL_ICON_LEFT : lx + LABEL_ICON_LEFT;
+        int arrowX = lx + w - LABEL_RIGHT_PAD - LABEL_ICON_SIZE;
         FontRenderer font = context.batcher.getFont();
         int textColor = hover ? Colors.WHITE : Colors.setA(Colors.WHITE, 0.75F);
-        int textRight = lx + w - LABEL_RIGHT_PAD;
-        int textLeft = arrowX + LABEL_ICON_SIZE + 3;
-        String label = font.limitToWidth(group.title.get(), Math.max(0, textRight - textLeft));
-        /* Left-aligned right after the arrow, the upstream BBS look. */
-        int textX = textLeft;
+        int textX = lx + LABEL_TEXT_LEFT + offset;
+        String label = font.limitToWidth(group.title.get(), Math.max(0, arrowX - LABEL_TEXT_ICON_GAP - textX));
 
         context.batcher.textShadow(label, textX, my - font.getHeight() / 2, textColor);
         context.batcher.icon(group.collapsed ? Icons.ARROW_RIGHT : Icons.ARROW_DOWN, arrowX, my - 8);
@@ -1093,25 +1042,14 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
         /* Hover: whole row (label + track area) */
         boolean hover = area.isInside(context) && context.mouseY >= y && context.mouseY < y + this.trackHeight;
         int my = y + (int) this.trackHeight / 2;
-        int lx = area.ex() - w;
+        int lx = area.x;
 
         if (hover)
         {
-            context.batcher.gradientHBox(lx, y, lx + w, y + (int) this.trackHeight, Colors.setA(sheet.color, 0.04F), Colors.setA(sheet.color, 0.2F));
+            context.batcher.gradientHBox(lx, y, lx + w, y + (int) this.trackHeight, Colors.setA(sheet.color, 0.2F), Colors.setA(sheet.color, 0.04F));
         }
 
-        boolean unified = this.isUnifiedReplayLayout();
-
-        if (unified && this.hasPersistentChannelLines())
-        {
-            int channelColor = Colors.setA(sheet.color, hover ? 1F : 0.45F);
-
-            context.batcher.box(this.keyframes.graphArea.ex(), my - 1, area.ex(), my + 1, channelColor);
-        }
-        else if (!unified)
-        {
-            context.batcher.box(lx, y, lx + 2, y + (int) this.trackHeight, sheet.color | Colors.A100);
-        }
+        context.batcher.box(lx, y, lx + 2, y + (int) this.trackHeight, sheet.color | Colors.A100);
 
         boolean poseTab = this.isPoseTabParent(sheet);
         Icon icon = poseTab
@@ -1119,14 +1057,12 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
             : sheet.getIcon();
         boolean hasIcon = icon != null && this.trackHeight >= 12D;
 
-        int iconX = unified ? area.x + LABEL_ICON_LEFT : lx + LABEL_ICON_LEFT;
+        int iconX = lx + w - LABEL_RIGHT_PAD - LABEL_ICON_SIZE;
         FontRenderer font = context.batcher.getFont();
         int textColor = hover ? Colors.WHITE : Colors.setA(Colors.WHITE, 0.75F);
-        int textRight = lx + w - LABEL_RIGHT_PAD;
-        int textLeft = hasIcon ? iconX + LABEL_ICON_SIZE + 3 : lx + LABEL_ICON_LEFT;
-        String title = font.limitToWidth(sheet.title.get(), Math.max(0, textRight - textLeft));
-        /* Left-aligned right after the icon, the upstream BBS look. */
-        int textX = textLeft;
+        int textX = lx + LABEL_TEXT_LEFT + offset + this.getSheetIndent(sheet);
+        int textRight = hasIcon ? iconX - LABEL_TEXT_ICON_GAP : lx + w - LABEL_RIGHT_PAD;
+        String title = font.limitToWidth(sheet.title.get(), Math.max(0, textRight - textX));
 
         context.batcher.textShadow(title, textX, my - font.getHeight() / 2, textColor);
 
@@ -1163,16 +1099,6 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
         return y;
     }
 
-    private boolean isUnifiedReplayLayout()
-    {
-        return this.keyframes.getParent(UIReplaysEditor.class) != null;
-    }
-
-    private boolean hasPersistentChannelLines()
-    {
-        return this.isUnifiedReplayLayout() || BBSSettings.isOriginalBBSTheme() || BBSSettings.editorColoredKeyframeLines.get();
-    }
-
     private int getTrackGap()
     {
         return 0;
@@ -1198,25 +1124,16 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
         }
 
         boolean hover = area.isInside(context) && context.mouseY >= y && context.mouseY < y + this.trackHeight;
-
-        if (BBSSettings.isOriginalBBSTheme())
-        {
-            return;
-        }
-
         int by = this.getTrackBodyY(y);
         int bh = this.getTrackBodyHeight();
         int row = Math.max(0, (y - TimelineRulerRenderer.getTimelineBottom(area)) / Math.max(1, (int) this.trackHeight));
-        if (!BBSSettings.isOriginalBBSTheme())
+        int surface = row % 2 == 0 ? BBSSettings.deepSurface() : BBSSettings.baseSurface();
+
+        context.batcher.box(area.x, by, area.ex(), by + bh, surface);
+
+        if (hover)
         {
-            int surface = row % 2 == 0 ? BBSSettings.deepSurface() : BBSSettings.baseSurface();
-
-            context.batcher.box(area.x, by, area.ex(), by + bh, surface);
-
-            if (hover)
-            {
-                context.batcher.box(area.x, by, area.ex(), by + bh, BBSSettings.color(BBSSettings.raisedSurface(), Colors.A25));
-            }
+            context.batcher.box(area.x, by, area.ex(), by + bh, BBSSettings.color(BBSSettings.raisedSurface(), Colors.A25));
         }
     }
 
@@ -1259,32 +1176,25 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
 
         builder.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
 
-        if (this.hasPersistentChannelLines())
-        {
-            int channelColor = Colors.setA(sheet.color, hover ? 1F : 0.45F);
-
-            context.batcher.fillRect(builder, matrix, area.x, my - 1, area.w, 2, channelColor, channelColor, channelColor, channelColor);
-        }
-
         /* Render bars indicating same values */
         for (int j = 1; j < keyframes.size(); j++)
         {
             Keyframe previous = (Keyframe) keyframes.get(j - 1);
             Keyframe frame = (Keyframe) keyframes.get(j);
-            int c = Colors.YELLOW | Colors.A25;
+            int c = Colors.setA(sheet.color, TRACK_BAR_ALPHA);
             int xx = this.keyframes.toGraphX(previous.getTick());
             int xxx = this.keyframes.toGraphX(frame.getTick());
 
             if (previous.getFactory().compare(previous.getValue(), frame.getValue()))
             {
-                int w = BBSSettings.isOriginalBBSTheme() ? 4 : trackWidth + 2;
+                int w = trackWidth + 2;
 
                 context.batcher.fillRect(builder, matrix, xx, my - w / 2, this.keyframes.toGraphX(frame.getTick()) - xx, w, c, c, c, c);
             }
 
             if (Math.abs(xxx - xx) < 5)
             {
-                c = Colors.YELLOW | Colors.A50;
+                c = Colors.setA(sheet.color, 0.5F);
 
                 context.batcher.fillRect(builder, matrix, xx - 2, my + trackWidth / 2 + 4, xxx - xx + 4, 2, c, c, c, c);
             }
@@ -1456,9 +1366,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
 
     private boolean isPoseTabArrowHit(UIContext context, int y, int labelWidth)
     {
-        int x = this.isUnifiedReplayLayout()
-            ? this.keyframes.area.x + LABEL_ICON_LEFT
-            : this.keyframes.area.ex() - labelWidth + LABEL_ICON_LEFT;
+        int x = this.keyframes.area.x + labelWidth - LABEL_RIGHT_PAD - LABEL_ICON_SIZE;
         int minY = y + (int) this.trackHeight / 2 - 8;
 
         return context.mouseX >= x && context.mouseX < x + LABEL_ICON_SIZE && context.mouseY >= minY && context.mouseY < minY + LABEL_ICON_SIZE;
