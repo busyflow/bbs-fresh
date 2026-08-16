@@ -3,6 +3,7 @@ package mchorse.bbs_mod.utils.pose;
 import mchorse.bbs_mod.data.IMapSerializable;
 import mchorse.bbs_mod.data.types.MapType;
 import mchorse.bbs_mod.utils.Pair;
+import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -19,6 +20,20 @@ public class Pose implements IMapSerializable
     private static List<Pair<Pattern, String>> patterns = new ArrayList<>();
 
     public final Map<String, PoseTransform> transforms = new HashMap<>();
+
+    /**
+     * Fixed secondary-anchor offsets for the default Steve/Alex bones. Used as an override in both the
+     * render pivot and the editor's toggle compensation so the two always read the same value - which is
+     * what stops a limb inching forward each time the anchor is toggled, and forces these values even on
+     * poses that already had a stored anchor. Y only: arms -10, legs -12, low_body +12.
+     */
+    public static final Map<String, Vector3f> DEFAULT_SECONDARY_ANCHORS = Map.of(
+        "left_arm", new Vector3f(0F, -10F, 0F),
+        "right_arm", new Vector3f(0F, -10F, 0F),
+        "left_leg", new Vector3f(0F, -12F, 0F),
+        "right_leg", new Vector3f(0F, -12F, 0F),
+        "low_body", new Vector3f(0F, 12F, 0F)
+    );
 
     static
     {

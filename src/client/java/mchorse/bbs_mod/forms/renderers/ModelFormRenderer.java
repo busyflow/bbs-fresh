@@ -269,7 +269,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
     {
         Pose anchors = this.form.secondaryAnchors.get();
 
-        if (pose.isEmpty() || anchors.isEmpty())
+        if (pose.isEmpty())
         {
             return;
         }
@@ -280,6 +280,16 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
 
             if (transform == null || !transform.secondaryAnchor)
             {
+                continue;
+            }
+
+            /* Fixed default wins over any stored anchor, so the pivot matches the editor's baked
+             * compensation and the limb stays put. Stored anchors still cover other bones. */
+            Vector3f fixed = Pose.DEFAULT_SECONDARY_ANCHORS.get(group.id);
+
+            if (fixed != null)
+            {
+                group.secondaryPivot = new Vector3f(fixed);
                 continue;
             }
 

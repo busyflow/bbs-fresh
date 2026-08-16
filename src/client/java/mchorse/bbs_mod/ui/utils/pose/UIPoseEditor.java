@@ -721,6 +721,14 @@ public class UIPoseEditor extends UIElement
     /** The offset configured for a bone, or null when it has none (or the host exposes no anchors). */
     private Vector3f secondaryAnchorFor(String bone)
     {
+        /* Fixed default overrides any stored anchor, matching the renderer so toggling never drifts. */
+        Vector3f fixed = Pose.DEFAULT_SECONDARY_ANCHORS.get(bone);
+
+        if (fixed != null)
+        {
+            return fixed;
+        }
+
         Pose pose = this.anchors == null ? null : this.anchors.get();
         PoseTransform anchor = pose == null ? null : pose.transforms.get(bone);
 
