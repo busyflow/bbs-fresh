@@ -482,14 +482,19 @@ public class UIKeyframeEditor extends UIElement
                 this.propertiesBelow = !this.propertiesBelow;
                 this.lastContentHeight = -1;
 
-                if (this.editor != null)
+                /* Re-docking the properties panel adds/removes children on an ancestor - doing that here,
+                 * mid-render, threw a ConcurrentModificationException. Defer it to after the render pass. */
+                context.postTask(() ->
                 {
-                    this.editor.removeFromParent();
-                    this.editor = null;
-                }
+                    if (this.editor != null)
+                    {
+                        this.editor.removeFromParent();
+                        this.editor = null;
+                    }
 
-                this.applyViewFlex();
-                this.pickKeyframe(null);
+                    this.applyViewFlex();
+                    this.pickKeyframe(null);
+                });
             }
             else if (this.propertiesBelow
                 && this.view.getGraph().getContentHeight() != this.lastContentHeight)
