@@ -52,7 +52,7 @@ public class UIKeyframeClip extends UIClip<KeyframeClip>
         /* Camera keyframe clips only - the setting is about this sheet, which is the wide one
          * read across, not about every keyframe panel in the mod. */
         this.keyframes = new UIKeyframeEditor((consumer) -> new UIFilmKeyframes(this.editor, consumer))
-            .propertiesBelow(BBSSettings.editorKeyframePropertiesBelow::get);
+            .propertiesBelow(BBSSettings.editorKeyframePropertiesBelow.get());
         this.keyframes.view.rulerRenderer((context) ->
         {
             UIReplaysEditor.renderRuler(context, this.keyframes.view, (UIClipsPanel) this.editor, (Clips) this.clip.getParent(), this.clip.tick.get());

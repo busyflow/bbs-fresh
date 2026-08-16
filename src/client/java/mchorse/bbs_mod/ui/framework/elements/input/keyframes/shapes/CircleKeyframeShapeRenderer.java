@@ -23,7 +23,7 @@ public class CircleKeyframeShapeRenderer implements IKeyframeShapeRenderer
     }
 
     @Override
-    public void renderKeyframe(UIContext uiContext, BufferBuilder builder, Matrix4f matrix, int x, int y, float offset, int c)
+    public void renderKeyframe(UIContext uiContext, BufferBuilder builder, Matrix4f matrix, int x, int y, int offset, int c)
     {
         final int NUM_SEGMENTS = 32;
 
@@ -57,7 +57,7 @@ public class CircleKeyframeShapeRenderer implements IKeyframeShapeRenderer
     }
 
     @Override
-    public void renderKeyframeBackground(UIContext uiContext, BufferBuilder builder, Matrix4f matrix, int x, int y, float offset, int c)
+    public void renderKeyframeBackground(UIContext uiContext, BufferBuilder builder, Matrix4f matrix, int x, int y, int offset, int c)
     {
         float centerSize = offset * 0.2f;
         float half = centerSize * 2;

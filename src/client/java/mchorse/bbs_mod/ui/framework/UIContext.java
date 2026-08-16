@@ -277,40 +277,12 @@ public class UIContext implements IViewportStack
         this.notifications.post(message, background, color);
     }
 
-    /**
-     * Work queued during a render pass to run once the pass is over. Mutating the element tree while it
-     * is being iterated for rendering throws a ConcurrentModificationException, so anything structural
-     * that a render() detects must be deferred here instead of done on the spot.
-     */
-    private final List<Runnable> postTasks = new java.util.ArrayList<>();
-
-    public void postTask(Runnable task)
-    {
-        if (task != null)
-        {
-            this.postTasks.add(task);
-        }
-    }
-
     public void postRender()
     {
         this.updateScroll();
 
         this.tooltip.render(this);
         this.notifications.render(this);
-
-        if (!this.postTasks.isEmpty())
-        {
-            /* Copy first: a task may queue more, and draining the live list would then break. */
-            List<Runnable> tasks = new java.util.ArrayList<>(this.postTasks);
-
-            this.postTasks.clear();
-
-            for (Runnable task : tasks)
-            {
-                task.run();
-            }
-        }
     }
 
     public void requestCursor(int shape)

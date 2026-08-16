@@ -1,7 +1,5 @@
 package mchorse.bbs_mod.ui.framework.elements.input.keyframes;
 
-import mchorse.bbs_mod.BBSSettings;
-import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.ui.framework.elements.input.drag.TransformSpace;
 import mchorse.bbs_mod.camera.clips.overwrite.KeyframeClip;
 import mchorse.bbs_mod.film.replays.PerLimbService;
@@ -37,18 +35,13 @@ public class UIKeyframeEditor extends UIElement
 
     /** Width of the properties panel when it sits beside the sheet. */
     private static final int SIDE_WIDTH = 140;
-    /** Height of the properties panel when it sits under the sheet, from the Fresh settings. */
-    private static int belowHeight()
-    {
-        return BBSSettings.keyframePropertiesHeight.get();
-    }
+    /** Height of the properties panel when it sits under the sheet. */
+    private static final int BELOW_HEIGHT = 80;
 
     private UIElement target;
     private boolean timelineVisible = true;
     private boolean propertiesVisible = true;
-    private java.util.function.BooleanSupplier propertiesBelowSupplier = () -> false;
     private boolean propertiesBelow;
-    private int lastContentHeight = -1;
 
     public UIKeyframeEditor(Function<Consumer<Keyframe>, UIKeyframes> factory)
     {
@@ -74,17 +67,7 @@ public class UIKeyframeEditor extends UIElement
      */
     public UIKeyframeEditor propertiesBelow(boolean below)
     {
-        return this.propertiesBelow(() -> below);
-    }
-
-    /**
-     * Read live, so toggling the setting rearranges an open editor without reopening it. The
-     * layout is re-applied in {@link #render(UIContext)} when the answer changes.
-     */
-    public UIKeyframeEditor propertiesBelow(java.util.function.BooleanSupplier below)
-    {
-        this.propertiesBelowSupplier = below;
-        this.propertiesBelow = below.getAsBoolean();
+        this.propertiesBelow = below;
 
         this.applyViewFlex();
 
@@ -99,7 +82,7 @@ public class UIKeyframeEditor extends UIElement
         }
         else if (this.propertiesBelow)
         {
-            this.view.resetFlex().full(this).w(1F).h(this.sheetHeight());
+            this.view.resetFlex().full(this).w(1F).h(1F, -BELOW_HEIGHT);
         }
         else
         {
@@ -107,26 +90,6 @@ public class UIKeyframeEditor extends UIElement
         }
 
         this.resize();
-    }
-
-    /**
-     * How tall to make the sheet when the properties go under it: as tall as its tracks, so the
-     * properties sit directly beneath the last one rather than at the far bottom of the panel with
-     * an empty gap between. Falls back to filling the space when the graph cannot measure itself.
-     */
-    private int sheetHeight()
-    {
-        int content = this.view.getGraph().getContentHeight();
-
-        this.lastContentHeight = content;
-        int available = Math.max(0, this.area.h - belowHeight());
-
-        if (content <= 0)
-        {
-            return available;
-        }
-
-        return available <= 0 ? content : Math.min(content, available);
     }
 
     /**
@@ -156,28 +119,6 @@ public class UIKeyframeEditor extends UIElement
 
     private void pickKeyframe(Keyframe keyframe)
     {
-        /* Nothing picked: keep the panel where it is and empty it, rather than taking it down and
-         * letting everything around it jump. With nothing ever picked there is no panel yet, so
-         * one is built off any keyframe in the sheets purely to stand there, values hidden. */
-        boolean empty = keyframe == null;
-
-        if (empty)
-        {
-            if (this.editor != null)
-            {
-                this.editor.setValuesVisible(false);
-
-                return;
-            }
-
-            keyframe = this.firstKeyframe();
-
-            if (keyframe == null)
-            {
-                return;
-            }
-        }
-
         UIKeyframeFactory.saveScroll(this.editor);
 
         if (this.editor != null)
@@ -186,15 +127,9 @@ public class UIKeyframeEditor extends UIElement
             this.editor = null;
         }
 
+        if (keyframe != null)
         {
             this.editor = UIKeyframeFactory.createPanel(keyframe, this.view);
-
-            if (this.editor == null)
-            {
-                return;
-            }
-
-            this.editor.setValuesVisible(!empty);
 
             if (this.target != null)
             {
@@ -202,10 +137,9 @@ public class UIKeyframeEditor extends UIElement
             }
             else if (this.propertiesBelow)
             {
-                /* Against the sheet's bottom edge rather than the panel's, so it follows the last
-                 * track instead of sitting at the foot of the panel with a gap above it. Full
-                 * width, and the same place whichever keyframe is picked. */
-                this.editor.relative(this.view).x(0).y(1F).w(1F).h(belowHeight());
+                /* Pinned to the bottom edge and the full width of the editor, so it stays where
+                 * it is whichever keyframe is picked. */
+                this.editor.relative(this).x(0).y(1F, -BELOW_HEIGHT).w(1F).h(BELOW_HEIGHT);
             }
             else
             {
@@ -230,22 +164,6 @@ public class UIKeyframeEditor extends UIElement
         {
             this.editor.restoreScroll();
         }
-    }
-
-    /** Any keyframe at all, to build an empty panel off when none has been picked yet. */
-    private Keyframe firstKeyframe()
-    {
-        for (UIKeyframeSheet sheet : this.view.getGraph().getSheets())
-        {
-            List<Keyframe> keyframes = sheet.channel.getKeyframes();
-
-            if (!keyframes.isEmpty())
-            {
-                return keyframes.get(0);
-            }
-        }
-
-        return null;
     }
 
     public void setTimelineVisible(boolean visible)
@@ -281,12 +199,6 @@ public class UIKeyframeEditor extends UIElement
             KeyframeChannel channel = clip.channels[i];
 
             this.view.addSheet(new UIKeyframeSheet(COLORS[i], false, channel, null));
-        }
-
-        /* Re-measure now the tracks exist - the height set before them had nothing to measure. */
-        if (this.propertiesBelow && this.target == null)
-        {
-            this.applyViewFlex();
         }
 
         this.pickKeyframe(null);
@@ -461,49 +373,6 @@ public class UIKeyframeEditor extends UIElement
     public boolean getAnchorLocal()
     {
         return this.editor instanceof UIAnchorKeyframeFactory factory && factory.transform.isLocal();
-    }
-
-    /**
-     * Follow the tracks as they grow.
-     *
-     * <p>Alt and the wheel change how thick the tracks are drawn, which changes how much room they
-     * need. Measured once, the sheet kept the height it had and the properties under it stayed
-     * put, so thickening the tracks only bought a scrollbar. The height is re-taken whenever the
-     * tracks report a different one.</p>
-     */
-    @Override
-    public void render(UIContext context)
-    {
-        if (this.target == null)
-        {
-            /* Toggled in settings while open: rearrange side to below (or back) without a reopen. */
-            if (this.propertiesBelowSupplier.getAsBoolean() != this.propertiesBelow)
-            {
-                this.propertiesBelow = !this.propertiesBelow;
-                this.lastContentHeight = -1;
-
-                /* Re-docking the properties panel adds/removes children on an ancestor - doing that here,
-                 * mid-render, threw a ConcurrentModificationException. Defer it to after the render pass. */
-                context.postTask(() ->
-                {
-                    if (this.editor != null)
-                    {
-                        this.editor.removeFromParent();
-                        this.editor = null;
-                    }
-
-                    this.applyViewFlex();
-                    this.pickKeyframe(null);
-                });
-            }
-            else if (this.propertiesBelow
-                && this.view.getGraph().getContentHeight() != this.lastContentHeight)
-            {
-                this.applyViewFlex();
-            }
-        }
-
-        super.render(context);
     }
 
     @Override

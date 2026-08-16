@@ -71,22 +71,9 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
         KeyframeShape keyframeShape = frame.getShape();
         IKeyframeShapeRenderer shape = KeyframeShapeRenderers.SHAPES.get(keyframeShape);
 
-        /* Every keyframe in every graph is drawn through here, so the size setting is added once
-         * and the same amount reaches all of them - the shapes keep the size they have relative
-         * to each other whatever it is set to. */
-        shape.renderKeyframe(context, builder, matrix, x, y, offset + BBSSettings.keyframeSize.get(), c);
+        shape.renderKeyframe(context, builder, matrix, x, y, offset, c);
 
         return shape;
-    }
-
-    /**
-     * The colour a channel's line is drawn in: its own colour once it holds a keyframe, or the
-     * chosen "unused" colour while it is empty - so an empty track reads as a plain line and only
-     * takes on its colour when a keyframe lands on it. The setting off, it is always its own.
-     */
-    private int channelLineColor(UIKeyframeSheet sheet)
-    {
-        return sheet.channel.isEmpty() ? BBSSettings.keyframeBaseColor(sheet.color) : sheet.color;
     }
 
     public UIKeyframeDopeSheet(UIKeyframes keyframes)
@@ -218,12 +205,6 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
         return this.dopeSheet;
     }
 
-    @Override
-    public int getContentHeight()
-    {
-        return this.dopeSheet.scrollSize;
-    }
-
     public int getDopeSheetY()
     {
         return this.keyframes.area.y + TOP_MARGIN - (int) this.dopeSheet.getScroll();
@@ -246,16 +227,12 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
      */
     public static boolean isNear(double x, double y, int mouseX, int mouseY, boolean checkOnlyX)
     {
-        /* Grown with the drawn size: a bigger keyframe that still had to be clicked in its old
-         * five pixels would look grabbable well outside where it actually is. */
-        double r = BBSSettings.keyframeGrabRadiusSq();
-
         if (checkOnlyX)
         {
-            return Math.pow(mouseX - x, 2) < r;
+            return Math.pow(mouseX - x, 2) < 25D;
         }
 
-        return Math.pow(mouseX - x, 2) + Math.pow(mouseY - y, 2) < r;
+        return Math.pow(mouseX - x, 2) + Math.pow(mouseY - y, 2) < 25D;
     }
 
     /* Sheet management */
@@ -981,7 +958,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
                 {
                     boolean hover = area.isInside(context) && context.mouseY >= y && context.mouseY < y + this.trackHeight;
                     int my = y + (int) this.trackHeight / 2;
-                    int color = Colors.setA(this.channelLineColor(sheet), hover ? 1F : 0.45F);
+                    int color = Colors.setA(sheet.color, hover ? 1F : 0.45F);
 
                     context.batcher.box(area.x, my - 1, area.ex(), my + 1, color);
                 }
@@ -1097,11 +1074,8 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
         FontRenderer font = context.batcher.getFont();
         int textColor = hover ? Colors.WHITE : Colors.setA(Colors.WHITE, 0.75F);
         int textRight = lx + w - LABEL_RIGHT_PAD;
-        int labelLeft = arrowX + LABEL_ICON_SIZE + 3;
-        String label = font.limitToWidth(group.title.get(), Math.max(0, textRight - labelLeft));
-        /* Fresh right-aligns the name against the column's right edge; the toggle puts it back to the
-         * original left-aligned position right after the arrow. */
-        int textX = BBSSettings.keyframeOriginalLabels.get() ? labelLeft : textRight - font.getWidth(label);
+        String label = font.limitToWidth(group.title.get(), Math.max(0, textRight - arrowX - LABEL_ICON_SIZE - 3));
+        int textX = textRight - font.getWidth(label);
 
         context.batcher.textShadow(label, textX, my - font.getHeight() / 2, textColor);
         context.batcher.icon(group.collapsed ? Icons.ARROW_RIGHT : Icons.ARROW_DOWN, arrowX, my - 8);
@@ -1128,7 +1102,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
 
         if (unified && this.hasPersistentChannelLines())
         {
-            int channelColor = Colors.setA(this.channelLineColor(sheet), hover ? 1F : 0.45F);
+            int channelColor = Colors.setA(sheet.color, hover ? 1F : 0.45F);
 
             context.batcher.box(this.keyframes.graphArea.ex(), my - 1, area.ex(), my + 1, channelColor);
         }
@@ -1149,8 +1123,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
         int textRight = lx + w - LABEL_RIGHT_PAD;
         int textLeft = hasIcon ? iconX + LABEL_ICON_SIZE + 3 : lx + LABEL_ICON_LEFT;
         String title = font.limitToWidth(sheet.title.get(), Math.max(0, textRight - textLeft));
-        /* Left-aligned original layout, or Fresh's right-aligned names - see renderGroupLabel. */
-        int textX = BBSSettings.keyframeOriginalLabels.get() ? textLeft : textRight - font.getWidth(title);
+        int textX = textRight - font.getWidth(title);
 
         context.batcher.textShadow(title, textX, my - font.getHeight() / 2, textColor);
 
@@ -1194,13 +1167,6 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
 
     private boolean hasPersistentChannelLines()
     {
-        /* The Fresh toggle wins over every reason to draw them: it hides the per-channel track lines
-         * outright. The same-value bars and forced-duration markers are drawn separately and stay. */
-        if (BBSSettings.keyframeHideChannelLines != null && BBSSettings.keyframeHideChannelLines.get())
-        {
-            return false;
-        }
-
         return this.isUnifiedReplayLayout() || BBSSettings.isOriginalBBSTheme() || BBSSettings.editorColoredKeyframeLines.get();
     }
 
@@ -1292,7 +1258,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
 
         if (this.hasPersistentChannelLines())
         {
-            int channelColor = Colors.setA(this.channelLineColor(sheet), hover ? 1F : 0.45F);
+            int channelColor = Colors.setA(sheet.color, hover ? 1F : 0.45F);
 
             context.batcher.fillRect(builder, matrix, area.x, my - 1, area.w, 2, channelColor, channelColor, channelColor, channelColor);
         }
@@ -1374,7 +1340,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
             int mc = c | Colors.A100;
             IKeyframeShapeRenderer shapeResult = renderShape(frame, context, builder, matrix, mx, my, 2, mc);
 
-            shapeResult.renderKeyframeBackground(context, builder, matrix, mx, my, 2 + BBSSettings.keyframeSize.get(), mc);
+            shapeResult.renderKeyframeBackground(context, builder, matrix, mx, my, 2, mc);
         }
 
         RenderSystem.enableBlend();
@@ -1439,7 +1405,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
             int mc = c | Colors.A100;
             IKeyframeShapeRenderer shapeResult = renderShape(frame, context, builder, matrix, mx, my, 2, mc);
 
-            shapeResult.renderKeyframeBackground(context, builder, matrix, mx, my, 2 + BBSSettings.keyframeSize.get(), mc);
+            shapeResult.renderKeyframeBackground(context, builder, matrix, mx, my, 2, mc);
         }
     }
 

@@ -32,7 +32,7 @@ public class StarsKeyframeShapeRenderer implements IKeyframeShapeRenderer
     }
 
     @Override
-    public void renderKeyframe(UIContext uiContext, BufferBuilder builder, Matrix4f matrix, int x, int y, float offset, int c)
+    public void renderKeyframe(UIContext uiContext, BufferBuilder builder, Matrix4f matrix, int x, int y, int offset, int c)
     {
         float fOffset = offset * 2F;
         float baseWidth = fOffset * 0.5F;
@@ -64,7 +64,7 @@ public class StarsKeyframeShapeRenderer implements IKeyframeShapeRenderer
     }
 
     @Override
-    public void renderKeyframeBackground(UIContext uiContext, BufferBuilder builder, Matrix4f matrix, int x, int y, float offset, int c)
+    public void renderKeyframeBackground(UIContext uiContext, BufferBuilder builder, Matrix4f matrix, int x, int y, int offset, int c)
     {
         float centerSize = offset * 0.2F;
         float half = centerSize * 1.25F;

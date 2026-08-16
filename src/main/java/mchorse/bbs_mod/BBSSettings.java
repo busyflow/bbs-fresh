@@ -153,44 +153,6 @@ public class BBSSettings {
 	public static ValueBoolean editorColoredKeyframeLines;
 	/** Camera keyframe clip: properties under the sheet at full width instead of a side column. */
 	public static ValueBoolean editorKeyframePropertiesBelow;
-	/**
-	 * Pixels added to the radius every keyframe is drawn at, and to the radius one can be grabbed
-	 * by. Whole pixels and the same for every shape, so they stay the size of each other and land
-	 * on the pixel grid; nothing below the stock size, which is as small as the shapes read.
-	 */
-	public static ValueFloat keyframeSize;
-	/** Draw the line of a channel with no keyframes in one chosen colour, not the channel's own. */
-	public static ValueBoolean keyframeOriginalLabels;
-	public static ValueBoolean keyframeHideChannelLines;
-	public static ValueBoolean keyframeUnusedTint;
-	public static ValueInt keyframeUnusedColor;
-
-	/**
-	 * The colour an empty channel's line is drawn in - the chosen tint when it is on, otherwise
-	 * the channel's own colour as before.
-	 */
-	public static int keyframeBaseColor(int trackColor)
-	{
-		if (keyframeUnusedTint != null && keyframeUnusedTint.get())
-		{
-			return keyframeUnusedColor.get() | Colors.A100;
-		}
-
-		return trackColor;
-	}
-	/** Height of the keyframe properties panel, wherever it is shown under the keyframes. */
-	public static ValueInt keyframePropertiesHeight;
-
-	/** Radius, in pixels, a keyframe is grabbed by before {@link #keyframeSize} widens it. */
-	public static final int KEYFRAME_GRAB_RADIUS = 5;
-
-	/** Squared grab radius, widened by the keyframe size setting. */
-	public static double keyframeGrabRadiusSq()
-	{
-		float r = KEYFRAME_GRAB_RADIUS + (keyframeSize == null ? 0F : keyframeSize.get());
-
-		return r * r;
-	}
 	public static ValueBoolean editorShowAllReplayTracks;
 	public static ValueInt editorPeriodicSave;
 	public static ValueBoolean editorHorizontalFlight;
@@ -899,11 +861,5 @@ public class BBSSettings {
 		uiFontScale = builder.getFloat("ui_font_scale", 1F, 0.5F, 4F);
 		videoExportShaders = builder.getBoolean("export_with_shaders", false);
 		editorKeyframePropertiesBelow = builder.getBoolean("keyframe_properties_below", false);
-		keyframeSize = builder.getFloat("keyframe_size", 0F, 0F, 2F);
-		keyframeOriginalLabels = builder.getBoolean("keyframe_original_labels", false);
-		keyframeHideChannelLines = builder.getBoolean("keyframe_hide_channel_lines", false);
-		keyframeUnusedTint = builder.getBoolean("keyframe_unused_tint", false);
-		keyframeUnusedColor = builder.getInt("keyframe_unused_color", 0xffaaaaaa).color();
-		keyframePropertiesHeight = builder.getInt("keyframe_properties_height", 160, 60, 500);
 	}
 }
