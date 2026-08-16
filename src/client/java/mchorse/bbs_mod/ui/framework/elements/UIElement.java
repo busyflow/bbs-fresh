@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.lwjgl.glfw.GLFW;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -1179,7 +1180,19 @@ public class UIElement implements IUIElement, IUndoElement
             return element;
         }
 
-        return this.subKeyPressed(context) || this.keybindsKeyPressed(context) || this.cantPropagate(this.keyboardPropagation, context) ? this : null;
+        boolean handled = this.subKeyPressed(context) || this.keybindsKeyPressed(context);
+
+        /* Escape is the universal close/cancel key and must reach the menu's close logic. A genuine
+         * handler above (an overlay, a context menu, an active gesture, live recording stopping the
+         * playhead) may consume it, but propagation blocking must not: a BLOCK_INSIDE panel like the
+         * replay list or the form's Pick/Edit sidebar swallows every key while the mouse hovers it,
+         * which left Escape unable to close the menu from over those panels. */
+        if (!handled && context.isPressed(GLFW.GLFW_KEY_ESCAPE))
+        {
+            return null;
+        }
+
+        return handled || this.cantPropagate(this.keyboardPropagation, context) ? this : null;
     }
 
     @Override
