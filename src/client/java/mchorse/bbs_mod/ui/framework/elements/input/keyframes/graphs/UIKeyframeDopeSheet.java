@@ -1097,8 +1097,11 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
         FontRenderer font = context.batcher.getFont();
         int textColor = hover ? Colors.WHITE : Colors.setA(Colors.WHITE, 0.75F);
         int textRight = lx + w - LABEL_RIGHT_PAD;
-        String label = font.limitToWidth(group.title.get(), Math.max(0, textRight - arrowX - LABEL_ICON_SIZE - 3));
-        int textX = textRight - font.getWidth(label);
+        int labelLeft = arrowX + LABEL_ICON_SIZE + 3;
+        String label = font.limitToWidth(group.title.get(), Math.max(0, textRight - labelLeft));
+        /* Fresh right-aligns the name against the column's right edge; the toggle puts it back to the
+         * original left-aligned position right after the arrow. */
+        int textX = BBSSettings.keyframeOriginalLabels.get() ? labelLeft : textRight - font.getWidth(label);
 
         context.batcher.textShadow(label, textX, my - font.getHeight() / 2, textColor);
         context.batcher.icon(group.collapsed ? Icons.ARROW_RIGHT : Icons.ARROW_DOWN, arrowX, my - 8);
@@ -1146,7 +1149,8 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
         int textRight = lx + w - LABEL_RIGHT_PAD;
         int textLeft = hasIcon ? iconX + LABEL_ICON_SIZE + 3 : lx + LABEL_ICON_LEFT;
         String title = font.limitToWidth(sheet.title.get(), Math.max(0, textRight - textLeft));
-        int textX = textRight - font.getWidth(title);
+        /* Left-aligned original layout, or Fresh's right-aligned names - see renderGroupLabel. */
+        int textX = BBSSettings.keyframeOriginalLabels.get() ? textLeft : textRight - font.getWidth(title);
 
         context.batcher.textShadow(title, textX, my - font.getHeight() / 2, textColor);
 

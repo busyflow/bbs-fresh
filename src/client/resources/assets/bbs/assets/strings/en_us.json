@@ -222,6 +222,8 @@
 	"bbs.config.editor.speed-comment": "Flight speed when moving the camera around",
 	"bbs.config.editor.title": "Camera editor",
 	"bbs.config.editor.tooltip": "Config options which are used within camera editor",
+	"bbs.config.fresh.keyframe_original_labels": "Original keyframe track labels",
+	"bbs.config.fresh.keyframe_original_labels-comment": "Put the keyframe track names back to the original left-aligned position (right after the icon) instead of Fresh's right-aligned layout.",
 	"bbs.config.fresh.keyframe_hide_channel_lines": "Hide keyframe track lines",
 	"bbs.config.fresh.keyframe_hide_channel_lines-comment": "Hide the horizontal line drawn along each keyframe channel. The same-value bars and the forced-duration markers stay - only the plain track lines go.",
 	"bbs.config.fresh.pause_health_regen": "Pause health regen",

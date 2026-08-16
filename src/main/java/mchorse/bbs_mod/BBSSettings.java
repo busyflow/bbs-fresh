@@ -160,6 +160,7 @@ public class BBSSettings {
 	 */
 	public static ValueFloat keyframeSize;
 	/** Draw the line of a channel with no keyframes in one chosen colour, not the channel's own. */
+	public static ValueBoolean keyframeOriginalLabels;
 	public static ValueBoolean keyframeHideChannelLines;
 	public static ValueBoolean keyframeUnusedTint;
 	public static ValueInt keyframeUnusedColor;
@@ -899,6 +900,7 @@ public class BBSSettings {
 		videoExportShaders = builder.getBoolean("export_with_shaders", false);
 		editorKeyframePropertiesBelow = builder.getBoolean("keyframe_properties_below", false);
 		keyframeSize = builder.getFloat("keyframe_size", 0F, 0F, 2F);
+		keyframeOriginalLabels = builder.getBoolean("keyframe_original_labels", false);
 		keyframeHideChannelLines = builder.getBoolean("keyframe_hide_channel_lines", false);
 		keyframeUnusedTint = builder.getBoolean("keyframe_unused_tint", false);
 		keyframeUnusedColor = builder.getInt("keyframe_unused_color", 0xffaaaaaa).color();
