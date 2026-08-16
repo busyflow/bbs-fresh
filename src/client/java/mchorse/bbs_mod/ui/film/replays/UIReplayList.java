@@ -2138,12 +2138,14 @@ public class UIReplayList extends UIList<ReplayListEntry>
         }
 
         list.background();
-        search.relative(panel.confirm).y(-5).w(1F).h(16 * 9 + 20).anchor(0F, 1F);
+        /* Fill the content area between the message (top) and the Ok button (bottom) so the list
+         * stays inside the panel and its rows are clickable, instead of floating above the Ok
+         * button where it overflowed the panel top. */
+        search.relative(panel.content).x(0.5F).y(30).w(1F, -20).h(1F, -70).anchor(0.5F, 0F);
 
-        panel.confirm.w(1F, -10);
         panel.content.add(search);
 
-        UIOverlay.addOverlay(this.getContext(), panel, 240, 300);
+        UIOverlay.addOverlay(this.getContext(), panel, 260, 340);
     }
 
     private void fromModelBlock(ModelBlockEntity modelBlock)
