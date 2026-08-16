@@ -215,17 +215,17 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
             PoseTransform poseTransform = targetPose.get(entry.getKey());
             PoseTransform value = entry.getValue();
 
+            /* Carry the overlay's fix into the merged pose so the model's pose step lerps the bone to
+             * bind by it, exactly as the base "pose" track does - a limb can now be fixed from a
+             * pose_overlay keyframe, not only the base pose. The offsets add either way; only the fix
+             * used to be dropped here, blended into the translation instead of reaching the model. */
+            poseTransform.translate.add(value.translate);
+            poseTransform.scale.add(value.scale).sub(1, 1, 1);
+            poseTransform.addRotation(value);
+
             if (!Operation.equals(value.fix, 0))
             {
-                poseTransform.translate.lerp(value.translate, value.fix);
-                poseTransform.scale.lerp(value.scale, value.fix);
-                poseTransform.lerpRotation(value, value.fix);
-            }
-            else
-            {
-                poseTransform.translate.add(value.translate);
-                poseTransform.scale.add(value.scale).sub(1, 1, 1);
-                poseTransform.addRotation(value);
+                poseTransform.fix = 1F - (1F - poseTransform.fix) * (1F - value.fix);
             }
 
             /* The flag rides along with the layer that set it, so ticking it on a pose overlay
