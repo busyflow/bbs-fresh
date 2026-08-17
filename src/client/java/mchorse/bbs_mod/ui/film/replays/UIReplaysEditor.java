@@ -188,6 +188,7 @@ public class UIReplaysEditor extends UIElement
         COLORS.put("transform_overlay", 0xaaff00);
         COLORS.put("color", Colors.INACTIVE);
         COLORS.put("shape_keys", Colors.PINK);
+        COLORS.put("crowd_behavior", Colors.GREEN);
         COLORS.put("crowd_look_target", Colors.CYAN);
         COLORS.put("crowd_jump", Colors.YELLOW);
         COLORS.put("crowd_motion_path", Colors.MAGENTA);
@@ -230,6 +231,7 @@ public class UIReplaysEditor extends UIElement
         ICONS.put("count", Icons.BUCKET);
         ICONS.put("settings", Icons.GEAR);
         ICONS.put("physics_targets", Icons.TIME);
+        ICONS.put("crowd_behavior", Icons.SHAPES);
         ICONS.put("crowd_look_target", Icons.VISIBLE);
         ICONS.put("crowd_jump", Icons.VERTICAL);
         ICONS.put("crowd_motion_path", Icons.ALL_DIRECTIONS);

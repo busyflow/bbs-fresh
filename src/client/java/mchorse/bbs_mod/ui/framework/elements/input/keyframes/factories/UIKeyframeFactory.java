@@ -73,6 +73,7 @@ public abstract class UIKeyframeFactory <T> extends UIElement
         register(KeyframeFactories.CROWD_JUMP, UICrowdJumpKeyframeFactory::new);
         register(KeyframeFactories.CROWD_WALK, UICrowdWalkKeyframeFactory::new);
         register(KeyframeFactories.CROWD_TEXTURE, UICrowdTextureKeyframeFactory::new);
+        register(KeyframeFactories.CROWD_BEHAVIOR, UICrowdBehaviorKeyframeFactory::new);
     }
 
     public static <T> void register(IKeyframeFactory<T> clazz, IUIKeyframeFactoryFactory<T> factory)

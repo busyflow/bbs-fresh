@@ -36,6 +36,7 @@ public class KeyframeFactories
     public static final CrowdJumpKeyframeFactory CROWD_JUMP = new CrowdJumpKeyframeFactory();
     public static final CrowdWalkKeyframeFactory CROWD_WALK = new CrowdWalkKeyframeFactory();
     public static final CrowdTextureKeyframeFactory CROWD_TEXTURE = new CrowdTextureKeyframeFactory();
+    public static final CrowdBehaviorKeyframeFactory CROWD_BEHAVIOR = new CrowdBehaviorKeyframeFactory();
 
     public static boolean isNumeric(IKeyframeFactory factory)
     {
@@ -75,5 +76,6 @@ public class KeyframeFactories
         FACTORIES.put("crowd_jump", CROWD_JUMP);
         FACTORIES.put("crowd_motion_path", CROWD_WALK);
         FACTORIES.put("crowd_texture", CROWD_TEXTURE);
+        FACTORIES.put("crowd_behavior", CROWD_BEHAVIOR);
     }
 }

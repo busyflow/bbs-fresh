@@ -1,9 +1,12 @@
 package mchorse.bbs_mod.film.crowds;
 
+import mchorse.bbs_mod.actions.SuperFakePlayer;
+import mchorse.bbs_mod.actions.crowd.CrowdBehavior;
 import mchorse.bbs_mod.actions.crowd.CrowdJumpEvaluator;
 import mchorse.bbs_mod.actions.crowd.CrowdLookEvaluator;
 import mchorse.bbs_mod.actions.crowd.CrowdTexture;
 import mchorse.bbs_mod.actions.crowd.CrowdWalkEvaluator;
+import mchorse.bbs_mod.actions.types.crowd.CrowdBehaviorActionClip;
 import mchorse.bbs_mod.actions.types.crowd.CrowdDrivenEntity;
 import mchorse.bbs_mod.actions.types.crowd.CrowdFormation;
 import mchorse.bbs_mod.actions.types.crowd.CrowdPaintArea;
@@ -26,7 +29,9 @@ import net.minecraft.world.chunk.ChunkStatus;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Applies a replay's crowd keyframes to the crowd it drives.
@@ -92,20 +97,95 @@ public class CrowdKeyframeRuntime
                 continue;
             }
 
-            /* The route places members outright, so a jump has to be part of that placement
-             * rather than a push applied afterwards - a push is undone by the next tick's
-             * placement, and anything that survives it does so by fighting the route. Only a
-             * crowd with no route left to fight gets a real jump. */
-            boolean walked = applyWalk(world, film, replay, crowd, members, tick);
+            /* A keyframed behaviour steers the members live (wander, run, freak out, stand), so it
+             * owns their movement, jumping and looking this tick - a walk route or a look target
+             * would only fight it. When no behaviour keyframe is active the route runs as before. */
+            boolean behaved = applyBehavior(world, film, replay, crowd, tick);
 
-            if (!walked)
+            if (!behaved)
             {
-                applyJump(world, replay, members, tick);
+                /* The route places members outright, so a jump has to be part of that placement
+                 * rather than a push applied afterwards - a push is undone by the next tick's
+                 * placement, and anything that survives it does so by fighting the route. Only a
+                 * crowd with no route left to fight gets a real jump. */
+                boolean walked = applyWalk(world, film, replay, crowd, members, tick);
+
+                if (!walked)
+                {
+                    applyJump(world, replay, members, tick);
+                }
+                applyLook(film, replay, members, tick);
             }
-            applyLook(film, replay, members, tick);
+
             applyTexture(replay, members, tick);
             applyColor(replay, members, tick);
         }
+    }
+
+    /**
+     * One reusable behaviour clip per crowd tag. The clip is stateless between ticks (its
+     * randomness is a pure function of tick and member), so reusing it just avoids reallocating
+     * a heavy value tree every tick; keying by tag keeps two crowds from sharing per-tick fields.
+     */
+    private static final Map<String, CrowdBehaviorActionClip> BEHAVIOR_CLIPS = new HashMap<>();
+
+    /**
+     * Drive the crowd by its keyframed behaviour, if it has one, and report whether it did.
+     *
+     * <p>The keyframe just names a mode and a speed; the actual per-tick stepping - wander paths,
+     * sprinting, jumping, panicking - is the behaviour clip's, configured from the keyframe and
+     * run against the members where they already stand. Switching mode at a keyframe therefore
+     * continues from the current positions rather than resetting anyone.</p>
+     */
+    private static boolean applyBehavior(ServerWorld world, Film film, Replay replay, Crowd crowd, int tick)
+    {
+        if (replay.keyframes.crowdBehavior.isEmpty())
+        {
+            return false;
+        }
+
+        CrowdBehavior behavior = replay.keyframes.crowdBehavior.interpolate(replay.getTick(tick));
+
+        if (behavior == null)
+        {
+            return false;
+        }
+
+        SuperFakePlayer player = SuperFakePlayer.get(world);
+
+        if (player == null)
+        {
+            return false;
+        }
+
+        CrowdBehavior.Kind kind = behavior.getKind();
+        CrowdBehaviorActionClip clip = BEHAVIOR_CLIPS.computeIfAbsent(crowd.crowdTag.get(), (tag) ->
+        {
+            CrowdBehaviorActionClip fresh = new CrowdBehaviorActionClip();
+
+            /* No ease-in: the move-ease blend is measured from a clip's start tick, which a
+             * keyframe-driven clip does not have. Anchor on spawn, since there is no replay to chase. */
+            fresh.moveEase.set(0);
+            fresh.target.set(CrowdBehaviorActionClip.TARGET_NONE);
+
+            return fresh;
+        });
+
+        clip.crowdTag.set(crowd.crowdTag.get());
+        clip.mode.set(kind.mode.ordinal());
+        clip.sprint.set(kind.sprint);
+        clip.speed.set(behavior.effectiveSpeed());
+
+        /* Freak out is meant to leap about, so it jumps by default when the keyframe leaves the
+         * rate at 0; the calmer modes stay grounded unless a rate is dialled in. */
+        float jumpRate = behavior.jumpRate > 0F ? behavior.jumpRate : (kind == CrowdBehavior.Kind.FREAK_OUT ? 1.5F : 0F);
+
+        clip.randomJump.set(jumpRate > 0F);
+        clip.jumpRate.set(jumpRate);
+
+        clip.applyAction(null, player, film, replay, tick);
+
+        return true;
     }
 
     /**
