@@ -167,6 +167,9 @@ public class CrowdKeyframeRuntime
              * keyframe-driven clip does not have. Anchor on spawn, since there is no replay to chase. */
             fresh.moveEase.set(0);
             fresh.target.set(CrowdBehaviorActionClip.TARGET_NONE);
+            /* No look target: members should face where they walk (body, legs and head), which
+             * moveEntity handles, rather than being turned to look at something. */
+            fresh.lookAtTarget.set(false);
 
             return fresh;
         });

@@ -963,9 +963,14 @@ public class CrowdBehaviorActionClip extends ActionClip
         {
             float yaw = (float) Math.toDegrees(Math.atan2(-safe.x, safe.z));
             float yawStep = (float) Math.min(24D, 8D + speed * 4D);
+            float turned = stepAngle(entity.getBodyYaw(), yaw, yawStep);
 
-            entity.setYaw(stepAngle(entity.getYaw(), yaw, yawStep));
-            entity.setBodyYaw(stepAngle(entity.getBodyYaw(), yaw, yawStep));
+            entity.setYaw(turned);
+            entity.setBodyYaw(turned);
+            /* Head follows travel too, so a walking member faces the way it is going rather than
+             * staring off at its last heading. A look target, when one is set, overrides this in
+             * applyLook afterwards. */
+            entity.setHeadYaw(stepAngle(entity.getHeadYaw(), yaw, yawStep));
         }
         else
         {
