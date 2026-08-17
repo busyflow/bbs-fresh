@@ -971,6 +971,14 @@ public class CrowdBehaviorActionClip extends ActionClip
              * staring off at its last heading. A look target, when one is set, overrides this in
              * applyLook afterwards. */
             entity.setHeadYaw(stepAngle(entity.getHeadYaw(), yaw, yawStep));
+
+            /* Claim the body yaw for this tick, or vanilla swings it back toward its own idea of
+             * the movement heading before the tick is out - which is what made the crowd strafe
+             * sideways (body facing one way, sliding another) instead of facing where it walks. */
+            if (entity instanceof CrowdDrivenEntity owner)
+            {
+                owner.bbs$driveBodyYaw();
+            }
         }
         else
         {
