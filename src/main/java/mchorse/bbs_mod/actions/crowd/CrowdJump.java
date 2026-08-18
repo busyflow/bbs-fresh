@@ -21,8 +21,12 @@ public class CrowdJump
      *
      * <p>Who is chosen is fixed for a given crowd rather than re-rolled, so raising this adds
      * jumpers to the ones already going instead of swapping the crowd around.</p>
+     *
+     * <p>Whole crowd by default: a keyframe dropped on the timeline is asking for a jump, so it
+     * jumps everyone rather than nobody. At 0 the channel says nothing and {@code frame} returns
+     * null, which is indistinguishable from a fresh keyframe doing nothing at all.</p>
      */
-    public float amount;
+    public float amount = 1F;
 
     /**
      * How often a jumper jumps. 0 is once. 1 is again the moment they land.

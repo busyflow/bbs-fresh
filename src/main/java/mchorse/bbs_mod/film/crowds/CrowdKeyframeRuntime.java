@@ -105,7 +105,15 @@ public class CrowdKeyframeRuntime
              * would only fight it. When no behaviour keyframe is active the route runs as before. */
             boolean behaved = applyBehavior(world, film, replay, crowd, tick);
 
-            if (!behaved)
+            if (behaved)
+            {
+                /* A behaviour steers members by velocity and leaves their vertical component alone
+                 * (see moveEntity), so a real jump survives on top of it - a wandering crowd can be
+                 * made to jump by the jump channel even though the behaviour's own hop only fires
+                 * when a member is standing still. */
+                applyJump(world, replay, members, tick);
+            }
+            else
             {
                 /* The route places members outright, so a jump has to be part of that placement
                  * rather than a push applied afterwards - a push is undone by the next tick's
