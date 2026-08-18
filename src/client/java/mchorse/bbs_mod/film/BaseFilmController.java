@@ -8,6 +8,7 @@ import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.actions.crowd.CrowdWalk;
 import mchorse.bbs_mod.client.BBSRendering;
 import mchorse.bbs_mod.camera.data.Point;
+import mchorse.bbs_mod.client.renderer.ItemUseEffects;
 import mchorse.bbs_mod.client.renderer.ModelBlockEntityRenderer;
 import mchorse.bbs_mod.client.renderer.ThirdPersonItemUse;
 import mchorse.bbs_mod.cubic.animation.ItemUsePose;
@@ -974,6 +975,10 @@ public abstract class BaseFilmController
                 this.updateEntityAndForm(entity, replayTicks);
                 this.applyReplay(replay, replayTicks, entity);
 
+                /* Vanilla's eating and drinking effects: the actor never ticks
+                 * an item use, so the crumbs and chewing come from the clip. */
+                ItemUseEffects.tick(replay, entity, replayTicks);
+
                 Map<String, Integer> actors = this.getActors();
 
                 if (actors != null)
@@ -1627,6 +1632,7 @@ public abstract class BaseFilmController
         /* A live morphed player outlives the film - without this its bow would
          * stay drawn forever after the playback stops */
         ThirdPersonItemUse.clear();
+        ItemUseEffects.clear();
     }
 
     public static enum UpdateMode
