@@ -334,7 +334,7 @@ public class ActionPlayer
         /* After the crowd is standing there and before the behaviour clips run, so a keyframed
          * walk or look is what the members end the tick with rather than something a behaviour
          * clip overwrites. */
-        CrowdKeyframeRuntime.apply(this.world, this.film, this.tick);
+        CrowdKeyframeRuntime.apply(this.world, this.film, this.tick, this.actors);
 
         /* This packet is queued after every entity spawn and crowd-members packet emitted by
          * reconciliation. The client can hold the warm-up open until it has processed them and

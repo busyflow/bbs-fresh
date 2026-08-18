@@ -1249,6 +1249,18 @@ public class CrowdBehaviorActionClip extends ActionClip
             return;
         }
 
+        /* Only where the feet actually moved this tick. The sprint flag is an intent - a member
+         * held at a stop, or one a keyframe pins in place, can still carry it - and dust kicking
+         * up under a crowd that is standing still is the giveaway that it is faked. Gate on real
+         * ground travel so the particles follow the movement, not the flag. */
+        double dx = entity.getX() - entity.prevX;
+        double dz = entity.getZ() - entity.prevZ;
+
+        if (dx * dx + dz * dz < 0.0025D)
+        {
+            return;
+        }
+
         BlockPos below = entity.getBlockPos().down();
         BlockState state = world.getBlockState(below);
 

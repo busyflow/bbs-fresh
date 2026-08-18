@@ -70,7 +70,7 @@ public class CrowdKeyframeRuntime
     private CrowdKeyframeRuntime()
     {}
 
-    public static void apply(ServerWorld world, Film film, int tick)
+    public static void apply(ServerWorld world, Film film, int tick, Map<String, LivingEntity> actors)
     {
         if (world == null || film == null || film.crowds.getList().isEmpty())
         {
@@ -125,7 +125,7 @@ public class CrowdKeyframeRuntime
                 {
                     applyJump(world, replay, members, tick);
                 }
-                applyLook(film, replay, members, tick);
+                applyLook(film, replay, members, tick, actors);
             }
 
             applyTexture(replay, members, tick);
@@ -469,9 +469,21 @@ public class CrowdKeyframeRuntime
         entity.setJumping(true);
     }
 
-    private static void applyLook(Film film, Replay replay, List<LivingEntity> members, int tick)
+    private static void applyLook(Film film, Replay replay, List<LivingEntity> members, int tick,
+        Map<String, LivingEntity> actors)
     {
-        CrowdLookEvaluator.Sample sample = CrowdLookEvaluator.sample(film, replay, tick);
+        /* Look at where the target actually is, not where its position keyframes say. An actor
+         * moved by its entity rather than by x/y/z keyframes reads back as the origin, so the whole
+         * crowd stared off at (0, 0, 0) - which looks like not looking at the target at all. The
+         * live actor's eye wins; the keyframe position is the fallback for a target with no actor. */
+        CrowdLookEvaluator.TargetResolver resolver = actors == null ? null : (target, filmTick) ->
+        {
+            LivingEntity actor = actors.get(target.getId());
+
+            return actor == null ? null : actor.getEyePos();
+        };
+
+        CrowdLookEvaluator.Sample sample = CrowdLookEvaluator.sample(film, replay, tick, resolver);
 
         if (sample == null)
         {
