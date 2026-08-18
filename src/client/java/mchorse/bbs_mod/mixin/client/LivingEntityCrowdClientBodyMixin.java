@@ -46,13 +46,28 @@ public abstract class LivingEntityCrowdClientBodyMixin extends Entity
         {
             LivingEntity self = (LivingEntity) (Object) this;
 
+            /* A moving member faces the way it is moving; a near-still one keeps the facing the
+             * server sent it. Vanilla mobs get the first for free from their client-side body
+             * control, which is why a mob crowd walks forward while a BBS-actor crowd - a plain
+             * LivingEntity with no such control - strafed sideways facing wherever it was posed.
+             * Deriving the body from movement here gives the actors the same walk-facing, while
+             * the stationary branch still lets a posed crowd face exactly where it was told. */
+            double dx = self.getX() - self.prevX;
+            double dz = self.getZ() - self.prevZ;
+            float target = dx * dx + dz * dz > 1.0E-5D
+                ? (float) Math.toDegrees(Math.atan2(-dx, dz))
+                : self.getYaw();
+
             /* Carry last tick's angle into prev rather than flattening both to the new one. The
              * renderer draws lerp(tickDelta, prevBodyYaw, bodyYaw), so a member whose prev always
              * equalled its current turned in a single frame per tick and stood still for the rest
              * of it - a crowd rotating in twenty visible steps a second, which reads as dropped
-             * frames however fast the turn is. */
+             * frames however fast the turn is. Step toward the target so a sharp change of heading
+             * turns over a few ticks instead of snapping. */
+            float step = mchorse.bbs_mod.utils.MathUtils.clamp(net.minecraft.util.math.MathHelper.wrapDegrees(target - self.bodyYaw), -18F, 18F);
+
             self.prevBodyYaw = self.bodyYaw;
-            self.bodyYaw = self.getYaw();
+            self.bodyYaw = self.bodyYaw + step;
 
             info.setReturnValue(headRotation);
         }
