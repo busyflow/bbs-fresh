@@ -17,6 +17,9 @@ import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.forms.FormUtils;
 import mchorse.bbs_mod.forms.forms.CrowdForm;
 import mchorse.bbs_mod.forms.forms.Form;
+import mchorse.bbs_mod.network.ServerNetwork;
+import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
+import net.minecraft.server.network.ServerPlayerEntity;
 import mchorse.bbs_mod.resources.Link;
 import mchorse.bbs_mod.settings.values.base.BaseValue;
 import mchorse.bbs_mod.settings.values.core.ValueColor;
@@ -489,6 +492,26 @@ public class CrowdKeyframeRuntime
     }
 
     /**
+     * Push a member's changed form to everyone watching it.
+     *
+     * <p>A member's form is sent once, when a client starts tracking it, and never again - so a
+     * texture or colour written into it on a later tick stayed on the server and the crowd on
+     * screen never changed. Re-sent only on the tick the value actually changes (the callers
+     * guard on that), so a settled crowd costs nothing; a member's form goes out once per change,
+     * not per tick.</p>
+     *
+     * <p>ponytail: whole-form resend per changed member. Fine at the scale a keyframed texture
+     * change happens (once, on the keyframe); a diff packet would matter only if this ran per tick.</p>
+     */
+    private static void resyncForm(ActorEntity actor)
+    {
+        for (ServerPlayerEntity player : PlayerLookup.tracking(actor))
+        {
+            ServerNetwork.sendEntityForm(player, actor);
+        }
+    }
+
+    /**
      * Dress the crowd.
      *
      * <p>One texture for everyone unless the keyframe asks for random, which is the only thing
@@ -545,6 +568,7 @@ public class CrowdKeyframeRuntime
             {
                 value.set(link);
                 actor.setForm(form);
+                resyncForm(actor);
             }
         }
     }
@@ -587,6 +611,7 @@ public class CrowdKeyframeRuntime
             {
                 value.set(color);
                 actor.setForm(form);
+                resyncForm(actor);
             }
         }
     }
