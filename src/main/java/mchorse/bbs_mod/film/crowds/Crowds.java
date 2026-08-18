@@ -23,6 +23,27 @@ public class Crowds extends ValueList<Crowd>
         return crowd;
     }
 
+    /**
+     * Add a crowd copied from elsewhere, its tag and every setting intact.
+     *
+     * <p>A crowd form on a replay names its crowd by tag only; the armour, the BBS-model toggle,
+     * the chosen form and the rest live here on the crowd. So when a replay is copied to a film
+     * that has no such crowd, the crowd's data comes with it and is rebuilt here - otherwise the
+     * pasted form would point at a tag nothing in the film defines.</p>
+     */
+    public Crowd addCopy(mchorse.bbs_mod.data.types.BaseType data)
+    {
+        Crowd crowd = new Crowd(String.valueOf(this.list.size()));
+
+        crowd.fromData(data);
+
+        this.preNotify();
+        this.add(crowd);
+        this.postNotify();
+
+        return crowd;
+    }
+
     public void remove(Crowd crowd)
     {
         int index = CollectionUtils.getIndex(this.list, crowd);
