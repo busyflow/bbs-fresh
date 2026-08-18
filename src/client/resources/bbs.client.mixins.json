@@ -18,6 +18,8 @@
         "WorldRendererMixin",
         "LanguageManagerMixin",
         "LivingEntityMixin",
+        "LivingEntityFilmUseMixin",
+        "ClientPlayerEntityFilmUseMixin",
         "LivingEntityUpdateMixin",
         "LivingEntityCrowdClientBodyMixin",
         "LivingEntityRendererMixin",

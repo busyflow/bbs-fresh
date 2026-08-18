@@ -9,6 +9,7 @@ import mchorse.bbs_mod.actions.crowd.CrowdWalk;
 import mchorse.bbs_mod.client.BBSRendering;
 import mchorse.bbs_mod.camera.data.Point;
 import mchorse.bbs_mod.client.renderer.ItemUseEffects;
+import mchorse.bbs_mod.client.renderer.LivePlayerItemUse;
 import mchorse.bbs_mod.client.renderer.ModelBlockEntityRenderer;
 import mchorse.bbs_mod.client.renderer.ThirdPersonItemUse;
 import mchorse.bbs_mod.cubic.animation.ItemUsePose;
@@ -976,7 +977,10 @@ public abstract class BaseFilmController
                 this.applyReplay(replay, replayTicks, entity);
 
                 /* Vanilla's eating and drinking effects: the actor never ticks
-                 * an item use, so the crumbs and chewing come from the clip. */
+                 * an item use, so the crumbs and chewing come from the clip.
+                 * The take the real player acts is no exception - the film's use
+                 * is only answered while drawing, so vanilla's own tick spits
+                 * nothing for them either (see LivePlayerItemUse). */
                 ItemUseEffects.tick(replay, entity, replayTicks);
 
                 Map<String, Integer> actors = this.getActors();
@@ -1171,6 +1175,10 @@ public abstract class BaseFilmController
                     }
                     else if (anEntity instanceof PlayerEntity player)
                     {
+                        /* The first person hand is vanilla's, and it asks the
+                         * live player what it is using - the film has to say */
+                        LivePlayerItemUse.apply(player, use, offUse);
+
                         Morph morph = Morph.getMorph(player);
 
                         if (morph != null)
@@ -1633,6 +1641,7 @@ public abstract class BaseFilmController
          * stay drawn forever after the playback stops */
         ThirdPersonItemUse.clear();
         ItemUseEffects.clear();
+        LivePlayerItemUse.clear();
     }
 
     public static enum UpdateMode
