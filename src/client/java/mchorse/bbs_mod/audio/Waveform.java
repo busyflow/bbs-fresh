@@ -172,7 +172,12 @@ public class Waveform
 
                 byte a = data.data[offset + j];
                 byte b = data.data[offset + j + 1];
-                float sample = a + (b << 8);
+                /* 16-bit little-endian: low byte is unsigned, high byte carries the sign. Adding
+                 * the raw signed low byte (a) instead of (a & 0xFF) subtracts 256 from every
+                 * sample whose low byte tops 127 - half of them - so the shape drawn was noise
+                 * that did not match the sound. Mask the low byte and let the signed high byte set
+                 * the sign. */
+                float sample = (a & 0xFF) + (b << 8);
 
                 maximum = Math.max(maximum, Math.abs(sample));
                 average += Math.abs(sample);
