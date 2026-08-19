@@ -51,7 +51,7 @@ public class CrowdReconciler
 
             seen.add(id);
 
-            boolean shouldExist = crowd.existsAt(tick);
+            boolean shouldExist = crowd.existsAt(tick) && this.driven(film, crowd);
             Integer live = this.spawned.get(id);
 
             if (!shouldExist)
@@ -100,6 +100,39 @@ public class CrowdReconciler
                 return true;
             });
         }
+    }
+
+    /**
+     * Whether a crowd should stand, given the replays that drive it.
+     *
+     * <p>A crowd form on a replay is how a crowd is shown and animated; disabling that replay is
+     * the user asking for the crowd to be gone, not just unanimated - a hundred thousand members
+     * still rendered behind a disabled form is exactly the frame rate they turned it off to get
+     * back. So a driven crowd stands only while at least one of its forms is enabled.</p>
+     *
+     * <p>A crowd no form points at is left to its own {@code enabled} flag - it was never shown
+     * through a form, so there is no form-disable to honour and hiding it would make it
+     * unshowable.</p>
+     */
+    private boolean driven(Film film, Crowd crowd)
+    {
+        String tag = crowd.crowdTag.get();
+        boolean hasForm = false;
+
+        for (Replay replay : film.replays.getList())
+        {
+            if (replay.form.get() instanceof mchorse.bbs_mod.forms.forms.CrowdForm form && form.crowd.get().equals(tag))
+            {
+                hasForm = true;
+
+                if (replay.enabled.get())
+                {
+                    return true;
+                }
+            }
+        }
+
+        return !hasForm;
     }
 
     private void despawn(ServerWorld world, Film film, Crowd crowd, String id)
